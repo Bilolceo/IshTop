@@ -13,8 +13,8 @@ python-multipart==0.0.6    # Required for file uploads
 # -----------------------------------------------------------------------------
 # Database
 # -----------------------------------------------------------------------------
-sqlalchemy==2.0.23        # ORM (Object Relational Mapper) for database operations
-psycopg2-binary==2.9.9    # PostgreSQL adapter for Python
+sqlalchemy>=2.0.35         # ORM (Object Relational Mapper) for database operations
+psycopg2-binary>=2.9.10   # PostgreSQL adapter for Python
 alembic==1.12.1           # Database migration tool
 
 # -----------------------------------------------------------------------------
@@ -50,7 +50,7 @@ aiofiles==23.2.1          # Async file operations
 # -----------------------------------------------------------------------------
 # Validation & Utilities
 # -----------------------------------------------------------------------------
-pydantic==2.5.2           # Data validation using Python type hints
+pydantic>=2.10.0          # Data validation using Python type hints
 pydantic-settings==2.1.0  # Settings management with Pydantic
 email-validator==2.1.0.post1  # Email validation
 
