@@ -1,0 +1,31 @@
+# REDIS PRODUCTION CONFIGURATION GUIDE
+
+## For Development/Testing (Optional):
+# REDIS_ENABLED=false
+# REDIS_URL=redis://localhost:6379/0
+
+## For Production - Choose One Provider:
+
+### 1. Redis Cloud (Easiest):
+# Visit: https://redis.com/cloud/
+# Free tier: 30MB, perfect for small production
+# REDIS_URL=redis://username:password@host:port/db_number
+
+### 2. Railway Redis (If using Railway):
+# In Railway dashboard: Add Redis plugin
+# REDIS_URL=redis://default:password@containers-us-west-1.railway.app:port
+
+### 3. Render Redis (If using Render):
+# In Render dashboard: Create Redis instance
+# REDIS_URL=redis://username:password@host:port
+
+### 4. AWS ElastiCache (Enterprise):
+# REDIS_URL=redis://your-cluster.region.cache.amazonaws.com:6379
+
+## Current Setting (Development):
+REDIS_ENABLED=false
+REDIS_URL=redis://localhost:6379/0
+
+## Production Example:
+# REDIS_ENABLED=true
+# REDIS_URL=redis://your-redis-instance-url-here

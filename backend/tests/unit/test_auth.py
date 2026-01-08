@@ -16,10 +16,9 @@ from app.core.security import (
     verify_password,
     create_access_token,
     create_refresh_token,
-    decode_token,
-    validate_password_strength
+    verify_token
 )
-from app.core.config import settings
+from app.config import settings
 
 
 # =============================================================================

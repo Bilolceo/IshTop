@@ -55,7 +55,7 @@ def seed_users(db):
         full_name="System Admin",
         phone="+998901111111",
         role=UserRole.ADMIN,
-        is_active=True,
+        is_active_account=True,
         is_verified=True,
     )
     admin.set_password("Admin123!")
@@ -70,7 +70,7 @@ def seed_users(db):
         role=UserRole.COMPANY,
         company_name="EPAM Systems",
         company_website="https://epam.com",
-        is_active=True,
+        is_active_account=True,
         is_verified=True,
     )
     company.set_password("Company123!")
@@ -83,7 +83,7 @@ def seed_users(db):
         full_name="John Doe",
         phone="+998903333333",
         role=UserRole.STUDENT,
-        is_active=True,
+        is_active_account=True,
         is_verified=True,
     )
     student1.set_password("Student123!")
@@ -96,7 +96,7 @@ def seed_users(db):
         full_name="Jane Smith",
         phone="+998904444444",
         role=UserRole.STUDENT,
-        is_active=True,
+        is_active_account=True,
         is_verified=True,
     )
     student2.set_password("Student123!")
@@ -116,13 +116,8 @@ def seed_resumes(db, students):
     resumes = []
     
     # Resume 1
-    resume1 = Resume(
-        id=uuid4(),
-        user_id=students[0].id,
-        title="Senior Python Developer",
-        template="modern",
-        status="published",
-        personal_info={
+    resume1_content = {
+        "personal_info": {
             "full_name": students[0].full_name,
             "email": students[0].email,
             "phone": students[0].phone,
@@ -130,8 +125,8 @@ def seed_resumes(db, students):
             "linkedin": "https://linkedin.com/in/johndoe",
             "github": "https://github.com/johndoe",
         },
-        summary="Experienced Python developer with 5+ years in backend development, API design, and cloud technologies.",
-        experience=[
+        "summary": "Experienced Python developer with 5+ years in backend development, API design, and cloud technologies.",
+        "experience": [
             {
                 "company": "TechCorp",
                 "position": "Senior Backend Developer",
@@ -151,7 +146,7 @@ def seed_resumes(db, students):
                 "description": "Developed microservices, worked with Django and FastAPI",
             },
         ],
-        education=[
+        "education": [
             {
                 "institution": "TUIT",
                 "degree": "Bachelor",
@@ -162,33 +157,35 @@ def seed_resumes(db, students):
                 "gpa": "4.5",
             }
         ],
-        skills=["Python", "FastAPI", "Django", "PostgreSQL", "Redis", "Docker", "AWS", "Git"],
-        languages=[
+        "skills": ["Python", "FastAPI", "Django", "PostgreSQL", "Redis", "Docker", "AWS", "Git"],
+        "languages": [
             {"language": "Uzbek", "level": "Native"},
             {"language": "English", "level": "Professional"},
             {"language": "Russian", "level": "Fluent"},
         ],
+    }
+
+    resume1 = Resume(
+        status="published",
+        id=uuid4(),
+        user_id=students[0].id,
+        title="Senior Python Developer",
+        content=resume1_content,
         ats_score=92,
-        views_count=45,
-        downloads_count=12,
+        view_count=45,
     )
     resumes.append(resume1)
     
     # Resume 2
-    resume2 = Resume(
-        id=uuid4(),
-        user_id=students[1].id,
-        title="Full Stack Developer",
-        template="professional",
-        status="published",
-        personal_info={
+    resume2_content = {
+        "personal_info": {
             "full_name": students[1].full_name,
             "email": students[1].email,
             "phone": students[1].phone,
             "location": "Tashkent, Uzbekistan",
         },
-        summary="Full-stack developer passionate about creating user-friendly web applications.",
-        experience=[
+        "summary": "Full-stack developer passionate about creating user-friendly web applications.",
+        "experience": [
             {
                 "company": "WebStudio",
                 "position": "Full Stack Developer",
@@ -199,7 +196,7 @@ def seed_resumes(db, students):
                 "description": "Building modern web apps with React and Node.js",
             }
         ],
-        education=[
+        "education": [
             {
                 "institution": "TUIT",
                 "degree": "Bachelor",
@@ -210,14 +207,21 @@ def seed_resumes(db, students):
                 "gpa": "4.2",
             }
         ],
-        skills=["JavaScript", "TypeScript", "React", "Node.js", "Next.js", "MongoDB", "Docker"],
-        languages=[
+        "skills": ["JavaScript", "TypeScript", "React", "Node.js", "Next.js", "MongoDB", "Docker"],
+        "languages": [
             {"language": "Uzbek", "level": "Native"},
             {"language": "English", "level": "Intermediate"},
         ],
+    }
+
+    resume2 = Resume(
+        status="published",
+        id=uuid4(),
+        user_id=students[1].id,
+        title="Full Stack Developer",
+        content=resume2_content,
         ats_score=85,
-        views_count=32,
-        downloads_count=8,
+        view_count=32,
     )
     resumes.append(resume2)
     
@@ -236,6 +240,7 @@ def seed_jobs(db, company):
     
     # Job 1
     job1 = Job(
+        status="active",
         id=uuid4(),
         company_id=company.id,
         title="Senior Backend Developer",
@@ -254,14 +259,13 @@ def seed_jobs(db, company):
         ],
         salary_min=3000,
         salary_max=5000,
-        currency="USD",
+        salary_currency="USD",
         location="Tashkent, Uzbekistan",
-        location_type="hybrid",
-        employment_type="full_time",
+        is_remote_allowed=True,
+        job_type="full_time",
         experience_level="senior",
-        skills_required=["Python", "FastAPI", "PostgreSQL", "Docker", "Redis"],
+        # skills are already in requirements array above
         benefits=["Health insurance", "Remote work", "Professional development", "Flexible schedule"],
-        status="published",
         views_count=156,
         applications_count=12,
         expires_at=datetime.now(timezone.utc) + timedelta(days=30),
@@ -270,6 +274,7 @@ def seed_jobs(db, company):
     
     # Job 2
     job2 = Job(
+        status="active",
         id=uuid4(),
         company_id=company.id,
         title="Full Stack Developer",
@@ -288,14 +293,12 @@ def seed_jobs(db, company):
         ],
         salary_min=2000,
         salary_max=3500,
-        currency="USD",
+        salary_currency="USD",
         location="Tashkent, Uzbekistan",
-        location_type="office",
-        employment_type="full_time",
+        is_remote_allowed=False,
+        job_type="full_time",
         experience_level="mid",
-        skills_required=["JavaScript", "React", "Node.js", "MongoDB", "Git"],
         benefits=["Health insurance", "Team lunches", "Learning budget"],
-        status="published",
         views_count=203,
         applications_count=18,
         expires_at=datetime.now(timezone.utc) + timedelta(days=25),
@@ -304,6 +307,7 @@ def seed_jobs(db, company):
     
     # Job 3
     job3 = Job(
+        status="active",
         id=uuid4(),
         company_id=company.id,
         title="DevOps Engineer",
@@ -322,14 +326,12 @@ def seed_jobs(db, company):
         ],
         salary_min=2500,
         salary_max=4000,
-        currency="USD",
+        salary_currency="USD",
         location="Remote",
-        location_type="remote",
-        employment_type="full_time",
+        is_remote_allowed=True,
+        job_type="full_time",
         experience_level="mid",
-        skills_required=["Docker", "Kubernetes", "AWS", "Terraform", "Python"],
         benefits=["Remote work", "Flexible hours", "Equipment provided"],
-        status="published",
         views_count=89,
         applications_count=7,
         expires_at=datetime.now(timezone.utc) + timedelta(days=45),
@@ -358,14 +360,7 @@ def seed_applications(db, jobs, students, resumes):
         status="interview",
         cover_letter="I am very interested in this position and believe my experience aligns well with your requirements.",
         match_score=92,
-        match_analysis={
-            "matching_skills": ["Python", "FastAPI", "PostgreSQL", "Docker"],
-            "missing_skills": ["Redis"],
-            "experience_match": "Strong match",
-        },
-        interview_date=datetime.now(timezone.utc) + timedelta(days=3),
-        interview_type="video",
-        interview_link="https://meet.google.com/abc-defg-hij",
+        interview_at=datetime.now(timezone.utc) + timedelta(days=3),
     )
     applications.append(app1)
     
@@ -390,11 +385,6 @@ def seed_applications(db, jobs, students, resumes):
         status="reviewing",
         cover_letter="My skills in React and Node.js make me a great fit for this role.",
         match_score=88,
-        match_analysis={
-            "matching_skills": ["JavaScript", "React", "Node.js", "MongoDB"],
-            "missing_skills": [],
-            "experience_match": "Excellent match",
-        },
     )
     applications.append(app3)
     

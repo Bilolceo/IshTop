@@ -115,6 +115,9 @@ class Settings(BaseSettings):
     
     # JWT algorithm (HS256 is standard and secure)
     ALGORITHM: str = "HS256"
+
+    # JWT secret key for signing tokens
+    JWT_SECRET_KEY: str = ""
     
     # Access token lifetime in minutes (short for security)
     ACCESS_TOKEN_EXPIRE_MINUTES: int = 30
@@ -131,6 +134,9 @@ class Settings(BaseSettings):
     
     # Version number
     APP_VERSION: str = "1.0.0"
+
+    # Environment (development, staging, production)
+    ENVIRONMENT: str = "development"
     
     # Debug mode
     # True: Shows detailed errors, enables /docs endpoint
@@ -207,6 +213,20 @@ class Settings(BaseSettings):
     # Add your frontend URL for production
     # Can be comma-separated string or JSON list
     CORS_ORIGINS: str = "http://localhost:3000,http://127.0.0.1:3000"
+
+    # =========================================================================
+    # 🔒 SSL/HTTPS SETTINGS (PRODUCTION)
+    # =========================================================================
+
+    # SSL certificate settings for HTTPS
+    SSL_CERTFILE: str = ""  # Path to SSL certificate file
+    SSL_KEYFILE: str = ""   # Path to SSL private key file
+    SSL_ENABLED: bool = False  # Enable HTTPS in production
+
+    # HTTPS redirect settings
+    FORCE_HTTPS: bool = False  # Redirect HTTP to HTTPS
+    HTTPS_PORT: int = 443      # HTTPS port (usually 443)
+    HTTP_PORT: int = 80        # HTTP port for redirects (usually 80)
     
     @property
     def cors_origins_list(self) -> List[str]:
@@ -220,7 +240,7 @@ class Settings(BaseSettings):
     # =========================================================================
     
     model_config = SettingsConfigDict(
-        env_file=".env",
+        env_file=[".env.production", ".env"],  # Try production first, then development
         env_file_encoding="utf-8",
         case_sensitive=True,
         extra="ignore",

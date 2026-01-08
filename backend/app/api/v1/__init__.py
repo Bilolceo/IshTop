@@ -7,8 +7,7 @@ All v1 API routes are registered here.
 """
 
 from fastapi import APIRouter
-from app.api.v1.routes import auth, users, resumes, jobs, applications, admin, payments
-from app.routers import ai  # Import AI router
+from app.api.v1.routes import auth, users, resumes, jobs, applications, admin, payments, ai_powered, analytics
 
 # Create main v1 router
 api_router = APIRouter()
@@ -44,11 +43,11 @@ api_router.include_router(
     tags=["Applications"]
 )
 
-# AI Router - all AI-powered features
+# AI-Powered Features Router - Revolutionary career services
 api_router.include_router(
-    ai.router,
-    prefix="/ai",
-    tags=["AI Features"]
+    ai_powered.router,
+    prefix="",
+    tags=["AI-Powered"]
 )
 
 # Admin Router - Admin dashboard and management
@@ -63,6 +62,13 @@ api_router.include_router(
     payments.router,
     prefix="/payments",
     tags=["Payments"]
+)
+
+# Analytics Router - Enterprise analytics and business intelligence
+api_router.include_router(
+    analytics.router,
+    prefix="",
+    tags=["Analytics"]
 )
 
 

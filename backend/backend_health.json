@@ -1,0 +1,19 @@
+{
+  "timestamp": "2026-01-08T11:37:19.324162+00:00",
+  "checks": {
+    "python": "PASS",
+    "dep_fastapi": "PASS",
+    "dep_sqlalchemy": "PASS",
+    "dep_pydantic": "PASS",
+    "dep_uvicorn": "PASS",
+    "config_SECRET_KEY": "PASS",
+    "config_DATABASE_URL": "PASS",
+    "database": "PASS",
+    "ai_ats_optimizer": "PASS",
+    "ai_interview_coach": "PASS",
+    "ai_career_analytics": "PASS",
+    "ai_professional_networking": "PASS",
+    "fastapi_app": "PASS"
+  },
+  "status": "HEALTHY"
+}

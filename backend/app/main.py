@@ -32,13 +32,16 @@ VERSION: 1.0.0
 
 import logging
 from contextlib import asynccontextmanager
+from datetime import datetime, timezone
 from typing import Any, Dict
 
 from fastapi import FastAPI, Request, status
 from fastapi.middleware.cors import CORSMiddleware
-from fastapi.responses import JSONResponse
+from fastapi.middleware.httpsredirect import HTTPSRedirectMiddleware
+from fastapi.responses import JSONResponse, RedirectResponse
 from fastapi.exceptions import RequestValidationError
 from sqlalchemy.exc import SQLAlchemyError
+import ssl
 
 # Local imports
 from app.config import settings, print_config_summary
@@ -49,11 +52,56 @@ from app.database import check_database_connection
 # LOGGING CONFIGURATION
 # =============================================================================
 
-logging.basicConfig(
-    level=logging.DEBUG if settings.DEBUG else logging.INFO,
-    format="%(asctime)s | %(levelname)-8s | %(name)s | %(message)s",
-    datefmt="%Y-%m-%d %H:%M:%S"
-)
+# Configure structured logging for production
+if settings.DEBUG:
+    # Development logging
+    logging.basicConfig(
+        level=logging.DEBUG,
+        format="%(asctime)s | %(levelname)-8s | %(name)s | %(message)s",
+        datefmt="%Y-%m-%d %H:%M:%S"
+    )
+else:
+    # Production structured logging
+    import json
+    import sys
+    from datetime import datetime
+
+    class StructuredFormatter(logging.Formatter):
+        def format(self, record):
+            log_entry = {
+                "timestamp": datetime.utcnow().isoformat(),
+                "level": record.levelname,
+                "logger": record.name,
+                "message": record.getMessage(),
+            }
+
+            # Add extra fields if they exist
+            if hasattr(record, 'user_id'):
+                log_entry['user_id'] = record.user_id
+            if hasattr(record, 'request_id'):
+                log_entry['request_id'] = record.request_id
+            if hasattr(record, 'endpoint'):
+                log_entry['endpoint'] = record.endpoint
+
+            # Add exception info if present
+            if record.exc_info:
+                log_entry['exception'] = self.formatException(record.exc_info)
+
+            return json.dumps(log_entry)
+
+    # Configure root logger
+    root_logger = logging.getLogger()
+    root_logger.setLevel(logging.INFO)
+
+    # Console handler for production
+    console_handler = logging.StreamHandler(sys.stdout)
+    console_handler.setFormatter(StructuredFormatter())
+    root_logger.addHandler(console_handler)
+
+    # Suppress noisy third-party logs in production
+    logging.getLogger('sqlalchemy.engine').setLevel(logging.WARNING)
+    logging.getLogger('httpx').setLevel(logging.WARNING)
+    logging.getLogger('openai').setLevel(logging.WARNING)
 
 logger = logging.getLogger(__name__)
 
@@ -162,6 +210,13 @@ def create_application() -> FastAPI:
         allow_methods=["*"],
         allow_headers=["*"],
     )
+
+    # =========================================================================
+    # HTTPS REDIRECT MIDDLEWARE (PRODUCTION)
+    # =========================================================================
+
+    if settings.FORCE_HTTPS and not settings.DEBUG:
+        application.add_middleware(HTTPSRedirectMiddleware)
     
     # =========================================================================
     # INCLUDE ROUTERS
@@ -321,20 +376,92 @@ async def root():
 )
 async def health_check():
     """
-    Health check endpoint.
+    Health check endpoint for load balancers and monitoring systems.
     
     Returns:
         - status: "healthy" or "unhealthy"
         - database: connection status
         - version: app version
+        - timestamp: current UTC timestamp
+        - environment: current environment
     """
+    import time
+    from app.database import get_db_info
+
     db_healthy = check_database_connection()
+    db_info = get_db_info() if db_healthy else {}
     
-    return {
+    health_status = {
         "status": "healthy" if db_healthy else "unhealthy",
         "database": "connected" if db_healthy else "disconnected",
         "version": settings.APP_VERSION,
+        "timestamp": datetime.now(timezone.utc).isoformat(),
+        "environment": getattr(settings, 'ENVIRONMENT', 'unknown'),
     }
+
+    # Add database info if available and healthy
+    if db_healthy and db_info:
+        health_status["database_info"] = {
+            "pool_size": db_info.get("pool_size"),
+            "checked_out": db_info.get("checked_out"),
+            "overflow": db_info.get("overflow"),
+        }
+
+    return health_status
+
+
+@app.get(
+    "/health/detailed",
+    tags=["Health"],
+    summary="Detailed health check",
+    response_model=Dict[str, Any]
+)
+async def detailed_health_check():
+    """
+    Detailed health check with comprehensive system information.
+
+    Returns detailed health metrics for monitoring systems.
+    """
+    import time
+    import psutil
+    from app.database import get_db_info
+
+    start_time = time.time()
+    db_healthy = check_database_connection()
+    db_check_time = time.time() - start_time
+
+    # Get system metrics
+    system_info = {
+        "cpu_percent": psutil.cpu_percent(interval=0.1),
+        "memory": {
+            "total": psutil.virtual_memory().total,
+            "available": psutil.virtual_memory().available,
+            "percent": psutil.virtual_memory().percent,
+        },
+        "disk": {
+            "total": psutil.disk_usage('/').total,
+            "free": psutil.disk_usage('/').free,
+            "percent": psutil.disk_usage('/').percent,
+        }
+    }
+
+    health_status = {
+        "status": "healthy" if db_healthy else "unhealthy",
+        "timestamp": datetime.now(timezone.utc).isoformat(),
+        "checks": {
+            "database": {
+                "status": "healthy" if db_healthy else "unhealthy",
+                "response_time_ms": round(db_check_time * 1000, 2),
+                "info": get_db_info() if db_healthy else {},
+            }
+        },
+        "system": system_info,
+        "version": settings.APP_VERSION,
+        "environment": getattr(settings, 'ENVIRONMENT', 'unknown'),
+        "uptime": time.time() - psutil.boot_time(),
+    }
+
+    return health_status
 
 
 @app.get(
@@ -361,16 +488,59 @@ async def api_info():
 
 
 # =============================================================================
+# HTTPS REDIRECT ENDPOINT (for load balancers)
+# =============================================================================
+
+@app.get("/.well-known/health-check")
+async def health_check_well_known():
+    """
+    Well-known health check endpoint for load balancers and monitoring.
+    """
+    return await health_check()
+
+
+# =============================================================================
+# SSL CONTEXT HELPER
+# =============================================================================
+
+def create_ssl_context():
+    """
+    Create SSL context for HTTPS server.
+
+    Returns SSL context if SSL is enabled and certs are available.
+    """
+    if not settings.SSL_ENABLED or not settings.SSL_CERTFILE or not settings.SSL_KEYFILE:
+        return None
+
+    try:
+        ssl_context = ssl.create_default_context(ssl.Purpose.CLIENT_AUTH)
+        ssl_context.load_cert_chain(
+            certfile=settings.SSL_CERTFILE,
+            keyfile=settings.SSL_KEYFILE
+        )
+        logger.info(f"✅ SSL context created with cert: {settings.SSL_CERTFILE}")
+        return ssl_context
+    except Exception as e:
+        logger.error(f"❌ Failed to create SSL context: {e}")
+        return None
+
+
+# =============================================================================
 # RUN DIRECTLY (for development)
 # =============================================================================
 
 if __name__ == "__main__":
     import uvicorn
+
+    # SSL configuration
+    ssl_context = create_ssl_context()
     
     uvicorn.run(
         "app.main:app",
         host="0.0.0.0",
-        port=8000,
-        reload=True,
-        log_level="debug" if settings.DEBUG else "info"
+        port=settings.HTTPS_PORT if ssl_context else 8000,
+        reload=settings.DEBUG,
+        log_level="debug" if settings.DEBUG else "info",
+        ssl_certfile=settings.SSL_CERTFILE if ssl_context else None,
+        ssl_keyfile=settings.SSL_KEYFILE if ssl_context else None,
     )

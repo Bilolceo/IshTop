@@ -53,11 +53,23 @@ aiofiles==23.2.1          # Async file operations
 pydantic>=2.10.0          # Data validation using Python type hints
 pydantic-settings==2.1.0  # Settings management with Pydantic
 email-validator==2.1.0.post1  # Email validation
+psutil==5.9.6            # System monitoring for health checks
 
 # -----------------------------------------------------------------------------
 # Redis (Rate limiting, token blacklist, OAuth state)
 # -----------------------------------------------------------------------------
 redis==5.0.1               # Redis client for production features
+
+# -----------------------------------------------------------------------------
+# Email (SMTP)
+# -----------------------------------------------------------------------------
+aiosmtplib==3.0.1          # Async SMTP client for email sending
+jinja2==3.1.4              # Template engine for HTML emails
+
+# -----------------------------------------------------------------------------
+# Google AI (Gemini)
+# -----------------------------------------------------------------------------
+google-generativeai==0.8.3  # Google Gemini AI for advanced AI features
 
 # -----------------------------------------------------------------------------
 # Payments (Stripe)
@@ -70,4 +82,4 @@ stripe==12.5.1             # Stripe payment integration
 pytest==7.4.3             # Testing framework
 pytest-asyncio==0.21.1    # Async test support
 pytest-cov==4.1.0         # Coverage reporting for tests
-httpx==0.25.2             # HTTP client for testing
+# httpx==0.25.2          # HTTP client for testing (already defined above)
