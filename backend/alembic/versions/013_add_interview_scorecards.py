@@ -11,6 +11,7 @@ Create Date: 2026-05-12
 from alembic import op
 import sqlalchemy as sa
 from sqlalchemy import inspect
+from app.models.types import GUID
 
 
 revision = "013_add_interview_scorecards"
@@ -27,9 +28,9 @@ def upgrade() -> None:
 
     op.create_table(
         "interview_scorecards",
-        sa.Column("id", sa.String(length=36), primary_key=True),
-        sa.Column("application_id", sa.String(length=36), sa.ForeignKey("applications.id", ondelete="CASCADE"), nullable=False, index=True),
-        sa.Column("evaluator_id", sa.String(length=36), sa.ForeignKey("users.id", ondelete="SET NULL"), nullable=True),
+        sa.Column("id", GUID(), primary_key=True),
+        sa.Column("application_id", GUID(), sa.ForeignKey("applications.id", ondelete="CASCADE"), nullable=False, index=True),
+        sa.Column("evaluator_id", GUID(), sa.ForeignKey("users.id", ondelete="SET NULL"), nullable=True),
 
         # 5 criteria, each scored 1-5
         sa.Column("technical_score", sa.Integer, nullable=True),
