@@ -16,6 +16,7 @@
 
 import { useState, useEffect } from "react";
 import Link from "next/link";
+import Image from "next/image";
 import { motion, useScroll, useTransform } from "framer-motion";
 import {
   Sparkles,
@@ -202,7 +203,7 @@ const testimonials = [
     company: "EPAM Systems",
     image: null,
     quote:
-      "CareerUZ completely transformed my job search. The AI resume generator helped me create a professional resume that got me 5x more interviews!",
+      "IshTop completely transformed my job search. The AI resume generator helped me create a professional resume that got me 5x more interviews!",
     rating: 5,
   },
   {
@@ -220,7 +221,7 @@ const testimonials = [
     company: "Click.uz",
     image: null,
     quote:
-      "As a fresh graduate, I didn't know how to write a proper resume. CareerUZ created a stunning resume that helped me land my first tech job.",
+      "As a fresh graduate, I didn't know how to write a proper resume. IshTop created a stunning resume that helped me land my first tech job.",
     rating: 5,
   },
   {
@@ -342,10 +343,15 @@ export default function LandingPage() {
           <div className="flex h-16 items-center justify-between">
             {/* Logo */}
             <Link href="/" className="flex items-center gap-2">
-              <div className="flex h-9 w-9 items-center justify-center rounded-xl bg-gradient-to-br from-purple-500 to-indigo-600 shadow-lg shadow-purple-500/25">
-                <Sparkles className="h-5 w-5 text-white" />
-              </div>
-              <span className="font-display text-xl font-bold text-surface-900 dark:text-surface-100">CareerUZ</span>
+              <Image
+                src="/logo-mark.png"
+                alt="IshTop"
+                width={36}
+                height={36}
+                priority
+                className="h-9 w-9 rounded-xl"
+              />
+              <span className="font-display text-xl font-bold text-surface-900 dark:text-surface-100">IshTop</span>
             </Link>
 
             {/* Nav Links */}
@@ -531,7 +537,7 @@ export default function LandingPage() {
                   <div className="h-3 w-3 rounded-full bg-green-400" />
                 </div>
                 <div className="ml-4 flex-1 rounded-lg bg-white/10 px-3 py-1 text-xs text-white/70">
-                  careeruz.uz/dashboard
+                  ishtop.uz/dashboard
                 </div>
               </div>
 
@@ -1123,11 +1129,15 @@ export default function LandingPage() {
             {/* Brand */}
             <div>
               <Link href="/" className="flex items-center gap-2">
-                <div className="flex h-9 w-9 items-center justify-center rounded-xl bg-gradient-to-br from-purple-500 to-indigo-600">
-                  <Sparkles className="h-5 w-5 text-white" />
-                </div>
+                <Image
+                  src="/logo-mark.png"
+                  alt="IshTop"
+                  width={36}
+                  height={36}
+                  className="h-9 w-9 rounded-xl"
+                />
                 <span className="font-display text-xl font-bold text-surface-900 dark:text-surface-100">
-                  CareerUZ
+                  IshTop
                 </span>
               </Link>
               <p className="mt-4 text-sm text-surface-500 dark:text-surface-400">
@@ -1215,7 +1225,7 @@ export default function LandingPage() {
           {/* Bottom */}
           <div className="mt-12 flex flex-col items-center justify-between gap-4 border-t border-surface-200 pt-8 md:flex-row dark:border-surface-700">
             <p className="text-sm text-surface-500 dark:text-surface-400">
-              © {new Date().getFullYear()} CareerUZ. {t("landing.footer.rights")}
+              © {new Date().getFullYear()} IshTop. {t("landing.footer.rights")}
             </p>
             <div className="flex gap-4">
               <Link

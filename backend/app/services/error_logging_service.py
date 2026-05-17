@@ -17,7 +17,7 @@ Xususiyatlari:
 - Email bildirishnomalar (kritik xatolar)
 - Statistika va analytics
 
-AUTHOR: CareerUZ Team
+AUTHOR: IshTop Team
 VERSION: 1.0.0
 =============================================================================
 """

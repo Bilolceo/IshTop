@@ -83,7 +83,7 @@ Frontend running at: http://localhost:3000
 
 ```
 Admin:
-  Email: admin@careeruz.uz
+  Email: admin@ishtop.uz
   Password: Admin123!
 
 Company:
@@ -165,7 +165,7 @@ Student:
 ```env
 GEMINI_API_KEY=xxx          # Or OPENAI_API_KEY
 AI_PROVIDER=gemini          # Or openai
-DATABASE_URL=sqlite:///./careeruz.db
+DATABASE_URL=sqlite:///./ishtop.db
 SECRET_KEY=your-secret-key
 ```
 
@@ -300,7 +300,7 @@ npm run dev
 
 ## 📞 SUPPORT
 
-- Email: support@careeruz.uz
+- Email: support@ishtop.uz
 - GitHub Issues: [Your Repo]
 - Documentation: http://localhost:8000/docs
 

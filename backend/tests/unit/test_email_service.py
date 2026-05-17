@@ -46,7 +46,7 @@ def test_email_service_uses_stdlib_smtp_fallback_when_aiosmtplib_is_missing(monk
     )
 
     assert result is True
-    assert "CareerUZ" in captured["subject"]
+    assert "IshTop" in captured["subject"]
     assert captured["to"] == "Recipient <recipient@example.com>"
 
 

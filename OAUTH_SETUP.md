@@ -10,13 +10,13 @@ Backend tayyor, endi credentials kerak.
 
 ### Qadam 1: Google Cloud Console
 1. https://console.cloud.google.com ga boring
-2. Yangi project yarating: "CareerUZ"
+2. Yangi project yarating: "IshTop"
 3. "APIs & Services" → "Credentials"
 
 ### Qadam 2: OAuth 2.0 Client ID
 1. "Create Credentials" → "OAuth client ID"
 2. Application type: **Web application**
-3. Name: `CareerUZ Web`
+3. Name: `IshTop Web`
 4. Authorized JavaScript origins:
    ```
    http://localhost:3000
@@ -47,7 +47,7 @@ OAUTH_ENABLED=true
 1. "OAuth consent screen" ga boring
 2. User type: **External**
 3. App information:
-   - App name: `CareerUZ`
+   - App name: `IshTop`
    - User support email: your@email.com
    - Developer contact: your@email.com
 4. Scopes: `email`, `profile`, `openid`
@@ -62,7 +62,7 @@ OAUTH_ENABLED=true
 2. "Create app" bosing
 
 ### Qadam 2: App Settings
-- **App name**: CareerUZ
+- **App name**: IshTop
 - **LinkedIn Page**: Kompaniya page (yoki skip)
 - **App logo**: Logo yuklang (optional)
 - **Privacy policy URL**: https://your-domain.com/privacy

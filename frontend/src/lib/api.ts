@@ -321,6 +321,12 @@ export const applicationApi = {
   hiringFunnel: (params?: { days?: number }) =>
     api.get("/applications/analytics/funnel", { params }),
 
+  dashboardActions: () =>
+    api.get("/applications/analytics/dashboard-actions"),
+
+  upcomingInterviews: (params?: { days?: number }) =>
+    api.get("/applications/interviews/upcoming", { params }),
+
   topCandidatesForJob: (jobId: string, params?: { limit?: number; pool?: "applicants" | "all" }) =>
     api.get(`/applications/jobs/${jobId}/top-candidates`, { params }),
 

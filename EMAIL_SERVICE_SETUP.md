@@ -50,7 +50,7 @@
 ```
 1. Settings → API Keys
 2. Click "Create API Key"
-3. Name: "CareerUZ Production"
+3. Name: "IshTop Production"
 4. Permissions: "Full Access"
 5. Click "Create & View"
 6. COPY THE KEY (you won't see it again!)
@@ -60,7 +60,7 @@
 ```bash
 SENDGRID_API_KEY=SG.xxxxxxxxxxx
 EMAIL_FROM=noreply@yourdomain.com
-EMAIL_FROM_NAME=CareerUZ
+EMAIL_FROM_NAME=IshTop
 ```
 
 #### 5. Test Email
@@ -72,7 +72,7 @@ from sendgrid.helpers.mail import Mail
 message = Mail(
     from_email='noreply@yourdomain.com',
     to_emails='your-email@example.com',
-    subject='Test Email from CareerUZ',
+    subject='Test Email from IshTop',
     html_content='<strong>Success!</strong> Email service is working!'
 )
 
@@ -113,7 +113,7 @@ print(f"Status: {response.status_code}")
    - Security → App passwords
    - Select app: Mail
    - Select device: Other
-   - Name: CareerUZ
+   - Name: IshTop
    - Generate
 
 4. Add to .env:
@@ -148,7 +148,7 @@ print(f"Status: {response.status_code}")
     </style>
 </head>
 <body>
-    <h2>Welcome to CareerUZ!</h2>
+    <h2>Welcome to IshTop!</h2>
     <p>Please verify your email address:</p>
     <a href="{{verification_link}}" class="button">Verify Email</a>
     <p>Or copy this link: {{verification_link}}</p>
@@ -175,7 +175,7 @@ print(f"Status: {response.status_code}")
 <!DOCTYPE html>
 <html>
 <body>
-    <h2>Welcome to CareerUZ, {{user_name}}!</h2>
+    <h2>Welcome to IshTop, {{user_name}}!</h2>
     <p>Your account is ready!</p>
     <h3>Get Started:</h3>
     <ul>
@@ -206,8 +206,8 @@ logger = logging.getLogger(__name__)
 class EmailService:
     def __init__(self):
         self.api_key = os.getenv("SENDGRID_API_KEY")
-        self.from_email = os.getenv("EMAIL_FROM", "noreply@careeruz.uz")
-        self.from_name = os.getenv("EMAIL_FROM_NAME", "CareerUZ")
+        self.from_email = os.getenv("EMAIL_FROM", "noreply@ishtop.uz")
+        self.from_name = os.getenv("EMAIL_FROM_NAME", "IshTop")
         self.client = SendGridAPIClient(self.api_key) if self.api_key else None
     
     async def send_verification_email(
@@ -221,7 +221,7 @@ class EmailService:
             message = Mail(
                 from_email=(self.from_email, self.from_name),
                 to_emails=to_email,
-                subject="Verify your CareerUZ account",
+                subject="Verify your IshTop account",
                 html_content=f"""
                 <h2>Welcome {user_name}!</h2>
                 <p>Please verify your email:</p>
@@ -251,7 +251,7 @@ class EmailService:
             message = Mail(
                 from_email=(self.from_email, self.from_name),
                 to_emails=to_email,
-                subject="Reset your password - CareerUZ",
+                subject="Reset your password - IshTop",
                 html_content=f"""
                 <h2>Password Reset</h2>
                 <p>Click to reset your password:</p>
@@ -368,7 +368,7 @@ Dashboard → Stats → Overview
 
 ## 🎯 RECOMMENDATION
 
-**For CareerUZ:**
+**For IshTop:**
 
 **Stage 1 (Launch):** SendGrid Free (100/day)
 - Enough for early users

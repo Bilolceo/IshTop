@@ -21,7 +21,7 @@ DOCS:
     - OpenAPI JSON: http://localhost:8000/openapi.json
 
 =============================================================================
-AUTHOR: CareerUZ Team
+AUTHOR: IshTop Team
 VERSION: 1.0.0
 =============================================================================
 """
@@ -285,7 +285,7 @@ def create_application() -> FastAPI:
     application = FastAPI(
         title=settings.APP_NAME,
         description="""
-        ## CareerUZ API
+        ## IshTop API
         
         AI-powered career platform API for resume generation and job matching.
         

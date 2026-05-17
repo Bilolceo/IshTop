@@ -13,6 +13,7 @@
 
 import { useState, useEffect } from "react";
 import Link from "next/link";
+import Image from "next/image";
 import { usePathname } from "next/navigation";
 import { motion, AnimatePresence } from "framer-motion";
 import {
@@ -224,12 +225,17 @@ export default function StudentDashboardLayout({
       >
         {/* Logo */}
         <div className="flex h-16 items-center justify-between border-b border-surface-200 px-4 dark:border-surface-700">
-          <Link href="/" className="flex items-center gap-2">
-            <div className="flex h-9 w-9 items-center justify-center rounded-xl bg-gradient-to-br from-purple-500 to-indigo-600">
-              <Sparkles className="h-5 w-5 text-white" />
-            </div>
+          <Link href="/student" className="flex items-center gap-2">
+            <Image
+              src="/logo-mark.png"
+              alt="IshTop"
+              width={36}
+              height={36}
+              priority
+              className="h-9 w-9 rounded-xl"
+            />
             <span className="font-display text-lg font-bold text-surface-900 dark:text-white">
-              CareerUZ
+              IshTop
             </span>
           </Link>
           <button

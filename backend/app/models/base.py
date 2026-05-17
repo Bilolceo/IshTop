@@ -37,7 +37,7 @@ EXAMPLE USAGE:
         # id, created_at, updated_at, is_deleted, deleted_at are automatic!
 
 =============================================================================
-AUTHOR: CareerUZ Team
+AUTHOR: IshTop Team
 VERSION: 1.0.0
 =============================================================================
 """

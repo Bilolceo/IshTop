@@ -46,7 +46,7 @@ async function applyAuthState(page: any, storageValue: string) {
 
 test.describe("Smoke Expansion", () => {
   test("admin dashboard loads with seeded admin account", async ({ page, request }) => {
-    const authStorage = await loginAndBuildAuthStorage(request, "admin@careeruz.uz", "Admin123!");
+    const authStorage = await loginAndBuildAuthStorage(request, "admin@ishtop.uz", "Admin123!");
     await applyAuthState(page, authStorage);
 
     await page.goto(`${APP_URL}/admin`);

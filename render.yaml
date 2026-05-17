@@ -6,7 +6,7 @@ services:
   # BACKEND (FastAPI + Gunicorn)
   # ===========================================================================
   - type: web
-    name: careeruz-backend
+    name: ishtop-backend
     runtime: python
     region: frankfurt
     plan: free
@@ -33,7 +33,7 @@ services:
 
     envVars:
       - key: APP_NAME
-        value: CareerUZ
+        value: IshTop
       - key: APP_VERSION
         value: 1.0.0
       - key: PYTHON_VERSION
@@ -50,7 +50,7 @@ services:
       # Linked to the PostgreSQL database service below.
       - key: DATABASE_URL
         fromDatabase:
-          name: careeruz-db
+          name: ishtop-db
           property: connectionString
 
       - key: ALGORITHM
@@ -101,9 +101,9 @@ services:
       - key: SMTP_PORT
         value: 587
       - key: SMTP_FROM_EMAIL
-        value: noreply@careeruz.uz
+        value: noreply@ishtop.uz
       - key: SMTP_FROM_NAME
-        value: CareerUZ
+        value: IshTop
       - key: SMTP_USE_TLS
         value: true
       - key: SMTP_USERNAME
@@ -133,7 +133,7 @@ services:
   # FRONTEND (Next.js standalone)
   # ===========================================================================
   - type: web
-    name: careeruz-frontend
+    name: ishtop-frontend
     runtime: node
     region: frankfurt
     plan: free
@@ -152,7 +152,7 @@ services:
       - key: HOSTNAME
         value: "0.0.0.0"
 
-      # Set to the deployed backend URL, e.g. https://careeruz-backend.onrender.com/api/v1
+      # Set to the deployed backend URL, e.g. https://ishtop-backend.onrender.com/api/v1
       # This is baked into the JS bundle at build time — update and redeploy if URL changes.
       - key: NEXT_PUBLIC_API_URL
         sync: false
@@ -167,8 +167,8 @@ databases:
   # ===========================================================================
   # PostgreSQL
   # ===========================================================================
-  - name: careeruz-db
+  - name: ishtop-db
     region: frankfurt
     plan: free
-    databaseName: careeruz
-    user: careeruz_user
+    databaseName: ishtop
+    user: ishtop_user

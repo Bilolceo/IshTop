@@ -43,6 +43,8 @@ import {
 import { useAuth } from "@/hooks/useAuth";
 import { useTranslation } from "@/hooks/useTranslation";
 import { useJobs } from "@/hooks/useJobs";
+import ActionItemsPanel from "@/components/company/ActionItemsPanel";
+import UpcomingInterviewsPanel from "@/components/company/UpcomingInterviewsPanel";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
@@ -193,6 +195,21 @@ export default function CompanyDashboardPage() {
           color="bg-green-100 dark:bg-green-500/20 text-green-600"
         />
       </motion.div>
+
+      {/* Action Items + Upcoming Interviews */}
+      <motion.section
+        initial={{ opacity: 0, y: 20 }}
+        animate={{ opacity: 1, y: 0 }}
+        transition={{ delay: 0.15 }}
+        className="grid grid-cols-1 gap-6 lg:grid-cols-3"
+      >
+        <div className="lg:col-span-2">
+          <ActionItemsPanel />
+        </div>
+        <div className="lg:col-span-1">
+          <UpcomingInterviewsPanel />
+        </div>
+      </motion.section>
 
       <div className="grid gap-6 lg:grid-cols-3">
         {/* Recent Applications */}

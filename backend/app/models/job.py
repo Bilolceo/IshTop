@@ -49,7 +49,7 @@ TRADE-OFFS:
     - Rule of thumb: Index columns queried > 10% of the time
 
 =============================================================================
-AUTHOR: CareerUZ Team
+AUTHOR: IshTop Team
 VERSION: 1.0.0
 =============================================================================
 """

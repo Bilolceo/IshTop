@@ -1,5 +1,5 @@
 # =============================================================================
-# CareerUZ - Backend Configuration Template
+# IshTop - Backend Configuration Template
 # =============================================================================
 # Bu faylni .env ga nusxa oling va qiymatlarni to'ldiring
 # copy config.template.txt .env
@@ -7,7 +7,7 @@
 # -----------------------------------------------------------------------------
 # APPLICATION
 # -----------------------------------------------------------------------------
-APP_NAME="CareerUZ"
+APP_NAME="IshTop"
 APP_VERSION="1.0.0"
 DEBUG=true
 SECRET_KEY=your-super-secret-key-change-this-in-production
@@ -16,10 +16,10 @@ SECRET_KEY=your-super-secret-key-change-this-in-production
 # DATABASE
 # -----------------------------------------------------------------------------
 # Development uchun SQLite:
-DATABASE_URL=sqlite:///./careeruz.db
+DATABASE_URL=sqlite:///./ishtop.db
 
 # Production uchun PostgreSQL:
-# DATABASE_URL=postgresql://user:password@localhost:5432/careeruz
+# DATABASE_URL=postgresql://user:password@localhost:5432/ishtop
 
 # -----------------------------------------------------------------------------
 # JWT AUTHENTICATION
@@ -67,8 +67,8 @@ SMTP_HOST=smtp.gmail.com
 SMTP_PORT=587
 SMTP_USER=your-email@gmail.com
 SMTP_PASSWORD=your-app-password
-SMTP_FROM_EMAIL=noreply@careeruz.uz
-SMTP_FROM_NAME=CareerUZ
+SMTP_FROM_EMAIL=noreply@ishtop.uz
+SMTP_FROM_NAME=IshTop
 SMTP_USE_TLS=true
 
 # SendGrid (Production uchun tavsiya)
@@ -79,7 +79,7 @@ SENDGRID_API_KEY=
 FRONTEND_URL=http://localhost:3000
 
 # Support email
-SUPPORT_EMAIL=support@careeruz.uz
+SUPPORT_EMAIL=support@ishtop.uz
 
 # -----------------------------------------------------------------------------
 # CORS

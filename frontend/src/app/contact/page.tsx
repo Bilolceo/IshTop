@@ -14,10 +14,10 @@ export default function ContactPage() {
       </h1>
       <p className="mt-4 text-surface-600 dark:text-surface-300">
         {isRu
-          ? "Нужна помощь по CareerUZ? Напишите нам на"
-          : "CareerUZ bo'yicha yordam kerakmi? Quyidagi manzilga yozing:"}{" "}
-        <a className="text-brand-600 hover:underline" href="mailto:support@careeruz.uz">
-          support@careeruz.uz
+          ? "Нужна помощь по IshTop? Напишите нам на"
+          : "IshTop bo'yicha yordam kerakmi? Quyidagi manzilga yozing:"}{" "}
+        <a className="text-brand-600 hover:underline" href="mailto:support@ishtop.uz">
+          support@ishtop.uz
         </a>
         .
       </p>

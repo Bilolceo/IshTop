@@ -1,4 +1,4 @@
-# 🚀 DEPLOYMENT CHECKLIST - CareerUZ
+# 🚀 DEPLOYMENT CHECKLIST - IshTop
 
 **Production Deployment Guide**  
 **Auto-generated:** 2026-01-19
@@ -165,7 +165,7 @@ railway up
 # Application
 DEBUG=False
 SECRET_KEY=<generate-new-64-char-key>
-APP_NAME=CareerUZ
+APP_NAME=IshTop
 APP_VERSION=1.0.0
 
 # Database (Railway provides this)

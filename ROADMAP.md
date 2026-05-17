@@ -1,4 +1,4 @@
-# 🚀 CareerUZ - Development Roadmap
+# 🚀 IshTop - Development Roadmap
 
 ## Mening Strategiyam (Agar men sizning o'rningizda bo'lganimda)
 
@@ -15,7 +15,7 @@
 ### Hafta 2: Polish & Deploy
 - [ ] Vercel ga frontend deploy
 - [ ] Railway/Render ga backend deploy
-- [ ] Domain ulash (careeruz.uz)
+- [ ] Domain ulash (ishtop.uz)
 - [ ] SSL sertifikat
 
 ---
@@ -160,7 +160,7 @@ Sentry.init({
 - Database: Supabase (bepul tier) yoki Neon
 
 ### Domain
-- careeruz.uz - ~$15/yil
+- ishtop.uz - ~$15/yil
 
 ---
 

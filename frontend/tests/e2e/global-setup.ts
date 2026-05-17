@@ -36,7 +36,7 @@ function resolveSeedSecretKey(): string {
 
   // Deterministic across the same repo/branch context while avoiding weak defaults.
   const deterministicSeed = [
-    'careeruz-e2e-admin-seed-secret-v1',
+    'ishtop-e2e-admin-seed-secret-v1',
     process.env.GITHUB_REPOSITORY || '',
     process.env.GITHUB_REF || '',
     ROOT_DIR,
@@ -59,7 +59,7 @@ sys.path.insert(0, ".")
 from app.config import settings
 from app.models.user import User
 
-ADMIN_EMAIL = "admin@careeruz.uz"
+ADMIN_EMAIL = "admin@ishtop.uz"
 ADMIN_ROLE_VALUE = "admin"
 ADMIN_SUB_ROLE_VALUE = "super_admin"
 
@@ -186,8 +186,8 @@ finally:
 
   const isCi = Boolean(process.env.CI) || process.env.GITHUB_ACTIONS === 'true';
   const candidateDatabaseUrls = isCi
-    ? [process.env.DATABASE_URL || 'postgresql://test:test@localhost:5432/careeruz_test']
-    : [process.env.DATABASE_URL || 'sqlite:///./careeruz.db'];
+    ? [process.env.DATABASE_URL || 'postgresql://test:test@localhost:5432/ishtop_test']
+    : [process.env.DATABASE_URL || 'sqlite:///./ishtop.db'];
 
   let lastError: unknown = null;
   const seedSecretKey = resolveSeedSecretKey();

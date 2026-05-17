@@ -1,4 +1,4 @@
-# CareerUZ
+# IshTop
 
 AI-powered career platform for students/juniors (job seekers) and employers (HR).
 
@@ -77,7 +77,7 @@ Frontend:
 ## Admin Panel
 - URL: `http://127.0.0.1:3000/admin`
 - Requires admin role (seeded via `python seed_data.py`):
-  - Email: `admin@careeruz.uz`
+  - Email: `admin@ishtop.uz`
   - Password: `Admin123!`
 
 ## Tests

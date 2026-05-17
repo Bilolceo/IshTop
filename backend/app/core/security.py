@@ -42,7 +42,7 @@ WHY TWO TOKENS?
     - Better security without constant re-login
 
 =============================================================================
-AUTHOR: CareerUZ Team
+AUTHOR: IshTop Team
 VERSION: 1.0.0
 =============================================================================
 """

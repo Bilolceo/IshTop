@@ -1,6 +1,6 @@
-# CareerUZ - Frontend
+# IshTop - Frontend
 
-Production-grade Next.js 14 frontend for the CareerUZ platform.
+Production-grade Next.js 14 frontend for the IshTop platform.
 
 ## 🚀 Features
 
@@ -226,8 +226,8 @@ npm run analyze
 ### Docker
 
 ```bash
-docker build -t careeruz-frontend .
-docker run -p 3000:3000 careeruz-frontend
+docker build -t ishtop-frontend .
+docker run -p 3000:3000 ishtop-frontend
 ```
 
 ## 📄 License

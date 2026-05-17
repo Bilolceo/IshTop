@@ -55,7 +55,7 @@ export function ResumePreview({ content, title, className, isPlaceholder, locale
       ? {
           yourName: "Ваше имя",
           roleFallback: "Профессиональная должность",
-          badge: "CareerUZ Резюме",
+          badge: "IshTop Резюме",
           summary: "Краткий профиль",
           experience: "Опыт работы",
           education: "Образование",
@@ -74,7 +74,7 @@ export function ResumePreview({ content, title, className, isPlaceholder, locale
       : {
           yourName: "Ismingiz",
           roleFallback: "Professional unvon",
-          badge: "CareerUZ Rezyume",
+          badge: "IshTop Rezyume",
           summary: "Qisqacha profil",
           experience: "Ish tajribasi",
           education: "Ta'lim",

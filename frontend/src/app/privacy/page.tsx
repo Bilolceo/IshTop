@@ -14,8 +14,8 @@ export default function PrivacyPage() {
       </h1>
       <p className="mt-4 text-surface-600 dark:text-surface-300">
         {isRu
-          ? "CareerUZ уважает вашу конфиденциальность. Эта страница добавлена, чтобы юридические ссылки в приложении работали корректно."
-          : "CareerUZ sizning maxfiyligingizni hurmat qiladi. Bu sahifa ilovadagi huquqiy havolalar uzilmasligi uchun qo'shilgan."}
+          ? "IshTop уважает вашу конфиденциальность. Эта страница добавлена, чтобы юридические ссылки в приложении работали корректно."
+          : "IshTop sizning maxfiyligingizni hurmat qiladi. Bu sahifa ilovadagi huquqiy havolalar uzilmasligi uchun qo'shilgan."}
       </p>
       <div className="mt-8">
         <Link className="text-brand-600 hover:underline" href="/">

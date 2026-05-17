@@ -1,8 +1,8 @@
 """
-CareerUZ - Test Suite
+IshTop - Test Suite
 ===========================
 
-Comprehensive testing for the CareerUZ backend.
+Comprehensive testing for the IshTop backend.
 
 Test Structure:
 - unit/: Unit tests for individual services and functions

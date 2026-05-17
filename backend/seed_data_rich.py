@@ -146,7 +146,7 @@ def seed_users(db):
     print("Creating users…")
     admin = User(
         id=uuid4(),
-        email="admin@careeruz.uz",
+        email="admin@ishtop.uz",
         full_name="System Admin",
         phone="+998901111111",
         role=UserRole.ADMIN,
@@ -667,7 +667,7 @@ def main():
         print("✅ DATABASE SEEDED")
         print("=" * 70)
         print("\n📝 Test accounts:")
-        print("   Admin:     admin@careeruz.uz    / Admin123!")
+        print("   Admin:     admin@ishtop.uz    / Admin123!")
         print("   Companies (any):  hr@epam.com, careers@uzcard.uz, hr@asakabank.uz,")
         print("                     careers@korzinka.uz, hr@inson.uz, hr@hyatt-tashkent.uz,")
         print("                     hr@beeline.uz, careers@coca-cola.uz, hr@havas.uz, ...")

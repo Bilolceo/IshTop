@@ -15,7 +15,7 @@ Xususiyatlari:
 - Payment status tracking
 - Refund support
 
-AUTHOR: CareerUZ Team
+AUTHOR: IshTop Team
 VERSION: 1.0.0
 =============================================================================
 """
@@ -1035,7 +1035,7 @@ SUBSCRIPTION_PRICING = {
     },
     SubscriptionTier.ENTERPRISE: {
         "price": "custom",  # Kelishuv asosida
-        "contact": "enterprise@careeruz.uz",
+        "contact": "enterprise@ishtop.uz",
         "features": [
             "Everything in Premium",
             "Unlimited auto-apply",

@@ -14,14 +14,14 @@
 ### Qadam 2: Yangi Project Yaratish (yoki mavjudni tanlash)
 1. Yuqoridagi "Select a project" tugmasini bosing
 2. "New Project" ni tanlang
-3. Project name: `CareerUZ` (yoki istalgan nom)
+3. Project name: `IshTop` (yoki istalgan nom)
 4. "Create" bosing
 
 ### Qadam 3: OAuth Consent Screen Sozlash
 1. Chap menudan **"APIs & Services"** → **"OAuth consent screen"** ga boring
 2. User type: **External** ni tanlang → **Create**
 3. App information:
-   - **App name**: `CareerUZ`
+   - **App name**: `IshTop`
    - **User support email**: O'zingizning emailingiz
    - **Developer contact**: O'zingizning emailingiz
 4. **Save and Continue**
@@ -33,7 +33,7 @@
 1. **"APIs & Services"** → **"Credentials"** ga boring
 2. Yuqorida **"+ CREATE CREDENTIALS"** → **"OAuth client ID"** ni tanlang
 3. Application type: **Web application**
-4. Name: `CareerUZ Web`
+4. Name: `IshTop Web`
 5. **Authorized JavaScript origins**:
    ```
    http://localhost:3000

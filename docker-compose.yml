@@ -6,33 +6,33 @@ services:
   # =============================================================================
   postgres:
     image: postgres:15-alpine
-    container_name: careeruz_postgres
+    container_name: ishtop_postgres
     restart: unless-stopped
     environment:
-      POSTGRES_DB: careeruz
-      POSTGRES_USER: careeruz
-      POSTGRES_PASSWORD: careeruz_password_change_in_production
+      POSTGRES_DB: ishtop
+      POSTGRES_USER: ishtop
+      POSTGRES_PASSWORD: ishtop_password_change_in_production
       PGDATA: /var/lib/postgresql/data/pgdata
     ports:
       - "5432:5432"
     volumes:
       - postgres_data:/var/lib/postgresql/data
     healthcheck:
-      test: ["CMD-SHELL", "pg_isready -U careeruz"]
+      test: ["CMD-SHELL", "pg_isready -U ishtop"]
       interval: 10s
       timeout: 5s
       retries: 5
     networks:
-      - careeruz_network
+      - ishtop_network
 
   # =============================================================================
   # Redis (for caching, sessions, and task queue)
   # =============================================================================
   redis:
     image: redis:7-alpine
-    container_name: careeruz_redis
+    container_name: ishtop_redis
     restart: unless-stopped
-    command: redis-server --appendonly yes --requirepass careeruz_redis_password
+    command: redis-server --appendonly yes --requirepass ishtop_redis_password
     ports:
       - "6379:6379"
     volumes:
@@ -43,7 +43,7 @@ services:
       timeout: 5s
       retries: 5
     networks:
-      - careeruz_network
+      - ishtop_network
 
   # =============================================================================
   # Backend (FastAPI)
@@ -52,26 +52,26 @@ services:
     build:
       context: ./backend
       dockerfile: Dockerfile
-    container_name: careeruz_backend
+    container_name: ishtop_backend
     restart: unless-stopped
     ports:
       - "8000:8000"
     environment:
       # App
-      APP_NAME: "CareerUZ"
+      APP_NAME: "IshTop"
       DEBUG: "false"
       
       # Database
-      DATABASE_URL: postgresql://careeruz:careeruz_password_change_in_production@postgres:5432/careeruz
+      DATABASE_URL: postgresql://ishtop:ishtop_password_change_in_production@postgres:5432/ishtop
       
       # Redis
-      REDIS_URL: redis://:careeruz_redis_password@redis:6379/0
+      REDIS_URL: redis://:ishtop_redis_password@redis:6379/0
       
       # JWT (use secrets from .env in production)
       # Defaults are intentionally long enough to satisfy backend production
       # secret validation when DEBUG=false. Override via `.env` in real deploys.
-      SECRET_KEY: ${SECRET_KEY:-careeruz-dev-secret-key-0123456789abcdef0123456789abcdef}
-      JWT_SECRET_KEY: ${JWT_SECRET_KEY:-careeruz-dev-jwt-secret-0123456789abcdef0123456789abcdef}
+      SECRET_KEY: ${SECRET_KEY:-ishtop-dev-secret-key-0123456789abcdef0123456789abcdef}
+      JWT_SECRET_KEY: ${JWT_SECRET_KEY:-ishtop-dev-jwt-secret-0123456789abcdef0123456789abcdef}
       
       # AI
       OPENAI_API_KEY: ${OPENAI_API_KEY:-}
@@ -83,7 +83,7 @@ services:
       SMTP_PORT: ${SMTP_PORT:-587}
       SMTP_USER: ${SMTP_USER:-}
       SMTP_PASSWORD: ${SMTP_PASSWORD:-}
-      SMTP_FROM_EMAIL: ${SMTP_FROM_EMAIL:-noreply@careeruz.uz}
+      SMTP_FROM_EMAIL: ${SMTP_FROM_EMAIL:-noreply@ishtop.uz}
       SENDGRID_API_KEY: ${SENDGRID_API_KEY:-}
       
       # Frontend URL
@@ -109,7 +109,7 @@ services:
         uvicorn app.main:app --host 0.0.0.0 --port 8000 --reload
       "
     networks:
-      - careeruz_network
+      - ishtop_network
 
   # =============================================================================
   # Frontend (Next.js)
@@ -121,7 +121,7 @@ services:
       args:
         # Frontend code expects API base to include "/api/v1".
         NEXT_PUBLIC_API_URL: ${NEXT_PUBLIC_API_URL:-http://localhost:8000/api/v1}
-    container_name: careeruz_frontend
+    container_name: ishtop_frontend
     restart: unless-stopped
     ports:
       - "3000:3000"
@@ -132,7 +132,7 @@ services:
     depends_on:
       - backend
     networks:
-      - careeruz_network
+      - ishtop_network
 
 # =============================================================================
 # Volumes
@@ -149,7 +149,7 @@ volumes:
 # Networks
 # =============================================================================
 networks:
-  careeruz_network:
+  ishtop_network:
     driver: bridge
 
 

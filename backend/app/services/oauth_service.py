@@ -13,7 +13,7 @@ Xususiyatlari:
 - User info retrieval
 - Auto user creation
 
-AUTHOR: CareerUZ Team
+AUTHOR: IshTop Team
 VERSION: 1.0.0
 =============================================================================
 """

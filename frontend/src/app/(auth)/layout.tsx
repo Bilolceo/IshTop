@@ -11,7 +11,8 @@
 
 import { motion } from "framer-motion";
 import Link from "next/link";
-import { Sparkles, Star, CheckCircle } from "lucide-react";
+import Image from "next/image";
+import { Star, CheckCircle } from "lucide-react";
 import { useTranslation } from "@/hooks/useTranslation";
 import { ThemeToggle } from "@/components/ui/theme-toggle";
 import { LanguageSwitcher } from "@/components/ui/language-switcher";
@@ -57,10 +58,15 @@ export default function AuthLayout({
           className="mb-8"
         >
           <Link href="/" className="inline-flex items-center gap-2">
-            <div className="flex h-10 w-10 items-center justify-center rounded-xl bg-gradient-to-br from-purple-500 to-indigo-600 shadow-lg shadow-purple-500/25">
-              <Sparkles className="h-5 w-5 text-white" />
-            </div>
-            <span className="font-display text-2xl font-bold text-surface-900 dark:text-white">SmartCareer</span>
+            <Image
+              src="/logo-mark.png"
+              alt="IshTop"
+              width={40}
+              height={40}
+              priority
+              className="h-10 w-10 rounded-xl"
+            />
+            <span className="font-display text-2xl font-bold text-surface-900 dark:text-white">IshTop</span>
           </Link>
         </motion.div>
 

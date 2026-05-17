@@ -9,7 +9,7 @@ Tests for payment system:
 - Double payment prevention
 - Security
 
-AUTHOR: CareerUZ Team
+AUTHOR: IshTop Team
 VERSION: 1.0.0
 =============================================================================
 """

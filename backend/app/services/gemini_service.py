@@ -17,7 +17,7 @@ GEMINI_API_KEY=your-gemini-api-key
 
 SDK: pip install google-genai>=1.0.0
 
-AUTHOR: CareerUZ Team
+AUTHOR: IshTop Team
 VERSION: 2.0.0 (migrated from google-generativeai to google-genai)
 """
 

@@ -1,7 +1,7 @@
 {
-  "name": "careeruz-frontend",
+  "name": "ishtop-frontend",
   "version": "1.0.0",
-  "description": "CareerUZ - AI-Powered Career Platform",
+  "description": "IshTop - AI-Powered Career Platform",
   "private": true,
   "scripts": {
     "dev": "next dev",

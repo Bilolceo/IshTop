@@ -11,7 +11,7 @@ ENDPOINTS:
     GET  /my-payments              - Get user's payment history
     GET  /pricing                  - Get subscription pricing
 
-AUTHOR: CareerUZ Team
+AUTHOR: IshTop Team
 VERSION: 1.0.0
 =============================================================================
 """

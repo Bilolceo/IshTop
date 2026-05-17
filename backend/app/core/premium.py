@@ -13,7 +13,7 @@ Usage:
         # Only premium users can access this endpoint
         pass
 
-AUTHOR: CareerUZ Team
+AUTHOR: IshTop Team
 VERSION: 1.0.0
 =============================================================================
 """

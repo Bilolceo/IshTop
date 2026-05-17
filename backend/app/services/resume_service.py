@@ -140,7 +140,7 @@ class ResumeService:
         return resume
 
     def _generate_pdf(self, resume: Any) -> bytes:
-        return b"%PDF-1.4\n% CareerUZ Resume PDF\n"
+        return b"%PDF-1.4\n% IshTop Resume PDF\n"
 
     async def download_pdf(self, resume_id: str, user_id: str) -> bytes:
         resume = await self._fetch_resume(resume_id)

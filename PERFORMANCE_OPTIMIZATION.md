@@ -1,6 +1,6 @@
 # ⚡ PERFORMANCE OPTIMIZATION GUIDE
 
-**Make CareerUZ Fast & Scalable**  
+**Make IshTop Fast & Scalable**  
 **Generated:** 2026-01-19
 
 ---
@@ -310,7 +310,7 @@ async def generate_resume(user: User):
 from celery import Celery
 
 celery = Celery(
-    'careeruz',
+    'ishtop',
     broker='redis://localhost:6379/1',
     backend='redis://localhost:6379/2'
 )
@@ -378,7 +378,7 @@ import Image from 'next/image';
 
 <Image
   src="/logo.png"
-  alt="CareerUZ"
+  alt="IshTop"
   width={200}
   height={50}
   priority  // For above-fold images

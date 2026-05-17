@@ -184,11 +184,11 @@ export const ru = {
     testimonials: {
       badge: "ОТЗЫВЫ",
       title: "Отзывы пользователей",
-      subtitle: "Тысячи специалистов уже нашли работу мечты с CareerUZ",
+      subtitle: "Тысячи специалистов уже нашли работу мечты с IshTop",
     },
     cta: {
       title: "Готовы ускорить свою карьеру?",
-      subtitle: "Присоединяйтесь к тысячам специалистов, которые нашли работу мечты с CareerUZ. Начните свой путь сегодня!",
+      subtitle: "Присоединяйтесь к тысячам специалистов, которые нашли работу мечты с IshTop. Начните свой путь сегодня!",
       button: "Начать бесплатно",
     },
     footer: {
@@ -216,7 +216,7 @@ export const ru = {
     sidebar: {
       title: "Постройте карьеру мечты с",
       titleHighlight: "AI-инструментами",
-      subtitle: "Более 10 000 специалистов в Узбекистане ускорили свою карьеру с CareerUZ.",
+      subtitle: "Более 10 000 специалистов в Узбекистане ускорили свою карьеру с IshTop.",
       features: [
         "AI-генератор резюме",
         "Умный подбор вакансий",
@@ -230,7 +230,7 @@ export const ru = {
         success: "Успешность",
       },
       testimonial: {
-        quote: "CareerUZ помог мне найти работу мечты в топовой технологической компании!",
+        quote: "IshTop помог мне найти работу мечты в топовой технологической компании!",
         author: "Азиз К.",
         role: "Разработчик",
       },
@@ -307,11 +307,11 @@ export const ru = {
         },
         step3: {
           title: "Выберите роль",
-          description: "Как вы будете использовать CareerUZ?",
+          description: "Как вы будете использовать IshTop?",
         },
       },
       phoneHelper: "Мы используем это для восстановления аккаунта и уведомлений о вакансиях",
-      howWillYouUse: "Как вы будете использовать CareerUZ?",
+      howWillYouUse: "Как вы будете использовать IshTop?",
       studentRole: "Я соискатель",
       companyRole: "Я работодатель",
       studentDescription: "Ищу работу, создаю резюме и развиваю карьеру",
@@ -356,7 +356,7 @@ export const ru = {
         privacyLink: "Политикой конфиденциальности",
       },
       success: {
-        title: "Добро пожаловать в CareerUZ! 🎉",
+        title: "Добро пожаловать в IshTop! 🎉",
         message: "Ваш аккаунт успешно создан.",
         redirecting: "Перенаправление на страницу входа...",
       },
@@ -1054,6 +1054,21 @@ export const ru = {
     analyticsDesc: "HR статистика",
     companyProfile: "Профиль компании",
     companyProfileDesc: "Редактировать данные",
+    actionItems: {
+      title: "Задачи",
+      awaitingReview: "Ожидают рассмотрения",
+      scorecardsPending: "Оценочные карты в ожидании",
+      interviewsToday: "Собеседования сегодня",
+      viewAll: "Посмотреть все",
+    },
+    upcomingInterviews: {
+      title: "Предстоящие собеседования",
+      subtitle: "Следующие 7 дней",
+      empty: "Нет предстоящих собеседований",
+      viewAll: "Посмотреть все",
+      today: "Сегодня",
+      tomorrow: "Завтра",
+    },
   },
 
   companyJobsPage: {

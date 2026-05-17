@@ -140,7 +140,7 @@ jobs:
       postgres:
         image: postgres:15
         env:
-          POSTGRES_DB: careeruz_test
+          POSTGRES_DB: ishtop_test
           POSTGRES_USER: test
           POSTGRES_PASSWORD: test
         options: >-
@@ -187,7 +187,7 @@ jobs:
           done
           curl -fsS http://127.0.0.1:8000/readyz > /dev/null
         env:
-          DATABASE_URL: postgresql://test:test@localhost:5432/careeruz_test
+          DATABASE_URL: postgresql://test:test@localhost:5432/ishtop_test
           JWT_SECRET_KEY: ci-e2e-jwt-secret-0123456789abcdef0123456789
           SECRET_KEY: ci-e2e-app-secret-0123456789abcdef0123456789
           EMAIL_TRANSPORT: "disabled"
@@ -213,7 +213,7 @@ jobs:
           # Frontend code expects API base to include "/api/v1".
           NEXT_PUBLIC_API_URL: http://127.0.0.1:8000/api/v1
           # Used by Playwright global-setup seeding (admin account).
-          DATABASE_URL: postgresql://test:test@localhost:5432/careeruz_test
+          DATABASE_URL: postgresql://test:test@localhost:5432/ishtop_test
 
       - name: Dump backend logs (on failure)
         if: failure()
@@ -292,7 +292,7 @@ jobs:
         with:
           context: ./backend
           push: false
-          tags: careeruz-backend:test
+          tags: ishtop-backend:test
           cache-from: type=gha
           cache-to: type=gha,mode=max
       
@@ -301,7 +301,7 @@ jobs:
         with:
           context: ./frontend
           push: false
-          tags: careeruz-frontend:test
+          tags: ishtop-frontend:test
           cache-from: type=gha
           cache-to: type=gha,mode=max
           build-args: |

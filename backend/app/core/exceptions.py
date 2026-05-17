@@ -3,7 +3,7 @@
 CUSTOM EXCEPTIONS
 =============================================================================
 
-Custom exception classes for the CareerUZ application.
+Custom exception classes for the IshTop application.
 """
 
 from typing import Any, Dict, Optional

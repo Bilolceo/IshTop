@@ -27,11 +27,11 @@ const frontendBaseUrl =
 export const metadata: Metadata = {
   metadataBase: new URL(frontendBaseUrl),
   title: {
-    default: "CareerUZ - AI-Powered Career Platform",
-    template: "%s | CareerUZ",
+    default: "IshTop - AI-Powered Career Platform",
+    template: "%s | IshTop",
   },
   description:
-    "Build stunning resumes with AI, find your dream job, and accelerate your career with CareerUZ.",
+    "Build stunning resumes with AI, find your dream job, and accelerate your career with IshTop.",
   keywords: [
     "AI resume builder",
     "job search",
@@ -40,26 +40,33 @@ export const metadata: Metadata = {
     "job matching",
     "career development",
   ],
-  authors: [{ name: "CareerUZ Team" }],
+  authors: [{ name: "IshTop Team" }],
+  icons: {
+    icon: [
+      { url: "/favicon-32x32.png", sizes: "32x32", type: "image/png" },
+      { url: "/favicon-16x16.png", sizes: "16x16", type: "image/png" },
+    ],
+    apple: "/apple-touch-icon.png",
+  },
   openGraph: {
     type: "website",
     locale: "en_US",
-    url: "https://careeruz.uz",
-    siteName: "CareerUZ",
-    title: "CareerUZ - AI-Powered Career Platform",
+    url: "https://ishtop.uz",
+    siteName: "IshTop",
+    title: "IshTop - AI-Powered Career Platform",
     description: "Build stunning resumes with AI and find your dream job.",
     images: [
       {
         url: "/og-image.png",
         width: 1200,
         height: 630,
-        alt: "CareerUZ",
+        alt: "IshTop",
       },
     ],
   },
   twitter: {
     card: "summary_large_image",
-    title: "CareerUZ",
+    title: "IshTop",
     description: "Build stunning resumes with AI and find your dream job.",
     images: ["/og-image.png"],
   },

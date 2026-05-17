@@ -63,7 +63,7 @@ test.describe('Authentication Flow', () => {
 
   test('should display landing page correctly', async ({ page }) => {
     // Brand should be visible in the navbar (hero title is translated and may differ).
-    await expect(page.locator('nav').getByText(/CareerUZ/i).first()).toBeVisible();
+    await expect(page.locator('nav').getByText(/IshTop/i).first()).toBeVisible();
     
     // Check navigation
     await expect(page.locator('a[href=\"/login\"]').first()).toBeVisible();

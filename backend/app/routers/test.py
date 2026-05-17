@@ -18,7 +18,7 @@ ENDPOINTS:
     GET  /api/test/ai-health     - Check AI service health
     GET  /api/test/ai-usage      - Get token usage statistics
 
-AUTHOR: CareerUZ Team
+AUTHOR: IshTop Team
 VERSION: 1.0.0
 """
 

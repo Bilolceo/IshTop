@@ -184,11 +184,11 @@ export const uz = {
     testimonials: {
       badge: "FIKRLAR",
       title: "Foydalanuvchilar fikrlari",
-      subtitle: "Minglab mutaxassislar allaqachon CareerUZ bilan orzularidagi ishni topdi",
+      subtitle: "Minglab mutaxassislar allaqachon IshTop bilan orzularidagi ishni topdi",
     },
     cta: {
       title: "Karyerangizni oshirishga tayyormisiz?",
-      subtitle: "CareerUZ bilan orzuingizdagi ishni topgan minglab mutaxassislarga qo'shiling. Sayohatingizni bugun boshlang!",
+      subtitle: "IshTop bilan orzuingizdagi ishni topgan minglab mutaxassislarga qo'shiling. Sayohatingizni bugun boshlang!",
       button: "Bepul boshlash",
     },
     footer: {
@@ -216,7 +216,7 @@ export const uz = {
     sidebar: {
       title: "AI vositalar bilan orzuingizdagi karyerani",
       titleHighlight: "quring",
-      subtitle: "O'zbekistondagi 10,000+ mutaxassis CareerUZ bilan karyerasini tezlashtirdi.",
+      subtitle: "O'zbekistondagi 10,000+ mutaxassis IshTop bilan karyerasini tezlashtirdi.",
       features: [
         "AI-quvvatli rezyume yaratish",
         "Aqlli ish mosligi",
@@ -230,7 +230,7 @@ export const uz = {
         success: "Muvaffaqiyat darajasi",
       },
       testimonial: {
-        quote: "CareerUZ menga top texnologiya kompaniyasida orzuimdagi ishni topishga yordam berdi!",
+        quote: "IshTop menga top texnologiya kompaniyasida orzuimdagi ishni topishga yordam berdi!",
         author: "Aziz K.",
         role: "Dasturchi",
       },
@@ -307,11 +307,11 @@ export const uz = {
         },
         step3: {
           title: "Rolni tanlash",
-          description: "CareerUZ'ni qanday ishlatmoqchisiz?",
+          description: "IshTop'ni qanday ishlatmoqchisiz?",
         },
       },
       phoneHelper: "Buni hisob tiklash va ish haqidagi xabarlar uchun ishlatamiz",
-      howWillYouUse: "CareerUZ'ni qanday ishlatmoqchisiz?",
+      howWillYouUse: "IshTop'ni qanday ishlatmoqchisiz?",
       studentRole: "Men ish izlovchiman",
       companyRole: "Men ish beruvchiman",
       studentDescription: "Ish qidirish, rezyume yaratish va karyeramni rivojlantirish",
@@ -356,7 +356,7 @@ export const uz = {
         privacyLink: "Maxfiylik siyosatiga",
       },
       success: {
-        title: "CareerUZ'ga xush kelibsiz! 🎉",
+        title: "IshTop'ga xush kelibsiz! 🎉",
         message: "Hisobingiz muvaffaqiyatli yaratildi.",
         redirecting: "Tizimga kirishga yo'naltirilmoqda...",
       },
@@ -1054,6 +1054,21 @@ export const uz = {
     analyticsDesc: "HR statistikasi",
     companyProfile: "Kompaniya profili",
     companyProfileDesc: "Ma'lumotlarni tahrirlash",
+    actionItems: {
+      title: "Bajariladigan ishlar",
+      awaitingReview: "Ko'rib chiqilishi kerak",
+      scorecardsPending: "Baholash kartalari kutilmoqda",
+      interviewsToday: "Bugungi suhbatlar",
+      viewAll: "Barchasini ko'rish",
+    },
+    upcomingInterviews: {
+      title: "Kelgusi suhbatlar",
+      subtitle: "Keyingi 7 kun",
+      empty: "Kelgusi suhbatlar yo'q",
+      viewAll: "Barchasini ko'rish",
+      today: "Bugun",
+      tomorrow: "Ertaga",
+    },
   },
 
   companyJobsPage: {

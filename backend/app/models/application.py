@@ -79,7 +79,7 @@ Resume deleted → Applications SET NULL (keep resume_id = NULL)
     Resume content might be archived separately
 
 =============================================================================
-AUTHOR: CareerUZ Team
+AUTHOR: IshTop Team
 VERSION: 1.0.0
 =============================================================================
 """

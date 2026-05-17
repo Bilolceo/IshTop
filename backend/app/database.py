@@ -21,7 +21,7 @@ USAGE:
     async def get_users(db: Session = Depends(get_db)):
         return db.query(User).all()
 
-AUTHOR: CareerUZ Team
+AUTHOR: IshTop Team
 VERSION: 1.0.0
 """
 

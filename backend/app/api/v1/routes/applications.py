@@ -24,7 +24,7 @@ ERROR CODES:
     500 - Internal Server Error
 
 =============================================================================
-AUTHOR: CareerUZ Team
+AUTHOR: IshTop Team
 VERSION: 1.0.0
 =============================================================================
 """
@@ -1611,7 +1611,7 @@ async def auto_apply(
                         job_id=job.id,
                         user_id=student.id,
                         resume_id=resume.id,
-                        cover_letter=f"Auto-applied via CareerUZ with {score:.0f}% match score.",
+                        cover_letter=f"Auto-applied via IshTop with {score:.0f}% match score.",
                         status=ApplicationStatus.PENDING.value,
                         match_score=f"{score:.0f}%",
                         match_breakdown={
@@ -1932,7 +1932,7 @@ async def list_scorecards(
         .order_by(InterviewScorecard.created_at.desc())
         .all()
     )
-    return {"success": True, "data": {"scorecards": [_scorecard_to_dict(s) for s in rows]}}
+    return {"success": True, "message": "Scorecards retrieved", "data": {"scorecards": [_scorecard_to_dict(s) for s in rows]}}
 
 
 @router.post(
@@ -1985,3 +1985,144 @@ async def create_scorecard(
     db.commit()
     db.refresh(scorecard)
     return {"success": True, "data": _scorecard_to_dict(scorecard), "message": "Scorecard saved"}
+
+
+# =============================================================================
+# DASHBOARD WIDGETS (COMPANY)
+# =============================================================================
+
+
+@router.get(
+    "/analytics/dashboard-actions",
+    response_model=StandardResponse,
+    summary="Action item counters for the company HR dashboard",
+)
+async def dashboard_actions(
+    company: User = Depends(get_current_company),
+    db: Session = Depends(get_db),
+):
+    from app.models.interview_scorecard import InterviewScorecard
+
+    start_time = time.time()
+    now = datetime.now(timezone.utc)
+    today_start = now.replace(hour=0, minute=0, second=0, microsecond=0)
+    today_end = today_start + timedelta(days=1)
+
+    job_ids_q = db.query(Job.id).filter(
+        Job.company_id == company.id,
+        Job.is_deleted == False,
+    )
+
+    awaiting_review = (
+        db.query(func.count(Application.id))
+        .filter(
+            Application.job_id.in_(job_ids_q),
+            Application.is_deleted == False,
+            Application.status == ApplicationStatus.PENDING.value,
+        )
+        .scalar()
+        or 0
+    )
+
+    scored_app_ids = db.query(InterviewScorecard.application_id)
+
+    scorecards_pending = (
+        db.query(func.count(Application.id))
+        .filter(
+            Application.job_id.in_(job_ids_q),
+            Application.is_deleted == False,
+            Application.status == ApplicationStatus.INTERVIEW.value,
+            Application.interview_at.isnot(None),
+            Application.interview_at < now,
+            ~Application.id.in_(scored_app_ids),
+        )
+        .scalar()
+        or 0
+    )
+
+    interviews_today = (
+        db.query(func.count(Application.id))
+        .filter(
+            Application.job_id.in_(job_ids_q),
+            Application.is_deleted == False,
+            Application.status == ApplicationStatus.INTERVIEW.value,
+            Application.interview_at >= today_start,
+            Application.interview_at < today_end,
+        )
+        .scalar()
+        or 0
+    )
+
+    return create_response(
+        success=True,
+        message="Dashboard action counters",
+        data={
+            "awaiting_review": awaiting_review,
+            "scorecards_pending": scorecards_pending,
+            "interviews_today": interviews_today,
+        },
+        start_time=start_time,
+    )
+
+
+@router.get(
+    "/interviews/upcoming",
+    response_model=StandardResponse,
+    summary="Upcoming interviews for the company within the next N days",
+)
+async def upcoming_interviews(
+    days: int = Query(7, ge=1, le=30),
+    company: User = Depends(get_current_company),
+    db: Session = Depends(get_db),
+):
+    start_time = time.time()
+    now = datetime.now(timezone.utc)
+    until = now + timedelta(days=days)
+
+    rows = (
+        db.query(Application)
+        .join(Job, Job.id == Application.job_id)
+        .join(User, User.id == Application.user_id)
+        .filter(
+            Job.company_id == company.id,
+            Job.is_deleted == False,
+            Application.is_deleted == False,
+            Application.status == ApplicationStatus.INTERVIEW.value,
+            Application.interview_at >= now,
+            Application.interview_at < until,
+        )
+        .order_by(Application.interview_at.asc())
+        .limit(50)
+        .all()
+    )
+
+    interviews = []
+    for app in rows:
+        candidate = app.user
+        if candidate:
+            candidate_name = candidate.full_name or candidate.email
+            candidate_avatar_url = getattr(candidate, "avatar_url", None)
+        else:
+            candidate_name = "Unknown"
+            candidate_avatar_url = None
+
+        job = app.job
+        interviews.append(
+            {
+                "application_id": str(app.id),
+                "candidate_name": candidate_name,
+                "candidate_avatar_url": candidate_avatar_url,
+                "job_id": str(job.id) if job else None,
+                "job_title": job.title if job else None,
+                "interview_at": app.interview_at.isoformat() if app.interview_at else None,
+                "interview_type": app.interview_type,
+                "meeting_link": app.meeting_link,
+            }
+        )
+
+    return create_response(
+        success=True,
+        message=f"Upcoming interviews for the next {days} days",
+        data={"interviews": interviews, "total": len(interviews)},
+        start_time=start_time,
+    )

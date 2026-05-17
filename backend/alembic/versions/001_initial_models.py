@@ -1,4 +1,4 @@
-"""Initial database schema for CareerUZ
+"""Initial database schema for IshTop
 
 Revision ID: 001_initial_models
 Revises: 
@@ -8,7 +8,7 @@ Create Date: 2024-12-01 10:00:00.000000
 MIGRATION OVERVIEW
 =============================================================================
 
-This migration creates the complete database schema for CareerUZ:
+This migration creates the complete database schema for IshTop:
 
 TABLES:
     1. users      - User accounts (students, companies, admins)
@@ -135,7 +135,7 @@ def upgrade() -> None:
         sa.Column('deleted_at', sa.DateTime(timezone=True), nullable=True,
                   comment='When record was soft-deleted'),
         
-        comment='User accounts for CareerUZ'
+        comment='User accounts for IshTop'
     )
     
     # Indexes for users

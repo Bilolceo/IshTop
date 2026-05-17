@@ -180,7 +180,7 @@ db.close()
 ```bash
 # 1. Go to: https://render.com
 # 2. New → PostgreSQL
-# 3. Name: careeruz-db
+# 3. Name: ishtop-db
 # 4. Plan: Starter ($7/month)
 # 5. Create Database
 ```
@@ -208,7 +208,7 @@ postgresql://user:pass@host.com:5432/db
 ```bash
 # 1. Go to: https://supabase.com
 # 2. New Project
-# 3. Name: careeruz
+# 3. Name: ishtop
 # 4. Database Password: (strong password)
 # 5. Region: Closest to your users
 # 6. Create Project
@@ -253,7 +253,7 @@ docker pull dimitri/pgloader
 ```bash
 # backend/migrate.load
 LOAD DATABASE
-    FROM sqlite://./careeruz.db
+    FROM sqlite://./ishtop.db
     INTO postgresql://user:pass@host:5432/dbname
     
     WITH include drop, create tables, create indexes, reset sequences
@@ -428,7 +428,7 @@ from sqlalchemy import create_engine
 import os
 
 # Use SQLite
-sqlite_engine = create_engine('sqlite:///./careeruz.db')
+sqlite_engine = create_engine('sqlite:///./ishtop.db')
 
 # Export to CSV
 import pandas as pd
@@ -470,21 +470,21 @@ bash backend/scripts/migrate_to_postgres.sh
 ```bash
 # 1. Switch back to SQLite
 # backend/.env
-DATABASE_URL=sqlite:///./careeruz.db
+DATABASE_URL=sqlite:///./ishtop.db
 
 # 2. Restart backend
-# Your data is still in careeruz.db!
+# Your data is still in ishtop.db!
 ```
 
 ### Keep Backups:
 
 ```bash
 # Before migration:
-cp careeruz.db careeruz.db.backup
+cp ishtop.db ishtop.db.backup
 cp backend/.env backend/.env.backup
 
 # If needed:
-mv careeruz.db.backup careeruz.db
+mv ishtop.db.backup ishtop.db
 mv backend/.env.backup backend/.env
 ```
 

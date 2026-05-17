@@ -1,6 +1,6 @@
 """
 =============================================================================
-DATABASE MODELS PACKAGE - CareerUZ
+DATABASE MODELS PACKAGE - IshTop
 =============================================================================
 
 This package contains all SQLAlchemy ORM models for the application.
@@ -95,7 +95,7 @@ user.soft_delete()
 user.restore()
 
 =============================================================================
-AUTHOR: CareerUZ Team
+AUTHOR: IshTop Team
 VERSION: 1.0.0
 =============================================================================
 """
@@ -221,4 +221,4 @@ __all__ = [
 # =============================================================================
 
 __version__ = "1.0.0"
-__author__ = "CareerUZ Team"
+__author__ = "IshTop Team"

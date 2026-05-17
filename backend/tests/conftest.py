@@ -3,9 +3,9 @@
 Pytest Configuration and Fixtures
 =============================================================================
 
-Global test fixtures for CareerUZ backend tests.
+Global test fixtures for IshTop backend tests.
 
-AUTHOR: CareerUZ Team
+AUTHOR: IshTop Team
 VERSION: 1.0.0
 =============================================================================
 """

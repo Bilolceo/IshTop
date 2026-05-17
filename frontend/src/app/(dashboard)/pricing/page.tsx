@@ -49,7 +49,7 @@ const getPricingPlans = (isRu: boolean): PricingPlan[] => [
       monthly: 0,
       yearly: 0,
     },
-    description: isRu ? "Идеально для знакомства со CareerUZ" : "CareerUZ ni sinab ko'rish uchun",
+    description: isRu ? "Идеально для знакомства со IshTop" : "IshTop ni sinab ko'rish uchun",
     features: [
       isRu ? "1 AI-резюме" : "1 ta AI rezyume",
       isRu ? "5 заявок в месяц" : "Oyiga 5 ta ariza",

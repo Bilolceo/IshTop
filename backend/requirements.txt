@@ -1,5 +1,5 @@
   # =============================================================================
-# CareerUZ - Python Dependencies
+# IshTop - Python Dependencies
 # =============================================================================
 # Install with: pip install -r requirements.txt
 

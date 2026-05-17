@@ -9,7 +9,7 @@ CI, and one-off ops. It will:
 - promote existing user to admin if email already exists
 
 Usage:
-  python scripts/create_admin.py --email admin@careeruz.uz --password 'Admin123!'
+  python scripts/create_admin.py --email admin@ishtop.uz --password 'Admin123!'
 """
 
 from __future__ import annotations
@@ -32,7 +32,7 @@ from app.models.base import Base
 
 def _parse_args() -> argparse.Namespace:
     parser = argparse.ArgumentParser(description="Create or promote an admin user")
-    parser.add_argument("--email", default="admin@careeruz.uz")
+    parser.add_argument("--email", default="admin@ishtop.uz")
     parser.add_argument("--full-name", default="System Admin")
     parser.add_argument("--phone", default="+998901111111")
     parser.add_argument(

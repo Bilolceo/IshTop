@@ -4,7 +4,7 @@ USER MODEL
 =============================================================================
 
 PURPOSE:
-    Represents user accounts in CareerUZ.
+    Represents user accounts in IshTop.
     Supports three user types: students (job seekers), companies, and admins.
 
 =============================================================================
@@ -48,7 +48,7 @@ SECURITY FEATURES
    - Validated before hashing
 
 =============================================================================
-AUTHOR: CareerUZ Team
+AUTHOR: IshTop Team
 VERSION: 1.0.0
 =============================================================================
 """
@@ -241,7 +241,7 @@ class User(Base, UUIDMixin, TimestampMixin, SoftDeleteMixin):
         # Database-level regex constraints are PostgreSQL-specific
         
         # Table comment for documentation
-        {'comment': 'User accounts for CareerUZ (students, companies, admins)'}
+        {'comment': 'User accounts for IshTop (students, companies, admins)'}
     )
     
     # =========================================================================

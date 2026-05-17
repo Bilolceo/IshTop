@@ -5,7 +5,7 @@ Users & RBAC Tests
 
 Tests for user management and role-based access control.
 
-AUTHOR: CareerUZ Team
+AUTHOR: IshTop Team
 VERSION: 1.0.0
 =============================================================================
 """

@@ -1,6 +1,6 @@
 """
 =============================================================================
-Configuration Settings for CareerUZ
+Configuration Settings for IshTop
 =============================================================================
 
 This file manages all application settings using Pydantic.
@@ -131,7 +131,7 @@ class Settings(BaseSettings):
     # Database connection string
     # Development: SQLite
     # Production: postgresql://user:password@host:port/database
-    DATABASE_URL: str = "sqlite:///./careeruz.db"
+    DATABASE_URL: str = "sqlite:///./ishtop.db"
 
     # =========================================================================
     # 🧠 REDIS (Rate limiting, token blacklist, OAuth state)
@@ -177,7 +177,7 @@ class Settings(BaseSettings):
     # =========================================================================
     
     # Application name (shown in API docs and responses)
-    APP_NAME: str = "CareerUZ"
+    APP_NAME: str = "IshTop"
     
     # Version number
     APP_VERSION: str = "1.0.0"
@@ -212,8 +212,8 @@ class Settings(BaseSettings):
     SMTP_PORT: int = 587
     SMTP_USER: str = ""
     SMTP_PASSWORD: str = ""
-    SMTP_FROM_EMAIL: str = "noreply@careeruz.uz"
-    SMTP_FROM_NAME: str = "CareerUZ"
+    SMTP_FROM_EMAIL: str = "noreply@ishtop.uz"
+    SMTP_FROM_NAME: str = "IshTop"
     SMTP_USE_TLS: bool = True
     
     # SendGrid (optional - for production)
@@ -233,7 +233,7 @@ class Settings(BaseSettings):
     FRONTEND_URL: str = "http://localhost:3000"
     
     # Support email
-    SUPPORT_EMAIL: str = "support@careeruz.uz"
+    SUPPORT_EMAIL: str = "support@ishtop.uz"
     
     # =========================================================================
     # 🔐 OAUTH2 SETTINGS (Google, LinkedIn)
@@ -277,11 +277,11 @@ class Settings(BaseSettings):
     AUTO_SEED_MIN_ACTIVE_JOBS: int = 10
 
     # Fallback company for seed jobs (created only if no company users exist).
-    AUTO_SEED_COMPANY_EMAIL: str = "seed-company@careeruz.uz"
+    AUTO_SEED_COMPANY_EMAIL: str = "seed-company@ishtop.uz"
     AUTO_SEED_COMPANY_PASSWORD: str = "Company123!"
-    AUTO_SEED_COMPANY_MANAGER_NAME: str = "CareerUZ HR Team"
-    AUTO_SEED_COMPANY_NAME: str = "CareerUZ Hiring"
-    AUTO_SEED_COMPANY_WEBSITE: str = "https://careeruz.uz"
+    AUTO_SEED_COMPANY_MANAGER_NAME: str = "IshTop HR Team"
+    AUTO_SEED_COMPANY_NAME: str = "IshTop Hiring"
+    AUTO_SEED_COMPANY_WEBSITE: str = "https://ishtop.uz"
 
     # =========================================================================
     # 🐛 ERROR MONITORING & LOGGING

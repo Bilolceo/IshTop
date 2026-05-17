@@ -7,9 +7,9 @@
 
 import { useEffect, useMemo, useState } from "react";
 import Link from "next/link";
+import Image from "next/image";
 import { usePathname } from "next/navigation";
 import {
-  Sparkles,
   FileText,
   Briefcase,
   ClipboardList,
@@ -163,11 +163,16 @@ export function DashboardLayout({ children }: DashboardLayoutProps) {
           {/* Logo */}
           <div className="flex h-16 items-center justify-between px-4 border-b border-surface-200 dark:border-surface-800">
             <Link href={dashboardHome} className="flex items-center gap-2">
-              <div className="flex h-9 w-9 items-center justify-center rounded-xl bg-gradient-to-br from-brand-400 to-brand-600">
-                <Sparkles className="h-5 w-5 text-white" />
-              </div>
+              <Image
+                src="/logo-mark.png"
+                alt="IshTop"
+                width={36}
+                height={36}
+                priority
+                className="h-9 w-9 rounded-xl"
+              />
               <span className="font-display text-xl font-bold text-surface-900 dark:text-white">
-                CareerUZ
+                IshTop
               </span>
             </Link>
             <button

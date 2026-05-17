@@ -75,7 +75,7 @@ _SEED_JOB_BLUEPRINTS = [
     },
     {
         "title": "DevOps Engineer",
-        "company_name": "CareerUZ Platform",
+        "company_name": "IshTop Platform",
         "description": "Maintain cloud infrastructure and deployment reliability.",
         "requirements": ["Docker", "Linux", "Monitoring"],
         "responsibilities": ["Manage CI/CD", "Improve uptime", "Harden environments"],
