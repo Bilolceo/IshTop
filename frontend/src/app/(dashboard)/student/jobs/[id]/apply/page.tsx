@@ -81,6 +81,37 @@ type AdditionalQuestion = {
   required: boolean;
 };
 type StepItem = { id: number; title: string; icon: React.ComponentType<any> };
+type ResumeContent = Resume["content"] & {
+  personal_info?: {
+    name?: string;
+    email?: string;
+    phone?: string;
+    location?: string;
+    professional_title?: string;
+    summary?: string;
+  };
+  skills?: {
+    technical?: string[];
+    soft?: string[];
+    languages?: Array<{ name?: string; level?: string }>;
+  };
+  experience?: Array<{
+    company?: string;
+    position?: string;
+    duration?: string;
+    description?: string;
+  }>;
+  education?: Array<{
+    institution?: string;
+    degree?: string;
+    field?: string;
+    year?: string | number;
+  }>;
+};
+
+const MAX_RESUME_TEXT_LENGTH = 18000;
+const MAX_JOB_TEXT_LENGTH = 9000;
+const MAX_COVER_LETTER_LENGTH = 2000;
 
 function getAdditionalQuestions(isRu: boolean): AdditionalQuestion[] {
   return [
@@ -119,36 +150,116 @@ function getAdditionalQuestions(isRu: boolean): AdditionalQuestion[] {
 function getSteps(isRu: boolean): StepItem[] {
   return [
     { id: 1, title: isRu ? "Выбор резюме" : "Rezyume tanlash", icon: FileText },
-    { id: 2, title: isRu ? "Сопроводительное письмо" : "Cover letter", icon: PenLine },
-    { id: 3, title: isRu ? "Savollar" : "Savollar", icon: HelpCircle },
+    { id: 2, title: isRu ? "Сопроводительное письмо" : "Motivatsion xat", icon: PenLine },
+    { id: 3, title: isRu ? "Вопросы" : "Savollar", icon: HelpCircle },
     { id: 4, title: isRu ? "Проверка" : "Ko'rib chiqish", icon: CheckSquare },
   ];
 }
 
+function truncateText(value: string, max: number): string {
+  if (!value) return "";
+  return value.length > max ? `${value.slice(0, Math.max(0, max - 3))}...` : value;
+}
+
+function asListLine(values: string[], label: string): string {
+  if (!values.length) return "";
+  return `${label}: ${values.join(", ")}`;
+}
+
 function buildResumeText(resume: Resume): string {
-  try {
-    const text = JSON.stringify(resume.content ?? {}, null, 2);
-    return text.length >= 100 ? text : `${text}\n\nAdditional profile context for AI optimization.`;
-  } catch {
-    return "Resume content is available but could not be serialized.";
-  }
+  const content = (resume.content ?? {}) as ResumeContent;
+  const personal = content.personal_info ?? {};
+  const technicalSkills = (content.skills?.technical ?? []).slice(0, 30).filter(Boolean);
+  const softSkills = (content.skills?.soft ?? []).slice(0, 20).filter(Boolean);
+  const languages = (content.skills?.languages ?? [])
+    .slice(0, 10)
+    .map((lang) => [lang.name, lang.level].filter(Boolean).join(" - "))
+    .filter(Boolean);
+  const experience = (content.experience ?? [])
+    .slice(0, 6)
+    .map((item) => {
+      const start = (item as { start_date?: string }).start_date;
+      const end = (item as { end_date?: string; is_current?: boolean }).is_current
+        ? "Present"
+        : (item as { end_date?: string }).end_date;
+      const range = [start, end].filter(Boolean).join(" - ");
+      return [item.position, item.company, range, truncateText(item.description ?? "", 200)]
+        .filter(Boolean)
+        .join(" | ");
+    })
+    .filter(Boolean);
+  const education = (content.education ?? [])
+    .slice(0, 5)
+    .map((item) => [item.degree, item.field, item.institution, item.year ? String(item.year) : ""].filter(Boolean).join(" | "))
+    .filter(Boolean);
+
+  const sections = [
+    [personal.name, personal.professional_title].filter(Boolean).join(" - "),
+    [personal.email, personal.phone, personal.location].filter(Boolean).join(" | "),
+    personal.summary ? `Summary: ${truncateText(personal.summary, 600)}` : "",
+    asListLine(technicalSkills, "Technical Skills"),
+    asListLine(softSkills, "Soft Skills"),
+    asListLine(languages, "Languages"),
+    experience.length ? `Experience:\n- ${experience.join("\n- ")}` : "",
+    education.length ? `Education:\n- ${education.join("\n- ")}` : "",
+  ].filter(Boolean);
+
+  const text = sections.join("\n\n").trim();
+  const normalized = text.replace(/\n{3,}/g, "\n\n");
+  return truncateText(normalized || "Candidate profile available.", MAX_RESUME_TEXT_LENGTH);
 }
 
 function buildJobDescription(job: Job): string {
   const extendedJob = job as Job & { responsibilities?: string[] };
   const parts = [
-    `Title: ${job.title}`,
+    `Title: ${job.title || ""}`,
     `Company: ${job.company?.name || ""}`,
     `Location: ${job.location || ""}`,
-    `Description: ${job.description || ""}`,
-    `Requirements: ${(job.requirements?.skills || []).join(", ")}`,
-    `Responsibilities: ${(extendedJob.responsibilities || []).join(", ")}`,
-  ]
-    .map((part) => part.trim())
-    .filter(Boolean);
+    `Salary: ${formatSalaryRange(job.salary_min, job.salary_max)}`,
+    `Description: ${truncateText(job.description || "", 2500)}`,
+    asListLine((job.requirements?.skills || []).slice(0, 40), "Requirements"),
+    asListLine((extendedJob.responsibilities || []).slice(0, 30), "Responsibilities"),
+  ].filter(Boolean);
 
-  const text = parts.join("\n");
-  return text.length >= 50 ? text : `${text}\nThis role expects strong communication, ownership, and team collaboration.`;
+  const text = parts.join("\n").trim();
+  return truncateText(text || "Job details available.", MAX_JOB_TEXT_LENGTH);
+}
+
+function buildFallbackCoverLetter(params: {
+  isRu: boolean;
+  companyName: string;
+  jobTitle: string;
+  resume: Resume | null;
+}) {
+  const role = params.jobTitle || (params.isRu ? "данную позицию" : "ushbu lavozim");
+  const company = params.companyName || (params.isRu ? "вашу компанию" : "kompaniyangiz");
+
+  const resumeContent = (params.resume?.content ?? {}) as ResumeContent;
+  const summary = truncateText(resumeContent.personal_info?.summary ?? "", 260);
+  const tech = (resumeContent.skills?.technical ?? []).slice(0, 6).join(", ");
+  const soft = (resumeContent.skills?.soft ?? []).slice(0, 4).join(", ");
+
+  if (params.isRu) {
+    return truncateText(
+      `Здравствуйте, команда ${company}.\n\n` +
+        `Хочу откликнуться на позицию ${role}. У меня есть релевантный опыт и мотивация быстро принести пользу команде.\n\n` +
+        (summary ? `Кратко обо мне: ${summary}\n\n` : "") +
+        (tech ? `Профильные навыки: ${tech}.\n` : "") +
+        (soft ? `Сильные стороны: ${soft}.\n` : "") +
+        `Буду рад(а) обсудить, как мой опыт поможет в задачах роли.\n\nС уважением,`,
+      MAX_COVER_LETTER_LENGTH
+    );
+  }
+
+  return truncateText(
+    `Hurmatli ${company} jamoasi,\n\n` +
+      `Men ${role} lavozimiga qiziqish bildiraman. Menda ushbu rolga mos tajriba va tez moslashuvchan yondashuv bor.\n\n` +
+      (summary ? `Qisqacha men haqimda: ${summary}\n\n` : "") +
+      (tech ? `Asosiy ko'nikmalarim: ${tech}.\n` : "") +
+      (soft ? `Kuchli tomonlarim: ${soft}.\n` : "") +
+      `Siz bilan suhbatda ushbu lavozimga qanday qiymat bera olishimni muhokama qilishdan mamnun bo'laman.\n\nHurmat bilan,`,
+    MAX_COVER_LETTER_LENGTH
+  );
 }
 
 // =============================================================================
@@ -390,10 +501,10 @@ function CoverLetterEditor({
   const [tone, setTone] = useState("professional");
 
   const tones = [
-    { value: "professional", label: isRu ? "Профессиональный" : "Professional" },
-    { value: "enthusiastic", label: isRu ? "Энергичный" : "Enthusiastic" },
-    { value: "confident", label: isRu ? "Уверенный" : "Confident" },
-    { value: "creative", label: isRu ? "Креативный" : "Creative" },
+    { value: "professional", label: isRu ? "Профессиональный" : "Professional uslub" },
+    { value: "enthusiastic", label: isRu ? "Энергичный" : "Faol uslub" },
+    { value: "confident", label: isRu ? "Уверенный" : "Ishonchli uslub" },
+    { value: "creative", label: isRu ? "Креативный" : "Ijodiy uslub" },
   ];
 
   return (
@@ -401,11 +512,11 @@ function CoverLetterEditor({
       <div className="flex items-center justify-between">
         <div>
           <h3 className="font-display text-lg font-semibold text-surface-900 dark:text-white">
-            {isRu ? "Сопроводительное письмо" : "Cover letter"}
+            {isRu ? "Сопроводительное письмо" : "Motivatsion xat"}
           </h3>
           <p className="text-sm text-surface-500">{isRu ? "Необязательно, но рекомендуется" : "Ixtiyoriy, lekin tavsiya etiladi"}</p>
         </div>
-        <Badge variant="secondary">{isRu ? "Ixtiyoriy" : "Ixtiyoriy"}</Badge>
+        <Badge variant="secondary">{isRu ? "Необязательно" : "Ixtiyoriy"}</Badge>
       </div>
 
       {/* AI Generation Card */}
@@ -421,7 +532,7 @@ function CoverLetterEditor({
                   {isRu ? "Сгенерировать с AI" : "AI bilan yaratish"}
                 </p>
                 <p className="text-sm text-surface-500">
-                  {isRu ? "Shaxsiy cover letter ni bir zumda yarating" : "Shaxsiy cover letter ni bir zumda yarating"}
+                  {isRu ? "Создайте персональное письмо за пару секунд" : "Shaxsiy motivatsion xatni bir zumda yarating"}
                 </p>
               </div>
             </div>
@@ -479,7 +590,7 @@ function CoverLetterEditor({
       {/* Tips */}
       <div className="rounded-xl bg-surface-50 p-4 dark:bg-surface-800/50">
         <h4 className="mb-2 text-sm font-medium text-surface-700 dark:text-surface-300">
-          {isRu ? "💡 Yaxshi cover letter uchun tavsiyalar:" : "💡 Yaxshi cover letter uchun tavsiyalar:"}
+          {isRu ? "💡 Советы для сильного сопроводительного письма:" : "💡 Yaxshi motivatsion xat uchun tavsiyalar:"}
         </h4>
         <ul className="space-y-1 text-sm text-surface-500">
           <li>{isRu ? "• Укажите навыки, которые совпадают с требованиями" : "• Talablarga mos ko'nikmalarni aniq ko'rsating"}</li>
@@ -1007,7 +1118,7 @@ export default function ApplyPage() {
       const response = await aiApi.generateCoverLetter({
         resume_text: buildResumeText(selectedResume),
         job_description: buildJobDescription(job),
-        company_name: job.company?.name || "",
+        company_name: job.company?.name || (isRu ? "Компания" : "Kompaniya"),
         tone,
       });
 
@@ -1039,10 +1150,29 @@ export default function ApplyPage() {
         throw new Error(data.message || (isRu ? "AI пустой natija qaytardi." : "AI bo'sh natija qaytardi."));
       }
 
-      setCoverLetter(generatedLetter);
-      toast.success(isRu ? "Сопроводительное письмо готово" : "Cover letter yaratildi");
+      setCoverLetter(truncateText(generatedLetter, MAX_COVER_LETTER_LENGTH));
+      toast.success(isRu ? "Сопроводительное письмо готово" : "Motivatsion xat yaratildi");
     } catch (error) {
-      toast.error(getErrorMessage(error));
+      const message = getErrorMessage(error);
+      const networkLikeError = /network error|failed to fetch|timeout|err_network/i.test(message);
+
+      if (networkLikeError) {
+        const fallbackLetter = buildFallbackCoverLetter({
+          isRu,
+          companyName: job.company?.name || "",
+          jobTitle: job.title || "",
+          resume: selectedResume,
+        });
+        setCoverLetter(fallbackLetter);
+        toast.warning(
+          isRu
+            ? "AI временно недоступен. Добавлен шаблон письма — можете отредактировать и отправить."
+            : "AI vaqtincha ulanmayapti. Namunaviy xat qo'shildi — tahrirlab yuborishingiz mumkin."
+        );
+        return;
+      }
+
+      toast.error(message);
     } finally {
       setIsGeneratingCover(false);
     }
