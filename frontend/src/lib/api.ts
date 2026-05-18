@@ -457,6 +457,9 @@ export const aiApi = {
 
   hrEmailSend: (applicationId: string, data: { subject: string; body: string }) =>
     api.post(`/ai/hr/applications/${applicationId}/email/send`, data),
+
+  projectHelp: (data: { question: string; locale?: "uz" | "ru"; context_page?: string }) =>
+    api.post("/ai/help-assistant", data),
 };
 
 // Payment endpoints

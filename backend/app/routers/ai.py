@@ -16,12 +16,13 @@ ENDPOINTS:
 """
 
 
-from fastapi import APIRouter, HTTPException, status, Body
+from fastapi import APIRouter, HTTPException, status, Body, Depends
 from pydantic import BaseModel, Field
 from typing import List, Optional, Dict, Any
 import logging
 
 from app.config import settings
+from app.core.dependencies import get_current_active_user
 
 # Try to import AI services
 try:
@@ -203,6 +204,111 @@ class JobMatchRequest(BaseModel):
         max_length=10000,
         description="The job posting description"
     )
+
+# =============================================================================
+# STUDENT HELP ASSISTANT
+# =============================================================================
+
+class HelpAssistantRequest(BaseModel):
+    question: str = Field(
+        ...,
+        min_length=3,
+        max_length=1200,
+        description="User question about the platform",
+    )
+    locale: str = Field(default="uz", description="uz | ru")
+    context_page: Optional[str] = Field(default=None, max_length=120)
+
+
+@router.post(
+    "/help-assistant",
+    response_model=Dict[str, Any],
+    summary="Student help assistant",
+    description="Answer user questions about how to use IshTop platform features.",
+)
+async def help_assistant(
+    request: HelpAssistantRequest,
+    _user=Depends(get_current_active_user),
+):
+    """
+    AI helper for student dashboard questions.
+    Returns a concise practical answer in Uzbek or Russian.
+    """
+    service = get_ai_service()
+    locale = (request.locale or "uz").strip().lower()
+    if locale not in {"uz", "ru"}:
+        locale = "uz"
+
+    context = (
+        "You are IshTop Assistant for students. "
+        "IshTop includes: AI resume builder, job search filters, quick apply, "
+        "applications tracking, saved jobs, notifications, and profile settings. "
+        "Never fabricate credentials, secrets, API keys, or admin-only actions. "
+        "Give practical step-by-step instructions."
+    )
+    lang_rule = (
+        "Answer only in Russian (Cyrillic)." if locale == "ru" else
+        "Javobni faqat o'zbek tilida (lotin) bering."
+    )
+    page_hint = (
+        f"User current page: {request.context_page}." if request.context_page else ""
+    )
+    prompt = (
+        f"{context}\n{lang_rule}\n{page_hint}\n\n"
+        f"User question:\n{request.question}\n\n"
+        "Rules:\n"
+        "1) Keep answer short and clear.\n"
+        "2) If needed, provide numbered steps.\n"
+        "3) Mention relevant section names in the app (Resumes, Jobs, Applications, Settings).\n"
+        "4) If problem may be network-related, suggest refresh + relogin + support contact.\n"
+    )
+
+    try:
+        answer_text: Optional[str] = None
+        if hasattr(service, "generate"):
+            answer_text = await service.generate(prompt, response_format="text")
+        elif hasattr(service, "_call_openai_api"):
+            answer_text = await service._call_openai_api(  # type: ignore[attr-defined]
+                system_message=context,
+                prompt=f"{lang_rule}\n{page_hint}\n\n{request.question}",
+                operation="help_assistant",
+                response_format_json=False,
+                temperature=0.3,
+                max_tokens=500,
+            )
+        else:
+            raise Exception("No supported generation method for current AI provider")
+
+        answer_text = (answer_text or "").strip()
+        if not answer_text:
+            raise Exception("Empty AI response")
+
+        return {
+            "success": True,
+            "data": {
+                "answer": answer_text,
+                "locale": locale,
+            },
+            "message": "Help answer generated",
+        }
+    except Exception as exc:
+        logger.exception("Help assistant generation failed: %s", exc)
+        fallback = (
+            "Hozir AI yordamchi vaqtincha band. Iltimos, sahifani yangilang va savolni qayta yuboring. "
+            "Muammo davom etsa Sozlamalar > Yordam orqali support bilan bog'laning."
+            if locale == "uz"
+            else "AI-помощник временно недоступен. Обновите страницу и отправьте вопрос снова. "
+                 "Если проблема останется, откройте Настройки > Помощь и свяжитесь с поддержкой."
+        )
+        return {
+            "success": True,
+            "data": {
+                "answer": fallback,
+                "locale": locale,
+                "fallback": True,
+            },
+            "message": "Fallback help answer returned",
+        }
 
 
 # =============================================================================
@@ -532,11 +638,10 @@ async def health_check():
 # AI HR — recruiter-facing helpers (job desc, candidate summary, questions, email)
 # =============================================================================
 
-from app.core.dependencies import get_db, get_current_company, get_current_active_user
+from app.core.dependencies import get_db, get_current_company
 from app.services import ai_hr as ai_hr_service
 from app.models import Application, Job, Resume, User as _User, UserRole as _UserRole
 from sqlalchemy.orm import Session
-from fastapi import Depends
 from uuid import UUID
 
 

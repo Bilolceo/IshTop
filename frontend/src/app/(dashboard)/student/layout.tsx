@@ -33,10 +33,11 @@ import {
   HelpCircle,
   ChevronRight,
   BookmarkCheck,
+  Loader2,
 } from "lucide-react";
 import { useAuth, useRequireAuth } from "@/hooks/useAuth";
 import { useTranslation } from "@/hooks/useTranslation";
-import { api, userApi } from "@/lib/api";
+import { aiApi, api, getErrorMessage, userApi } from "@/lib/api";
 import { formatRelativeTime } from "@/lib/utils";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -125,6 +126,9 @@ export default function StudentDashboardLayout({
   const [resumeCount, setResumeCount] = useState<number>(0);
   const [applicationCount, setApplicationCount] = useState<number>(0);
   const [shortcutHint, setShortcutHint] = useState("Ctrl+K");
+  const [helpQuestion, setHelpQuestion] = useState("");
+  const [helpAnswer, setHelpAnswer] = useState("");
+  const [helpLoading, setHelpLoading] = useState(false);
 
   useEffect(() => {
     if (typeof window === "undefined") return;
@@ -204,6 +208,30 @@ export default function StudentDashboardLayout({
   const isActive = (href: string, exact?: boolean) => {
     if (exact) return pathname === href;
     return pathname.startsWith(href);
+  };
+
+  const askHelpAssistant = async () => {
+    const question = helpQuestion.trim();
+    if (!question) return;
+
+    setHelpLoading(true);
+    try {
+      const res = await aiApi.projectHelp({
+        question,
+        locale: locale === "ru" ? "ru" : "uz",
+        context_page: pathname,
+      });
+      const answer =
+        (res.data as { data?: { answer?: string } })?.data?.answer ||
+        (locale === "ru"
+          ? "Помощник пока не ответил. Попробуйте снова."
+          : "Yordamchi hozircha javob bermadi. Qayta urinib ko'ring.");
+      setHelpAnswer(answer);
+    } catch (error) {
+      setHelpAnswer(getErrorMessage(error));
+    } finally {
+      setHelpLoading(false);
+    }
   };
 
   if (!isAuthorized) return null;
@@ -319,6 +347,40 @@ export default function StudentDashboardLayout({
             <p className="mt-2 text-sm text-surface-600 dark:text-surface-400">
               {t("dashboard.sidebar.helpText")}
             </p>
+            <div className="mt-3 space-y-2">
+              <Input
+                value={helpQuestion}
+                onChange={(e) => setHelpQuestion(e.target.value)}
+                placeholder={
+                  locale === "ru"
+                    ? "Спросите, например: как быстро откликнуться?"
+                    : "Masalan: tezkor ariza qanday yuboriladi?"
+                }
+                className="h-9 border-purple-200 bg-white/80 text-xs dark:border-purple-700 dark:bg-surface-800/70"
+              />
+              <Button
+                size="sm"
+                onClick={() => void askHelpAssistant()}
+                disabled={helpLoading || !helpQuestion.trim()}
+                className="w-full bg-gradient-to-r from-purple-500 to-indigo-600 text-xs"
+              >
+                {helpLoading ? (
+                  <>
+                    <Loader2 className="mr-2 h-3.5 w-3.5 animate-spin" />
+                    {locale === "ru" ? "Отвечаем..." : "Javob tayyorlanmoqda..."}
+                  </>
+                ) : locale === "ru" ? (
+                  "Спросить AI-помощника"
+                ) : (
+                  "AI yordamchidan so'rash"
+                )}
+              </Button>
+              {helpAnswer && (
+                <div className="rounded-lg border border-purple-200 bg-white/90 p-2 text-xs leading-relaxed text-surface-700 dark:border-purple-700 dark:bg-surface-800/80 dark:text-surface-300">
+                  {helpAnswer}
+                </div>
+              )}
+            </div>
             <Link href="/student/help" className="block">
               <Button variant="outline" size="sm" className="mt-3 w-full">
                 {t("dashboard.sidebar.viewDocs")}
