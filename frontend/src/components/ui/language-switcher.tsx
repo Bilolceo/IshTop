@@ -11,7 +11,7 @@
 
 import { useState, useRef, useEffect } from "react";
 import { motion, AnimatePresence } from "framer-motion";
-import { Globe, Check, ChevronDown } from "lucide-react";
+import { Check, ChevronDown } from "lucide-react";
 import { useTranslation } from "@/hooks/useTranslation";
 import { localeNames, localeFlags, type Locale } from "@/lib/i18n";
 import { cn } from "@/lib/utils";

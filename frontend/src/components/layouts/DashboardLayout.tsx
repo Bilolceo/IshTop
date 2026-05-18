@@ -22,7 +22,6 @@ import {
   PlusCircle,
   LayoutDashboard,
   Zap,
-  Activity,
   AlertTriangle,
   Server,
   KeyRound,
