@@ -162,7 +162,9 @@ export default function JobDetailPage() {
               {companyLetter}
             </div>
             <div>
-              <h1 className="text-2xl font-bold text-surface-900">{job.title}</h1>
+              <h1 className="text-2xl font-bold text-surface-900">
+                {job.title}
+              </h1>
               <div className="mt-1 flex items-center gap-2 text-surface-600">
                 <Building2 className="h-4 w-4" />
                 <span className="font-medium">{companyName}</span>
@@ -177,6 +179,12 @@ export default function JobDetailPage() {
               size="icon"
               onClick={() => setIsSaved(!isSaved)}
               className={isSaved ? "text-purple-600" : "text-surface-400"}
+              title={
+                isSaved ? "Saqlanganlardan olib tashlash" : "Ishni saqlash"
+              }
+              aria-label={
+                isSaved ? "Saqlanganlardan olib tashlash" : "Ishni saqlash"
+              }
             >
               {isSaved ? (
                 <BookmarkCheck className="h-5 w-5" />
@@ -189,11 +197,15 @@ export default function JobDetailPage() {
               size="icon"
               onClick={handleShare}
               className="text-surface-400"
+              title="Ishni ulashish"
+              aria-label="Ishni ulashish"
             >
               <Share2 className="h-5 w-5" />
             </Button>
             {isCopied && (
-              <span className="self-center text-xs text-green-600">Nusxalandi!</span>
+              <span className="self-center text-xs text-green-600">
+                Nusxalandi!
+              </span>
             )}
           </div>
         </div>
@@ -203,13 +215,14 @@ export default function JobDetailPage() {
           <Badge
             className={cn(
               "rounded-full px-3 py-1 text-sm font-medium",
-              jobTypeColors[job.job_type] || "bg-surface-100 text-surface-700"
+              jobTypeColors[job.job_type] || "bg-surface-100 text-surface-700",
             )}
           >
             {jobTypeLabels[job.job_type] || job.job_type}
           </Badge>
           <Badge className="rounded-full bg-surface-100 px-3 py-1 text-sm font-medium text-surface-700">
-            {experienceLevelLabels[job.experience_level] || job.experience_level}
+            {experienceLevelLabels[job.experience_level] ||
+              job.experience_level}
           </Badge>
           {job.matchScore && (
             <Badge className="rounded-full bg-green-100 px-3 py-1 text-sm font-medium text-green-700">
@@ -243,7 +256,9 @@ export default function JobDetailPage() {
           </div>
           <div className="flex items-center gap-2 text-surface-600">
             <Clock className="h-4 w-4 text-surface-400" />
-            <span className="text-sm">{formatRelativeTime(job.created_at)}</span>
+            <span className="text-sm">
+              {formatRelativeTime(job.created_at, "uz")}
+            </span>
           </div>
           {job.expires_at && (
             <div className="flex items-center gap-2 text-surface-600">
@@ -264,7 +279,13 @@ export default function JobDetailPage() {
             </Button>
           </Link>
           {job.company?.logo_url && (
-            <Button variant="outline" size="icon" className="h-12 w-12">
+            <Button
+              variant="outline"
+              size="icon"
+              className="h-12 w-12"
+              title="Kompaniya veb-sayti"
+              aria-label="Kompaniya veb-sayti"
+            >
               <Globe className="h-5 w-5" />
             </Button>
           )}
@@ -317,8 +338,12 @@ export default function JobDetailPage() {
               <div className="flex items-start gap-3">
                 <Briefcase className="mt-0.5 h-5 w-5 flex-shrink-0 text-surface-400" />
                 <div>
-                  <p className="text-sm font-semibold text-surface-700">Tajriba</p>
-                  <p className="text-sm text-surface-600">{job.requirements.experience}</p>
+                  <p className="text-sm font-semibold text-surface-700">
+                    Tajriba
+                  </p>
+                  <p className="text-sm text-surface-600">
+                    {job.requirements.experience}
+                  </p>
                 </div>
               </div>
             )}
@@ -326,24 +351,34 @@ export default function JobDetailPage() {
               <div className="flex items-start gap-3">
                 <CheckCircle className="mt-0.5 h-5 w-5 flex-shrink-0 text-surface-400" />
                 <div>
-                  <p className="text-sm font-semibold text-surface-700">Ta'lim</p>
-                  <p className="text-sm text-surface-600">{job.requirements.education}</p>
+                  <p className="text-sm font-semibold text-surface-700">
+                    Ta'lim
+                  </p>
+                  <p className="text-sm text-surface-600">
+                    {job.requirements.education}
+                  </p>
                 </div>
               </div>
             )}
-            {job.requirements.certifications && job.requirements.certifications.length > 0 && (
-              <div>
-                <h3 className="mb-2 text-sm font-semibold text-surface-700">Sertifikatlar</h3>
-                <ul className="space-y-1">
-                  {job.requirements.certifications.map((cert) => (
-                    <li key={cert} className="flex items-center gap-2 text-sm text-surface-600">
-                      <CheckCircle className="h-4 w-4 text-green-500" />
-                      {cert}
-                    </li>
-                  ))}
-                </ul>
-              </div>
-            )}
+            {job.requirements.certifications &&
+              job.requirements.certifications.length > 0 && (
+                <div>
+                  <h3 className="mb-2 text-sm font-semibold text-surface-700">
+                    Sertifikatlar
+                  </h3>
+                  <ul className="space-y-1">
+                    {job.requirements.certifications.map((cert) => (
+                      <li
+                        key={cert}
+                        className="flex items-center gap-2 text-sm text-surface-600"
+                      >
+                        <CheckCircle className="h-4 w-4 text-green-500" />
+                        {cert}
+                      </li>
+                    ))}
+                  </ul>
+                </div>
+              )}
           </div>
         </motion.div>
       )}
@@ -357,7 +392,9 @@ export default function JobDetailPage() {
       >
         <div className="flex flex-col items-center gap-4 sm:flex-row sm:justify-between">
           <div>
-            <h3 className="font-bold text-surface-900">Ushbu ish sizga mos keladi?</h3>
+            <h3 className="font-bold text-surface-900">
+              Ushbu ish sizga mos keladi?
+            </h3>
             <p className="mt-1 text-sm text-surface-500">
               Hoziroq ariza bering va imkoningizni sinab ko'ring!
             </p>

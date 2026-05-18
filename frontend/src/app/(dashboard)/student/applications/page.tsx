@@ -58,7 +58,12 @@ import type { ApplicationStatus } from "@/types/api";
 
 const statusConfig: Record<
   ApplicationStatus,
-  { labelKey: string; color: string; icon: React.ComponentType<any>; bgColor: string }
+  {
+    labelKey: string;
+    color: string;
+    icon: React.ComponentType<any>;
+    bgColor: string;
+  }
 > = {
   pending: {
     labelKey: "applicationsPage.pending",
@@ -127,30 +132,43 @@ type ApplicationInterviewPreview = {
   };
 };
 
-function formatInterviewTypeLabel(interviewType: string | undefined, isRu: boolean) {
+function formatInterviewTypeLabel(
+  interviewType: string | undefined,
+  isRu: boolean,
+) {
   if (!interviewType) {
     return isRu ? "Формат не указан" : "Format belgilanmagan";
   }
 
   const normalized = interviewType.trim().toLowerCase();
   if (normalized === "video") return isRu ? "Видео интервью" : "Video intervyu";
-  if (normalized === "phone") return isRu ? "Телефонное интервью" : "Telefon intervyu";
-  if (normalized === "in-person" || normalized === "in person") return isRu ? "Личное интервью" : "Shaxsan intervyu";
+  if (normalized === "phone")
+    return isRu ? "Телефонное интервью" : "Telefon intervyu";
+  if (normalized === "in-person" || normalized === "in person")
+    return isRu ? "Личное интервью" : "Shaxsan intervyu";
 
   return interviewType;
 }
 
-function getUpcomingInterviewApplication(applications: ApplicationInterviewPreview[]) {
+function getUpcomingInterviewApplication(
+  applications: ApplicationInterviewPreview[],
+) {
   const now = Date.now();
 
-  return applications
-    .filter((app) => app.status === "interview" && app.interview_at)
-    .map((app) => ({
-      ...app,
-      interviewTimestamp: new Date(app.interview_at as string).getTime(),
-    }))
-    .filter((app) => !Number.isNaN(app.interviewTimestamp) && app.interviewTimestamp >= now)
-    .sort((a, b) => a.interviewTimestamp - b.interviewTimestamp)[0] || null;
+  return (
+    applications
+      .filter((app) => app.status === "interview" && app.interview_at)
+      .map((app) => ({
+        ...app,
+        interviewTimestamp: new Date(app.interview_at as string).getTime(),
+      }))
+      .filter(
+        (app) =>
+          !Number.isNaN(app.interviewTimestamp) &&
+          app.interviewTimestamp >= now,
+      )
+      .sort((a, b) => a.interviewTimestamp - b.interviewTimestamp)[0] || null
+  );
 }
 
 // =============================================================================
@@ -160,7 +178,8 @@ function getUpcomingInterviewApplication(applications: ApplicationInterviewPrevi
 export default function ApplicationsPage() {
   const { t, locale } = useTranslation();
   const isRu = locale === "ru";
-  const { applications, stats, fetchMyApplications, isLoading } = useApplications();
+  const { applications, stats, fetchMyApplications, isLoading } =
+    useApplications();
   const [searchQuery, setSearchQuery] = useState("");
   const [statusFilter, setStatusFilter] = useState<string>("all");
   const [sortBy, setSortBy] = useState("applied_at");
@@ -171,7 +190,8 @@ export default function ApplicationsPage() {
   }, [fetchMyApplications]);
 
   const upcomingInterview = getUpcomingInterviewApplication(applications);
-  const upcomingInterviewCompanyName = upcomingInterview?.job?.company?.name || (isRu ? "Компания" : "Kompaniya");
+  const upcomingInterviewCompanyName =
+    upcomingInterview?.job?.company?.name || (isRu ? "Компания" : "Kompaniya");
 
   // Filter applications
   const filteredApplications = applications
@@ -179,15 +199,26 @@ export default function ApplicationsPage() {
       const job = app.job;
       const matchesSearch =
         !searchQuery ||
-        (job?.title?.toLowerCase().includes(searchQuery.toLowerCase()) ||
-          job?.company?.name?.toLowerCase().includes(searchQuery.toLowerCase()));
+        job?.title?.toLowerCase().includes(searchQuery.toLowerCase()) ||
+        job?.company?.name?.toLowerCase().includes(searchQuery.toLowerCase());
       const matchesStatus =
         statusFilter === "all" || app.status === statusFilter;
       return matchesSearch && matchesStatus;
     })
     .sort((a, b) => {
-      return new Date(b.applied_at).getTime() - new Date(a.applied_at).getTime();
+      return (
+        new Date(b.applied_at).getTime() - new Date(a.applied_at).getTime()
+      );
     });
+
+  const renderStatValue = (value: number) => {
+    if (isLoading) {
+      return (
+        <span className="inline-block h-8 w-10 animate-pulse rounded bg-surface-200 dark:bg-surface-700" />
+      );
+    }
+    return value;
+  };
 
   return (
     <motion.div
@@ -207,15 +238,22 @@ export default function ApplicationsPage() {
       </motion.div>
 
       {/* Stats */}
-      <motion.div variants={itemVariants} className="grid gap-4 sm:grid-cols-3 lg:grid-cols-6">
+      <motion.div
+        variants={itemVariants}
+        className="grid gap-4 sm:grid-cols-3 lg:grid-cols-6"
+      >
         <Card>
           <CardContent className="flex items-center gap-3 p-4">
             <div className="flex h-10 w-10 items-center justify-center rounded-lg bg-surface-100">
               <Briefcase className="h-5 w-5 text-surface-600" />
             </div>
             <div>
-              <p className="text-2xl font-bold text-surface-900">{stats.total}</p>
-              <p className="text-xs text-surface-500">{t("applicationsPage.total")}</p>
+              <p className="text-2xl font-bold text-surface-900">
+                {renderStatValue(stats.total)}
+              </p>
+              <p className="text-xs text-surface-500">
+                {t("applicationsPage.total")}
+              </p>
             </div>
           </CardContent>
         </Card>
@@ -225,8 +263,12 @@ export default function ApplicationsPage() {
               <Clock className="h-5 w-5 text-amber-600" />
             </div>
             <div>
-              <p className="text-2xl font-bold text-surface-900">{stats.pending}</p>
-              <p className="text-xs text-surface-500">{t("applicationsPage.pending")}</p>
+              <p className="text-2xl font-bold text-surface-900">
+                {renderStatValue(stats.pending)}
+              </p>
+              <p className="text-xs text-surface-500">
+                {t("applicationsPage.pending")}
+              </p>
             </div>
           </CardContent>
         </Card>
@@ -236,8 +278,12 @@ export default function ApplicationsPage() {
               <Eye className="h-5 w-5 text-blue-600" />
             </div>
             <div>
-              <p className="text-2xl font-bold text-surface-900">{stats.reviewing}</p>
-              <p className="text-xs text-surface-500">{t("applicationsPage.reviewing")}</p>
+              <p className="text-2xl font-bold text-surface-900">
+                {renderStatValue(stats.reviewing)}
+              </p>
+              <p className="text-xs text-surface-500">
+                {t("applicationsPage.reviewing")}
+              </p>
             </div>
           </CardContent>
         </Card>
@@ -247,8 +293,12 @@ export default function ApplicationsPage() {
               <Calendar className="h-5 w-5 text-purple-600" />
             </div>
             <div>
-              <p className="text-2xl font-bold text-surface-900">{stats.interview}</p>
-              <p className="text-xs text-surface-500">{t("applicationsPage.interview")}</p>
+              <p className="text-2xl font-bold text-surface-900">
+                {renderStatValue(stats.interview)}
+              </p>
+              <p className="text-xs text-surface-500">
+                {t("applicationsPage.interview")}
+              </p>
             </div>
           </CardContent>
         </Card>
@@ -258,8 +308,12 @@ export default function ApplicationsPage() {
               <CheckCircle className="h-5 w-5 text-green-600" />
             </div>
             <div>
-              <p className="text-2xl font-bold text-surface-900">{stats.accepted}</p>
-              <p className="text-xs text-surface-500">{t("applicationsPage.accepted")}</p>
+              <p className="text-2xl font-bold text-surface-900">
+                {renderStatValue(stats.accepted)}
+              </p>
+              <p className="text-xs text-surface-500">
+                {t("applicationsPage.accepted")}
+              </p>
             </div>
           </CardContent>
         </Card>
@@ -269,8 +323,12 @@ export default function ApplicationsPage() {
               <XCircle className="h-5 w-5 text-red-600" />
             </div>
             <div>
-              <p className="text-2xl font-bold text-surface-900">{stats.rejected}</p>
-              <p className="text-xs text-surface-500">{t("applicationsPage.rejected")}</p>
+              <p className="text-2xl font-bold text-surface-900">
+                {renderStatValue(stats.rejected)}
+              </p>
+              <p className="text-xs text-surface-500">
+                {t("applicationsPage.rejected")}
+              </p>
             </div>
           </CardContent>
         </Card>
@@ -290,15 +348,23 @@ export default function ApplicationsPage() {
                     {t("applicationsPage.upcomingInterview")}
                   </h3>
                   <p className="text-sm text-surface-600">
-                    {upcomingInterview?.job?.title ?? "Intervyu"} at {upcomingInterviewCompanyName}
+                    {upcomingInterview?.job?.title ?? "Intervyu"} at{" "}
+                    {upcomingInterviewCompanyName}
                   </p>
                   <p className="text-xs text-surface-500">
                     {formatDate(upcomingInterview.interview_at as string)}
                   </p>
-                  {upcomingInterview?.interview_type || upcomingInterview?.meeting_link ? (
+                  {upcomingInterview?.interview_type ||
+                  upcomingInterview?.meeting_link ? (
                     <div className="mt-2 flex flex-wrap items-center gap-2">
-                      <Badge variant="secondary" className="bg-white/80 text-surface-700">
-                        {formatInterviewTypeLabel(upcomingInterview.interview_type, isRu)}
+                      <Badge
+                        variant="secondary"
+                        className="bg-white/80 text-surface-700"
+                      >
+                        {formatInterviewTypeLabel(
+                          upcomingInterview.interview_type,
+                          isRu,
+                        )}
                       </Badge>
                       {upcomingInterview?.meeting_link ? (
                         <Button
@@ -352,15 +418,29 @@ export default function ApplicationsPage() {
                 <Select value={statusFilter} onValueChange={setStatusFilter}>
                   <SelectTrigger className="w-40">
                     <Filter className="mr-2 h-4 w-4" />
-                    <SelectValue placeholder={t("applicationsPage.allStatus")} />
+                    <SelectValue
+                      placeholder={t("applicationsPage.allStatus")}
+                    />
                   </SelectTrigger>
                   <SelectContent>
-                    <SelectItem value="all">{t("applicationsPage.allStatus")}</SelectItem>
-                    <SelectItem value="pending">{t("applicationsPage.pending")}</SelectItem>
-                    <SelectItem value="reviewing">{t("applicationsPage.reviewing")}</SelectItem>
-                    <SelectItem value="interview">{t("applicationsPage.interview")}</SelectItem>
-                    <SelectItem value="accepted">{t("applicationsPage.accepted")}</SelectItem>
-                    <SelectItem value="rejected">{t("applicationsPage.rejected")}</SelectItem>
+                    <SelectItem value="all">
+                      {t("applicationsPage.allStatus")}
+                    </SelectItem>
+                    <SelectItem value="pending">
+                      {t("applicationsPage.pending")}
+                    </SelectItem>
+                    <SelectItem value="reviewing">
+                      {t("applicationsPage.reviewing")}
+                    </SelectItem>
+                    <SelectItem value="interview">
+                      {t("applicationsPage.interview")}
+                    </SelectItem>
+                    <SelectItem value="accepted">
+                      {t("applicationsPage.accepted")}
+                    </SelectItem>
+                    <SelectItem value="rejected">
+                      {t("applicationsPage.rejected")}
+                    </SelectItem>
                   </SelectContent>
                 </Select>
               </div>
@@ -398,29 +478,27 @@ export default function ApplicationsPage() {
       ) : (
         <motion.div variants={containerVariants} className="space-y-4">
           {filteredApplications.map((application) => {
-            const status = statusConfig[application.status] ?? fallbackStatusConfig;
+            const status =
+              statusConfig[application.status] ?? fallbackStatusConfig;
             const StatusIcon = status.icon;
 
             return (
-              <motion.div
-                key={application.id}
-                variants={itemVariants}
-                layout
-              >
+              <motion.div key={application.id} variants={itemVariants} layout>
                 <Card className="overflow-hidden hover:shadow-md transition-shadow">
                   <CardContent className="p-5">
                     <div className="flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
                       {/* Job Info */}
                       <div className="flex gap-4">
                         {/* Company Logo */}
-                          <div className="flex h-14 w-14 shrink-0 items-center justify-center rounded-xl bg-gradient-to-br from-purple-100 to-indigo-100 text-xl font-bold text-purple-600">
+                        <div className="flex h-14 w-14 shrink-0 items-center justify-center rounded-xl bg-gradient-to-br from-purple-100 to-indigo-100 text-xl font-bold text-purple-600">
                           {application.job?.company?.name?.charAt(0) ?? "C"}
                         </div>
 
                         <div>
                           <div className="flex items-center gap-3">
                             <h3 className="font-display text-lg font-semibold text-surface-900">
-                              {application.job?.title ?? (isRu ? "Без названия" : "Nomsiz vakansiya")}
+                              {application.job?.title ??
+                                (isRu ? "Без названия" : "Nomsiz vakansiya")}
                             </h3>
                             <Badge
                               className={`gap-1 ${status.bgColor} ${status.color}`}
@@ -439,36 +517,50 @@ export default function ApplicationsPage() {
                             </span>
                             <span className="flex items-center gap-1">
                               <Clock className="h-4 w-4" />
-                              {t("applicationsPage.applied")} {formatRelativeTime(application.applied_at)}
+                              {t("applicationsPage.applied")}{" "}
+                              {formatRelativeTime(
+                                application.applied_at,
+                                isRu ? "ru" : "uz",
+                              )}
                             </span>
                             {application.interview_at && (
                               <>
                                 <span className="flex items-center gap-1 text-purple-600">
                                   <Calendar className="h-4 w-4" />
-                                  {t("applicationsPage.interview")}: {formatDate(application.interview_at)}
+                                  {t("applicationsPage.interview")}:{" "}
+                                  {formatDate(application.interview_at)}
                                 </span>
-                                <Badge variant="secondary" className="bg-purple-100 text-purple-700">
-                                  {formatInterviewTypeLabel(application.interview_type, isRu)}
+                                <Badge
+                                  variant="secondary"
+                                  className="bg-purple-100 text-purple-700"
+                                >
+                                  {formatInterviewTypeLabel(
+                                    application.interview_type,
+                                    isRu,
+                                  )}
                                 </Badge>
                               </>
                             )}
-                            {application.status === "interview" && application.meeting_link && (
-                              <Button
-                                asChild
-                                variant="outline"
-                                size="sm"
-                                className="h-8 rounded-full border-purple-200 bg-white px-3 text-purple-700 hover:bg-purple-50"
-                              >
-                                <a
-                                  href={application.meeting_link}
-                                  target="_blank"
-                                  rel="noopener noreferrer"
+                            {application.status === "interview" &&
+                              application.meeting_link && (
+                                <Button
+                                  asChild
+                                  variant="outline"
+                                  size="sm"
+                                  className="h-8 rounded-full border-purple-200 bg-white px-3 text-purple-700 hover:bg-purple-50"
                                 >
-                                  <ExternalLink className="mr-2 h-3.5 w-3.5" />
-                                  {isRu ? "Ссылка на встречу" : "Uchrashuv havolasi"}
-                                </a>
-                              </Button>
-                            )}
+                                  <a
+                                    href={application.meeting_link}
+                                    target="_blank"
+                                    rel="noopener noreferrer"
+                                  >
+                                    <ExternalLink className="mr-2 h-3.5 w-3.5" />
+                                    {isRu
+                                      ? "Ссылка на встречу"
+                                      : "Uchrashuv havolasi"}
+                                  </a>
+                                </Button>
+                              )}
                           </div>
                         </div>
                       </div>
@@ -490,11 +582,26 @@ export default function ApplicationsPage() {
                               setActiveMenu(
                                 activeMenu === application.id
                                   ? null
-                                  : application.id
+                                  : application.id,
                               )
+                            }
+                            title={
+                              isRu
+                                ? "Дополнительные действия"
+                                : "Qo'shimcha amallar"
+                            }
+                            aria-label={
+                              isRu
+                                ? "Дополнительные действия"
+                                : "Qo'shimcha amallar"
                             }
                           >
                             <MoreVertical className="h-4 w-4" />
+                            <span className="sr-only">
+                              {isRu
+                                ? "Дополнительные действия"
+                                : "Qo'shimcha amallar"}
+                            </span>
                           </Button>
 
                           <AnimatePresence>
@@ -550,7 +657,9 @@ export default function ApplicationsPage() {
                     <div className="mt-4 flex items-center gap-2 border-t border-surface-100 pt-4">
                       <div className="flex items-center gap-2">
                         <div className="h-2 w-2 rounded-full bg-green-500" />
-                        <span className="text-xs text-surface-500">{t("applicationsPage.applied")}</span>
+                        <span className="text-xs text-surface-500">
+                          {t("applicationsPage.applied")}
+                        </span>
                       </div>
                       <div className="h-px flex-1 bg-surface-200" />
                       <div className="flex items-center gap-2">
@@ -561,7 +670,9 @@ export default function ApplicationsPage() {
                               : "bg-surface-300"
                           }`}
                         />
-                        <span className="text-xs text-surface-500">{t("applicationsPage.reviewed")}</span>
+                        <span className="text-xs text-surface-500">
+                          {t("applicationsPage.reviewed")}
+                        </span>
                       </div>
                       <div className="h-px flex-1 bg-surface-200" />
                       <div className="flex items-center gap-2">
@@ -573,7 +684,9 @@ export default function ApplicationsPage() {
                               : "bg-surface-300"
                           }`}
                         />
-                        <span className="text-xs text-surface-500">{t("applicationsPage.interview")}</span>
+                        <span className="text-xs text-surface-500">
+                          {t("applicationsPage.interview")}
+                        </span>
                       </div>
                       <div className="h-px flex-1 bg-surface-200" />
                       <div className="flex items-center gap-2">
@@ -582,12 +695,14 @@ export default function ApplicationsPage() {
                             application.status === "accepted"
                               ? "bg-green-500"
                               : application.status === "rejected"
-                              ? "bg-red-500"
-                              : "bg-surface-300"
+                                ? "bg-red-500"
+                                : "bg-surface-300"
                           }`}
                         />
                         <span className="text-xs text-surface-500">
-                          {application.status === "rejected" ? t("applicationsPage.rejected") : t("applicationsPage.offer")}
+                          {application.status === "rejected"
+                            ? t("applicationsPage.rejected")
+                            : t("applicationsPage.offer")}
                         </span>
                       </div>
                     </div>

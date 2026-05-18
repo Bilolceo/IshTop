@@ -121,8 +121,9 @@ export default function JobsPage() {
     (Job & { matchScore?: number }) | null
   >(null);
   const [savedJobs, setSavedJobs] = useState<Set<string>>(new Set());
-  const [feedMode, setFeedMode] = useState<"matched" | "all">("matched");
+  const [feedMode, setFeedMode] = useState<"matched" | "all">("all");
   const [hasPublishedResume, setHasPublishedResume] = useState(false);
+  const [hasCheckedResume, setHasCheckedResume] = useState(false);
   const [searchQuery, setSearchQuery] = useState("");
   const [showSuggestions, setShowSuggestions] = useState(false);
   const [sortBy, setSortBy] = useState("relevance");
@@ -148,6 +149,7 @@ export default function JobsPage() {
   // -------------------------------------------------------------------------
 
   const loadMatchedJobs = useCallback(async () => {
+    setHasCheckedResume(true);
     const response = await resumeApi.list({
       status: "published",
       page: 1,
@@ -199,7 +201,7 @@ export default function JobsPage() {
   );
 
   useEffect(() => {
-    void loadJobsForFeedMode("matched");
+    void loadJobsForFeedMode("all");
     jobApi
       .savedJobs({ limit: 100 })
       .then((res) => {
@@ -546,7 +548,7 @@ export default function JobsPage() {
               {isRu ? "По резюме" : "Rezyume asosida"}
             </Badge>
           )}
-          {feedMode === "all" && !hasPublishedResume && (
+          {feedMode === "all" && hasCheckedResume && !hasPublishedResume && (
             <Badge variant="secondary" className="text-xs">
               {isRu ? "Резюме не найдено" : "Rezyume topilmadi"}
             </Badge>

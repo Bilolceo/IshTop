@@ -103,7 +103,6 @@ const getQuickActions = (t: (key: string) => string) => [
   },
 ];
 
-
 // =============================================================================
 // MAIN LAYOUT
 // =============================================================================
@@ -114,7 +113,7 @@ export default function StudentDashboardLayout({
   children: React.ReactNode;
 }) {
   const pathname = usePathname()!;
-  const { t } = useTranslation();
+  const { t, locale } = useTranslation();
   const { isAuthorized } = useRequireAuth("student");
   const { user, logout } = useAuth();
   const [sidebarOpen, setSidebarOpen] = useState(false);
@@ -141,7 +140,9 @@ export default function StudentDashboardLayout({
         const nextResumeCount =
           typeof payload.resume_count === "number" ? payload.resume_count : 0;
         const nextApplicationCount =
-          typeof payload.application_count === "number" ? payload.application_count : 0;
+          typeof payload.application_count === "number"
+            ? payload.application_count
+            : 0;
 
         setResumeCount(nextResumeCount);
         setApplicationCount(nextApplicationCount);
@@ -185,10 +186,16 @@ export default function StudentDashboardLayout({
   // Get translated navigation items
   const navigation = getNavigation(t).map((item) => {
     if (item.href === "/student/resumes") {
-      return { ...item, badge: resumeCount > 0 ? String(resumeCount) : undefined };
+      return {
+        ...item,
+        badge: resumeCount > 0 ? String(resumeCount) : undefined,
+      };
     }
     if (item.href === "/student/applications") {
-      return { ...item, badge: applicationCount > 0 ? String(applicationCount) : undefined };
+      return {
+        ...item,
+        badge: applicationCount > 0 ? String(applicationCount) : undefined,
+      };
     }
     return item;
   });
@@ -220,7 +227,7 @@ export default function StudentDashboardLayout({
       <aside
         className={cn(
           "fixed inset-y-0 left-0 z-50 w-64 transform bg-white shadow-xl transition-transform duration-300 dark:bg-surface-800 lg:relative lg:translate-x-0",
-          sidebarOpen ? "translate-x-0" : "-translate-x-full"
+          sidebarOpen ? "translate-x-0" : "-translate-x-full",
         )}
       >
         {/* Logo */}
@@ -256,7 +263,9 @@ export default function StudentDashboardLayout({
               className="flex items-center gap-3 rounded-xl bg-gradient-to-r from-purple-500 to-indigo-600 p-3 text-white shadow-lg shadow-purple-500/25"
             >
               <Sparkles className="h-5 w-5" />
-              <span className="font-medium">{t("dashboard.sidebar.createAIResume")}</span>
+              <span className="font-medium">
+                {t("dashboard.sidebar.createAIResume")}
+              </span>
             </motion.div>
           </Link>
 
@@ -271,7 +280,7 @@ export default function StudentDashboardLayout({
                     "flex items-center justify-between rounded-xl px-3 py-2.5 transition-colors",
                     active
                       ? "bg-purple-50 text-purple-700 dark:bg-purple-900/20 dark:text-purple-400"
-                      : "text-surface-600 hover:bg-surface-100 dark:text-surface-400 dark:hover:bg-surface-700"
+                      : "text-surface-600 hover:bg-surface-100 dark:text-surface-400 dark:hover:bg-surface-700",
                   )}
                 >
                   <div className="flex items-center gap-3">
@@ -284,8 +293,8 @@ export default function StudentDashboardLayout({
                         item.badgeColor === "success"
                           ? "success"
                           : item.badgeColor === "warning"
-                          ? "warning"
-                          : "secondary"
+                            ? "warning"
+                            : "secondary"
                       }
                       className="text-xs"
                     >
@@ -303,14 +312,18 @@ export default function StudentDashboardLayout({
           <div className="rounded-xl bg-gradient-to-br from-purple-50 to-indigo-50 p-4 dark:from-purple-900/20 dark:to-indigo-900/20">
             <div className="flex items-center gap-2 text-purple-700 dark:text-purple-400">
               <HelpCircle className="h-5 w-5" />
-              <span className="font-medium">{t("dashboard.sidebar.needHelp")}</span>
+              <span className="font-medium">
+                {t("dashboard.sidebar.needHelp")}
+              </span>
             </div>
             <p className="mt-2 text-sm text-surface-600 dark:text-surface-400">
               {t("dashboard.sidebar.helpText")}
             </p>
-            <Button variant="outline" size="sm" className="mt-3 w-full">
-              {t("dashboard.sidebar.viewDocs")}
-            </Button>
+            <Link href="/student/settings#privacy" className="block">
+              <Button variant="outline" size="sm" className="mt-3 w-full">
+                {t("dashboard.sidebar.viewDocs")}
+              </Button>
+            </Link>
           </div>
         </div>
       </aside>
@@ -397,7 +410,9 @@ export default function StudentDashboardLayout({
                         {notifications.length === 0 ? (
                           <div className="flex flex-col items-center justify-center py-8 text-center">
                             <Bell className="h-8 w-8 text-surface-300" />
-                            <p className="mt-2 text-sm text-surface-500">{t("notificationsPage.empty")}</p>
+                            <p className="mt-2 text-sm text-surface-500">
+                              {t("notificationsPage.empty")}
+                            </p>
                           </div>
                         ) : (
                           notifications.map((n) => (
@@ -405,7 +420,8 @@ export default function StudentDashboardLayout({
                               key={n.id}
                               className={cn(
                                 "flex gap-3 border-b border-surface-100 p-4 last:border-0 dark:border-surface-700",
-                                !n.is_read && "bg-purple-50/50 dark:bg-purple-900/10"
+                                !n.is_read &&
+                                  "bg-purple-50/50 dark:bg-purple-900/10",
                               )}
                             >
                               <div className="flex-1">
@@ -416,7 +432,10 @@ export default function StudentDashboardLayout({
                                   {n.message}
                                 </p>
                                 <p className="mt-1 text-xs text-surface-400">
-                                  {formatRelativeTime(n.created_at)}
+                                  {formatRelativeTime(
+                                    n.created_at,
+                                    locale === "ru" ? "ru" : "uz",
+                                  )}
                                 </p>
                               </div>
                               {!n.is_read && (
@@ -427,7 +446,10 @@ export default function StudentDashboardLayout({
                         )}
                       </div>
                       <div className="border-t border-surface-200 p-2 dark:border-surface-700">
-                        <Link href="/student/notifications" onClick={() => setNotificationsOpen(false)}>
+                        <Link
+                          href="/student/notifications"
+                          onClick={() => setNotificationsOpen(false)}
+                        >
                           <Button variant="ghost" size="sm" className="w-full">
                             {t("notificationsPage.allNotifications")}
                           </Button>
@@ -455,7 +477,9 @@ export default function StudentDashboardLayout({
                   <p className="text-sm font-medium text-surface-900 dark:text-white">
                     {user?.full_name || "User"}
                   </p>
-                  <p className="text-xs text-surface-500">{t("common.student")}</p>
+                  <p className="text-xs text-surface-500">
+                    {t("common.student")}
+                  </p>
                 </div>
                 <ChevronDown className="h-4 w-4 text-surface-500" />
               </button>
@@ -478,7 +502,9 @@ export default function StudentDashboardLayout({
                         <p className="font-medium text-surface-900 dark:text-white">
                           {user?.full_name || "User"}
                         </p>
-                        <p className="text-sm text-surface-500">{user?.email}</p>
+                        <p className="text-sm text-surface-500">
+                          {user?.email}
+                        </p>
                       </div>
                       <div className="py-2">
                         <Link
@@ -519,9 +545,7 @@ export default function StudentDashboardLayout({
         </header>
 
         {/* Page Content */}
-        <main className="flex-1 overflow-y-auto p-4 lg:p-8">
-          {children}
-        </main>
+        <main className="flex-1 overflow-y-auto p-4 lg:p-8">{children}</main>
       </div>
     </div>
   );
