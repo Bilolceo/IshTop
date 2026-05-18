@@ -16,14 +16,7 @@ import { useForm } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
 import { z } from "zod";
 import { motion, AnimatePresence } from "framer-motion";
-import {
-  Eye,
-  EyeOff,
-  Mail,
-  Lock,
-  Loader2,
-  ArrowRight,
-} from "lucide-react";
+import { Eye, EyeOff, Mail, Lock, Loader2, ArrowRight } from "lucide-react";
 import { Alert } from "@/components/ui/alert";
 import { useAuth } from "@/hooks/useAuth";
 import { useTranslation } from "@/hooks/useTranslation";
@@ -36,7 +29,10 @@ import { cn } from "@/lib/utils";
 // VALIDATION SCHEMA
 // =============================================================================
 
-type TranslateFn = (key: string, variables?: Record<string, string | number>) => string;
+type TranslateFn = (
+  key: string,
+  variables?: Record<string, string | number>,
+) => string;
 
 const createLoginSchema = (t: TranslateFn) =>
   z.object({
@@ -96,7 +92,10 @@ export default function LoginPageClient() {
   const onSubmit = async (data: LoginFormData) => {
     clearError();
     try {
-      await login({ email: data.email, password: data.password }, redirectTo || undefined);
+      await login(
+        { email: data.email, password: data.password },
+        redirectTo || undefined,
+      );
       setIsSuccess(true);
     } catch {
       // Error is already stored in state
@@ -114,7 +113,11 @@ export default function LoginPageClient() {
       : error;
 
   return (
-    <motion.div initial={false} animate={{ opacity: 1 }} className="mx-auto w-full max-w-md">
+    <motion.div
+      initial={false}
+      animate={{ opacity: 1 }}
+      className="mx-auto w-full max-w-md"
+    >
       {/* Header */}
       <motion.div
         initial={false}
@@ -122,8 +125,12 @@ export default function LoginPageClient() {
         transition={{ delay: 0.1 }}
         className="mb-8 text-center"
       >
-        <h1 className="font-display text-3xl font-bold text-surface-900 dark:text-white">{t("auth.login.title")}</h1>
-        <p className="mt-2 text-surface-500 dark:text-surface-300">{t("auth.login.subtitle")}</p>
+        <h1 className="font-display text-3xl font-bold text-surface-900 dark:text-white">
+          {t("auth.login.title")}
+        </h1>
+        <p className="mt-2 text-surface-500 dark:text-surface-300">
+          {t("auth.login.subtitle")}
+        </p>
       </motion.div>
 
       {/* Alerts */}
@@ -156,6 +163,8 @@ export default function LoginPageClient() {
         animate={{ opacity: 1, y: 0 }}
         transition={{ delay: 0.2 }}
         onSubmit={handleSubmit(onSubmit)}
+        autoComplete="off"
+        data-lpignore="true"
         className="space-y-5"
       >
         {/* Email Field */}
@@ -167,12 +176,15 @@ export default function LoginPageClient() {
               id="email"
               type="email"
               placeholder="you@example.com"
-              autoComplete="email"
+              autoComplete="off"
+              data-lpignore="true"
               className={cn(
                 "flex h-12 w-full rounded-xl border bg-white pl-10 pr-4 text-sm text-surface-900 transition-all dark:bg-surface-900 dark:text-surface-100",
                 "placeholder:text-surface-400",
                 "focus:outline-none focus:ring-2 focus:ring-purple-500 focus:ring-offset-0",
-                errors.email ? "border-red-300 focus:ring-red-500" : "border-surface-300 hover:border-surface-400"
+                errors.email
+                  ? "border-red-300 focus:ring-red-500"
+                  : "border-surface-300 hover:border-surface-400",
               )}
               {...register("email")}
             />
@@ -193,12 +205,15 @@ export default function LoginPageClient() {
               id="password"
               type={showPassword ? "text" : "password"}
               placeholder="••••••••"
-              autoComplete="current-password"
+              autoComplete="off"
+              data-lpignore="true"
               className={cn(
                 "flex h-12 w-full rounded-xl border bg-white pl-10 pr-12 text-sm text-surface-900 transition-all dark:bg-surface-900 dark:text-surface-100",
                 "placeholder:text-surface-400",
                 "focus:outline-none focus:ring-2 focus:ring-purple-500 focus:ring-offset-0",
-                errors.password ? "border-red-300 focus:ring-red-500" : "border-surface-300 hover:border-surface-400"
+                errors.password
+                  ? "border-red-300 focus:ring-red-500"
+                  : "border-surface-300 hover:border-surface-400",
               )}
               {...register("password")}
             />
@@ -206,9 +221,21 @@ export default function LoginPageClient() {
               type="button"
               onClick={() => setShowPassword((v) => !v)}
               className="absolute right-3 top-1/2 -translate-y-1/2 text-surface-400 hover:text-surface-600"
-              aria-label={showPassword ? (isRu ? "Скрыть пароль" : "Parolni yashirish") : (isRu ? "Показать пароль" : "Parolni ko'rsatish")}
+              aria-label={
+                showPassword
+                  ? isRu
+                    ? "Скрыть пароль"
+                    : "Parolni yashirish"
+                  : isRu
+                    ? "Показать пароль"
+                    : "Parolni ko'rsatish"
+              }
             >
-              {showPassword ? <EyeOff className="h-5 w-5" /> : <Eye className="h-5 w-5" />}
+              {showPassword ? (
+                <EyeOff className="h-5 w-5" />
+              ) : (
+                <Eye className="h-5 w-5" />
+              )}
             </button>
           </div>
           {errors.password && (
@@ -221,10 +248,17 @@ export default function LoginPageClient() {
         {/* Remember / Forgot */}
         <div className="flex items-center justify-between">
           <label className="flex items-center gap-2 text-sm text-surface-600 dark:text-surface-300">
-            <input type="checkbox" className="h-4 w-4 rounded border-surface-300" {...register("rememberMe")} />
+            <input
+              type="checkbox"
+              className="h-4 w-4 rounded border-surface-300"
+              {...register("rememberMe")}
+            />
             {t("auth.login.rememberMe")}
           </label>
-          <Link href="/forgot-password" className="text-sm text-purple-600 hover:text-purple-700">
+          <Link
+            href="/forgot-password"
+            className="text-sm text-purple-600 hover:text-purple-700"
+          >
             {t("auth.login.forgotPassword")}
           </Link>
         </div>
@@ -256,7 +290,9 @@ export default function LoginPageClient() {
             <div className="w-full border-t border-surface-200 dark:border-surface-700" />
           </div>
           <div className="relative flex justify-center">
-            <span className="bg-white px-4 text-xs text-surface-500 dark:bg-surface-950 dark:text-surface-300">{t("auth.login.orContinueWith")}</span>
+            <span className="bg-white px-4 text-xs text-surface-500 dark:bg-surface-950 dark:text-surface-300">
+              {t("auth.login.orContinueWith")}
+            </span>
           </div>
         </div>
 
@@ -268,7 +304,10 @@ export default function LoginPageClient() {
 
         <p className="text-center text-sm text-surface-600 dark:text-surface-300">
           {t("auth.login.noAccount")}{" "}
-          <Link href="/register" className="font-medium text-purple-600 hover:text-purple-700">
+          <Link
+            href="/register"
+            className="font-medium text-purple-600 hover:text-purple-700"
+          >
             {t("auth.login.createAccount")}
           </Link>
         </p>

@@ -52,28 +52,92 @@ function maskEmail(email?: string | null): string {
 }
 
 const studentNavItems: NavItem[] = [
-  { labelKey: "dashboard.sidebar.myResumes", href: "/student/resumes", icon: FileText },
-  { labelKey: "dashboard.sidebar.findJobs", href: "/student/jobs", icon: Briefcase },
-  { labelKey: "dashboard.sidebar.myApplications", href: "/student/applications", icon: ClipboardList },
-  { labelKey: "dashboard.sidebar.settings", href: "/student/settings", icon: Settings },
+  {
+    labelKey: "dashboard.sidebar.myResumes",
+    href: "/student/resumes",
+    icon: FileText,
+  },
+  {
+    labelKey: "dashboard.sidebar.findJobs",
+    href: "/student/jobs",
+    icon: Briefcase,
+  },
+  {
+    labelKey: "dashboard.sidebar.myApplications",
+    href: "/student/applications",
+    icon: ClipboardList,
+  },
+  {
+    labelKey: "dashboard.sidebar.settings",
+    href: "/student/settings",
+    icon: Settings,
+  },
 ];
 
 const companyNavItems: NavItem[] = [
-  { labelKey: "dashboard.sidebar.jobPostings", href: "/company/jobs", icon: Briefcase },
-  { labelKey: "dashboard.sidebar.applicants", href: "/company/applicants", icon: Users },
-  { labelKey: "dashboard.sidebar.settings", href: "/company/settings", icon: Settings },
+  {
+    labelKey: "dashboard.sidebar.jobPostings",
+    href: "/company/jobs",
+    icon: Briefcase,
+  },
+  {
+    labelKey: "dashboard.sidebar.applicants",
+    href: "/company/applicants",
+    icon: Users,
+  },
+  {
+    labelKey: "dashboard.sidebar.settings",
+    href: "/company/settings",
+    icon: Settings,
+  },
 ];
 
 const adminNavItems: NavItem[] = [
-  { labelKey: "dashboard.sidebar.overview", href: "/admin", icon: LayoutDashboard },
+  {
+    labelKey: "dashboard.sidebar.overview",
+    href: "/admin",
+    icon: LayoutDashboard,
+  },
   { labelKey: "dashboard.sidebar.users", href: "/admin/users", icon: Users },
-  { labelKey: "dashboard.sidebar.companies", href: "/admin/companies", icon: Building2 },
+  {
+    labelKey: "dashboard.sidebar.companies",
+    href: "/admin/companies",
+    icon: Building2,
+  },
   { labelKey: "dashboard.sidebar.jobs", href: "/admin/jobs", icon: Briefcase },
-  { labelKey: "dashboard.sidebar.applications", href: "/admin/applications", icon: ClipboardList },
-  { labelKey: "dashboard.sidebar.systemHealth", href: "/admin#health", icon: Server },
-  { labelKey: "dashboard.sidebar.errors", href: "/admin#errors", icon: AlertTriangle },
-  { labelKey: "dashboard.sidebar.access", href: "/admin/access", icon: KeyRound },
+  {
+    labelKey: "dashboard.sidebar.applications",
+    href: "/admin/applications",
+    icon: ClipboardList,
+  },
+  {
+    labelKey: "dashboard.sidebar.systemHealth",
+    href: "/admin#health",
+    icon: Server,
+  },
+  {
+    labelKey: "dashboard.sidebar.errors",
+    href: "/admin#errors",
+    icon: AlertTriangle,
+  },
+  {
+    labelKey: "dashboard.sidebar.access",
+    href: "/admin/access",
+    icon: KeyRound,
+  },
 ];
+
+function contextRoleLabel(params: {
+  isAdmin: boolean;
+  isCompany: boolean;
+  locale: "uz" | "ru";
+}) {
+  const { isAdmin, isCompany, locale } = params;
+  if (isAdmin)
+    return locale === "ru" ? "Системный администратор" : "Tizim administratori";
+  if (isCompany) return locale === "ru" ? "Работодатель" : "Ish beruvchi";
+  return locale === "ru" ? "Соискатель" : "Talaba";
+}
 
 interface DashboardLayoutProps {
   children: React.ReactNode;
@@ -99,18 +163,29 @@ export function DashboardLayout({ children }: DashboardLayoutProps) {
     return () => window.removeEventListener("hashchange", updateHash);
   }, []);
 
-  const navItems = isAdmin ? adminNavItems : isCompany ? companyNavItems : studentNavItems;
+  const navItems = isAdmin
+    ? adminNavItems
+    : isCompany
+      ? companyNavItems
+      : studentNavItems;
   const dashboardHome = isAdmin
     ? "/admin#overview"
     : isCompany
       ? "/company/jobs"
       : "/student/resumes";
-  const effectiveHash = currentHash || (pathname === "/admin" ? "#overview" : "");
+  const effectiveHash =
+    currentHash || (pathname === "/admin" ? "#overview" : "");
 
-  const userMenuLink = isAdmin ? "/admin#overview" : isCompany ? "/company/settings" : "/student/settings";
-  const userMenuLabel = isAdmin ? t("dashboard.sidebar.overview") : t("dashboard.sidebar.settings");
+  const userMenuLink = isAdmin
+    ? "/admin#overview"
+    : isCompany
+      ? "/company/settings"
+      : "/student/settings";
+  const userMenuLabel = isAdmin
+    ? t("dashboard.sidebar.overview")
+    : t("dashboard.sidebar.settings");
   const UserMenuIcon = isAdmin ? LayoutDashboard : Settings;
-  const adminRoleLabel = locale === "ru" ? "Системный администратор" : "Tizim administratori";
+  const roleLabel = contextRoleLabel({ isAdmin, isCompany, locale });
   const visibleEmail = isAdmin ? maskEmail(user?.email) : user?.email;
 
   const activeNavName = useMemo(() => {
@@ -156,7 +231,7 @@ export function DashboardLayout({ children }: DashboardLayoutProps) {
       <aside
         className={cn(
           "fixed inset-y-0 left-0 z-50 w-64 transform bg-white dark:bg-surface-900 transition-transform duration-200 lg:translate-x-0",
-          isSidebarOpen ? "translate-x-0" : "-translate-x-full"
+          isSidebarOpen ? "translate-x-0" : "-translate-x-full",
         )}
       >
         <div className="flex h-full flex-col border-r border-surface-200 dark:border-surface-800">
@@ -188,7 +263,9 @@ export function DashboardLayout({ children }: DashboardLayoutProps) {
             <div className="mx-4 mt-4 rounded-xl bg-gradient-to-br from-brand-500 to-brand-600 p-4 text-white">
               <div className="flex items-center gap-2 mb-2">
                 <Zap className="h-5 w-5" />
-                <span className="font-semibold">{t("dashboard.sidebar.createAIResume")}</span>
+                <span className="font-semibold">
+                  {t("dashboard.sidebar.createAIResume")}
+                </span>
               </div>
               <p className="text-sm text-brand-100 mb-3">
                 {t("dashboard.quickActions.createAIResumeDesc")}
@@ -207,7 +284,34 @@ export function DashboardLayout({ children }: DashboardLayoutProps) {
           <nav className="flex-1 space-y-1 px-3 py-4">
             {navItems.map((item) => {
               const isActive = isNavItemActive(item);
-              return (
+              const isHashRoute = item.href.includes("#");
+              const navContent = (
+                <>
+                  <item.icon
+                    className={cn("h-5 w-5", isActive ? "text-brand-500" : "")}
+                  />
+                  {t(item.labelKey)}
+                  {item.badge && (
+                    <span className="ml-auto flex h-5 w-5 items-center justify-center rounded-full bg-brand-500 text-xs text-white">
+                      {item.badge}
+                    </span>
+                  )}
+                </>
+              );
+              return isHashRoute ? (
+                <a
+                  key={item.href}
+                  href={item.href}
+                  className={cn(
+                    "flex items-center gap-3 rounded-xl px-3 py-2.5 text-sm font-medium transition-colors",
+                    isActive
+                      ? "bg-brand-50 text-brand-700 dark:bg-brand-500/10 dark:text-brand-400"
+                      : "text-surface-600 hover:bg-surface-100 dark:text-surface-400 dark:hover:bg-surface-800",
+                  )}
+                >
+                  {navContent}
+                </a>
+              ) : (
                 <Link
                   key={item.href}
                   href={item.href}
@@ -215,16 +319,10 @@ export function DashboardLayout({ children }: DashboardLayoutProps) {
                     "flex items-center gap-3 rounded-xl px-3 py-2.5 text-sm font-medium transition-colors",
                     isActive
                       ? "bg-brand-50 text-brand-700 dark:bg-brand-500/10 dark:text-brand-400"
-                      : "text-surface-600 hover:bg-surface-100 dark:text-surface-400 dark:hover:bg-surface-800"
+                      : "text-surface-600 hover:bg-surface-100 dark:text-surface-400 dark:hover:bg-surface-800",
                   )}
                 >
-                  <item.icon className={cn("h-5 w-5", isActive ? "text-brand-500" : "")} />
-                  {t(item.labelKey)}
-                  {item.badge && (
-                    <span className="ml-auto flex h-5 w-5 items-center justify-center rounded-full bg-brand-500 text-xs text-white">
-                      {item.badge}
-                    </span>
-                  )}
+                  {navContent}
                 </Link>
               );
             })}
@@ -233,14 +331,15 @@ export function DashboardLayout({ children }: DashboardLayoutProps) {
           {/* User section */}
           <div className="border-t border-surface-200 dark:border-surface-800 p-4">
             <div className="flex items-center gap-3">
-              <UserAvatar name={user?.full_name || fallbackUserName} imageUrl={user?.avatar_url} />
+              <UserAvatar
+                name={user?.full_name || fallbackUserName}
+                imageUrl={user?.avatar_url}
+              />
               <div className="flex-1 min-w-0">
                 <p className="text-sm font-medium text-surface-900 dark:text-white truncate">
                   {user?.full_name}
                 </p>
-                <p className="text-xs text-surface-500 truncate">
-                  {isAdmin ? adminRoleLabel : visibleEmail}
-                </p>
+                <p className="text-xs text-surface-500 truncate">{roleLabel}</p>
               </div>
             </div>
           </div>
@@ -252,10 +351,7 @@ export function DashboardLayout({ children }: DashboardLayoutProps) {
         {/* Top navbar */}
         <header className="sticky top-0 z-30 flex h-16 items-center justify-between gap-4 border-b border-surface-200 bg-white/80 px-4 backdrop-blur-xl dark:border-surface-800 dark:bg-surface-900/80 sm:px-6">
           {/* Mobile menu button */}
-          <button
-            className="lg:hidden"
-            onClick={() => setIsSidebarOpen(true)}
-          >
+          <button className="lg:hidden" onClick={() => setIsSidebarOpen(true)}>
             <Menu className="h-6 w-6 text-surface-600" />
           </button>
 
@@ -274,7 +370,7 @@ export function DashboardLayout({ children }: DashboardLayoutProps) {
 
             {/* Dark Mode Toggle */}
             <ThemeToggle />
-            
+
             {/* Notifications */}
             <NotificationBell />
 
@@ -284,7 +380,11 @@ export function DashboardLayout({ children }: DashboardLayoutProps) {
                 onClick={() => setIsUserMenuOpen(!isUserMenuOpen)}
                 className="flex items-center gap-2 rounded-lg p-1.5 hover:bg-surface-100 dark:hover:bg-surface-800"
               >
-                <UserAvatar name={user?.full_name || "User"} imageUrl={user?.avatar_url} size="sm" />
+                <UserAvatar
+                  name={user?.full_name || fallbackUserName}
+                  imageUrl={user?.avatar_url}
+                  size="sm"
+                />
                 <ChevronDown className="h-4 w-4 text-surface-500" />
               </button>
 
@@ -299,9 +399,12 @@ export function DashboardLayout({ children }: DashboardLayoutProps) {
                       <p className="text-sm font-medium text-surface-900 dark:text-white">
                         {user?.full_name}
                       </p>
-                      <p className="text-xs text-surface-500">
-                        {isAdmin ? `${adminRoleLabel} · ${visibleEmail}` : visibleEmail}
-                      </p>
+                      <p className="text-xs text-surface-500">{roleLabel}</p>
+                      {visibleEmail && (
+                        <p className="text-xs text-surface-400">
+                          {visibleEmail}
+                        </p>
+                      )}
                     </div>
                     <div className="py-1">
                       <Link
@@ -336,19 +439,3 @@ export function DashboardLayout({ children }: DashboardLayoutProps) {
     </div>
   );
 }
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-

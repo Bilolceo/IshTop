@@ -58,7 +58,9 @@ export default function AdminCompaniesPage() {
   const [error, setError] = useState<string | null>(null);
   const [search, setSearch] = useState("");
   const [draft, setDraft] = useState("");
-  const [verifyFilter, setVerifyFilter] = useState<"all" | "verified" | "unverified">("all");
+  const [verifyFilter, setVerifyFilter] = useState<
+    "all" | "verified" | "unverified"
+  >("all");
   const [busyId, setBusyId] = useState<string | null>(null);
 
   const t = useMemo(
@@ -68,7 +70,9 @@ export default function AdminCompaniesPage() {
             title: "Компании",
             subtitle: "Все работодатели на платформе.",
             refresh: "Обновить",
-            search: "Поиск по компании или email",
+            search: "Поиск",
+            searchPlaceholder: "Компания или email",
+            loading: "Загрузка...",
             all: "Все",
             verified: "Подтверждены",
             unverified: "Не подтверждены",
@@ -86,7 +90,9 @@ export default function AdminCompaniesPage() {
             title: "Kompaniyalar",
             subtitle: "Platformadagi barcha ish beruvchilar.",
             refresh: "Yangilash",
-            search: "Kompaniya yoki email bo'yicha qidirish",
+            search: "Qidirish",
+            searchPlaceholder: "Kompaniya yoki email",
+            loading: "Yuklanmoqda...",
             all: "Hammasi",
             verified: "Tasdiqlangan",
             unverified: "Tasdiqlanmagan",
@@ -100,7 +106,7 @@ export default function AdminCompaniesPage() {
             apps: "Arizalar",
             showing: (a: number, b: number) => `${a} / ${b} ko'rsatilmoqda`,
           },
-    [isRu]
+    [isRu],
   );
 
   const load = async (silent = false) => {
@@ -108,14 +114,17 @@ export default function AdminCompaniesPage() {
     else setLoading(true);
     setError(null);
     try {
-      const params: { search?: string; is_verified?: boolean; limit?: number } = {
-        limit: 50,
-      };
+      const params: { search?: string; is_verified?: boolean; limit?: number } =
+        {
+          limit: 50,
+        };
       if (search) params.search = search;
       if (verifyFilter === "verified") params.is_verified = true;
       if (verifyFilter === "unverified") params.is_verified = false;
       const res = await adminApi.listCompanies(params);
-      const data = (res.data as { data: { companies: AdminCompany[]; total: number } }).data;
+      const data = (
+        res.data as { data: { companies: AdminCompany[]; total: number } }
+      ).data;
       setCompanies(data.companies);
       setTotal(data.total);
     } catch (e) {
@@ -137,8 +146,8 @@ export default function AdminCompaniesPage() {
       await adminApi.verifyCompany(company.id, !company.is_verified);
       setCompanies((prev) =>
         prev.map((c) =>
-          c.id === company.id ? { ...c, is_verified: !c.is_verified } : c
-        )
+          c.id === company.id ? { ...c, is_verified: !c.is_verified } : c,
+        ),
       );
     } catch (e) {
       setError(getErrorMessage(e));
@@ -160,10 +169,18 @@ export default function AdminCompaniesPage() {
             <h1 className="mt-3 font-display text-3xl font-bold tracking-tight text-surface-900 dark:text-white">
               {t.title}
             </h1>
-            <p className="mt-2 text-sm text-surface-600 dark:text-surface-400">{t.subtitle}</p>
+            <p className="mt-2 text-sm text-surface-600 dark:text-surface-400">
+              {t.subtitle}
+            </p>
           </div>
-          <Button variant="outline" onClick={() => void load(true)} disabled={refreshing}>
-            <RefreshCw className={`mr-2 h-4 w-4 ${refreshing ? "animate-spin" : ""}`} />
+          <Button
+            variant="outline"
+            onClick={() => void load(true)}
+            disabled={refreshing}
+          >
+            <RefreshCw
+              className={`mr-2 h-4 w-4 ${refreshing ? "animate-spin" : ""}`}
+            />
             {t.refresh}
           </Button>
         </div>
@@ -175,14 +192,19 @@ export default function AdminCompaniesPage() {
             <Input
               value={draft}
               onChange={(e) => setDraft(e.target.value)}
-              placeholder={t.search}
+              placeholder={t.searchPlaceholder}
               icon={<Search className="h-4 w-4" />}
               onKeyDown={(e) => {
                 if (e.key === "Enter") setSearch(draft.trim());
               }}
             />
           </div>
-          <Select value={verifyFilter} onValueChange={(v) => setVerifyFilter(v as "all" | "verified" | "unverified")}>
+          <Select
+            value={verifyFilter}
+            onValueChange={(v) =>
+              setVerifyFilter(v as "all" | "verified" | "unverified")
+            }
+          >
             <SelectTrigger className="sm:w-56">
               <SelectValue />
             </SelectTrigger>
@@ -192,9 +214,9 @@ export default function AdminCompaniesPage() {
               <SelectItem value="unverified">{t.unverified}</SelectItem>
             </SelectContent>
           </Select>
-          <Button onClick={() => setSearch(draft.trim())}>{t.refresh}</Button>
+          <Button onClick={() => setSearch(draft.trim())}>{t.search}</Button>
           <div className="ml-auto rounded-xl border border-surface-200 px-3 py-2 text-sm text-surface-600 dark:border-surface-700 dark:text-surface-300">
-            {t.showing(companies.length, total)}
+            {loading ? t.loading : t.showing(companies.length, total)}
           </div>
         </CardContent>
       </Card>
@@ -224,7 +246,9 @@ export default function AdminCompaniesPage() {
             </div>
           ) : companies.length === 0 ? (
             <div className="rounded-2xl border border-dashed border-surface-200 py-12 text-center dark:border-surface-700">
-              <p className="font-medium text-surface-900 dark:text-white">{t.empty}</p>
+              <p className="font-medium text-surface-900 dark:text-white">
+                {t.empty}
+              </p>
             </div>
           ) : (
             <div className="grid gap-4 md:grid-cols-2">
@@ -243,7 +267,9 @@ export default function AdminCompaniesPage() {
                             <ShieldCheck className="h-4 w-4 flex-shrink-0 text-emerald-600" />
                           )}
                         </p>
-                        <p className="truncate text-xs text-surface-500">{company.contact_name}</p>
+                        <p className="truncate text-xs text-surface-500">
+                          {company.contact_name}
+                        </p>
                       </div>
                     </div>
                     <Button
@@ -315,11 +341,15 @@ export default function AdminCompaniesPage() {
                   <div className="mt-3 flex items-center justify-between text-[11px] text-surface-500">
                     <span>
                       {t.registered}:{" "}
-                      {company.created_at ? formatRelativeTime(company.created_at, locale) : "—"}
+                      {company.created_at
+                        ? formatRelativeTime(company.created_at, locale)
+                        : "—"}
                     </span>
                     <span>
                       {t.lastLogin}:{" "}
-                      {company.last_login ? formatRelativeTime(company.last_login, locale) : t.never}
+                      {company.last_login
+                        ? formatRelativeTime(company.last_login, locale)
+                        : t.never}
                     </span>
                   </div>
                 </div>

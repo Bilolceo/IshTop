@@ -1,14 +1,28 @@
 "use client";
 
 import { useEffect, useMemo, useState } from "react";
-import { CheckCircle2, RefreshCw, Search, ShieldAlert, UserCheck, UserX, Users } from "lucide-react";
+import {
+  CheckCircle2,
+  RefreshCw,
+  Search,
+  ShieldAlert,
+  UserCheck,
+  UserX,
+  Users,
+} from "lucide-react";
 import { adminApi, getErrorMessage } from "@/lib/api";
 import type { AdminManagedUser, UserRole } from "@/types/api";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
-import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from "@/components/ui/select";
 import { Skeleton } from "@/components/ui/skeleton";
 import { UserAvatar } from "@/components/ui/avatar";
 import { formatRelativeTime } from "@/lib/utils";
@@ -33,7 +47,9 @@ const copy = {
     company: "Kompaniya",
     admin: "Admin",
     users: "Foydalanuvchilar",
-    showing: (count: number, total: number) => `${count} / ${total} ko'rsatilmoqda`,
+    loading: "Yuklanmoqda...",
+    showing: (count: number, total: number) =>
+      `${count} / ${total} ko'rsatilmoqda`,
     noUsers: "Foydalanuvchilar topilmadi",
     tryAnother: "Filter yoki qidiruvni o'zgartirib ko'ring.",
     createdAt: "Ro'yxatdan o'tgan",
@@ -63,6 +79,7 @@ const copy = {
     company: "Компания",
     admin: "Админ",
     users: "Пользователи",
+    loading: "Загрузка...",
     showing: (count: number, total: number) => `Показано ${count} из ${total}`,
     noUsers: "Пользователи не найдены",
     tryAnother: "Измените фильтры или строку поиска.",
@@ -128,7 +145,9 @@ export default function AdminUsersPage() {
 
       const payload = response.data;
       setTotal(payload.total || 0);
-      setUsers((prev) => (append ? [...prev, ...payload.users] : payload.users));
+      setUsers((prev) =>
+        append ? [...prev, ...payload.users] : payload.users,
+      );
       setOffset(nextOffset + (payload.users?.length || 0));
       setLoadState("ready");
     } catch (error) {
@@ -163,7 +182,11 @@ export default function AdminUsersPage() {
     try {
       const nextActive = !user.is_active;
       await adminApi.updateUserStatus(user.id, { is_active: nextActive });
-      setUsers((prev) => prev.map((item) => (item.id === user.id ? { ...item, is_active: nextActive } : item)));
+      setUsers((prev) =>
+        prev.map((item) =>
+          item.id === user.id ? { ...item, is_active: nextActive } : item,
+        ),
+      );
       setStatusMessage(c.updated);
     } catch (error) {
       setLoadError(getErrorMessage(error));
@@ -181,18 +204,27 @@ export default function AdminUsersPage() {
   return (
     <div className="space-y-6">
       <section className="relative overflow-hidden rounded-3xl border border-surface-200 bg-white p-6 shadow-sm dark:border-surface-700 dark:bg-surface-900">
-        <div className="pointer-events-none absolute -right-16 -top-16 h-64 w-64 rounded-full bg-gradient-to-br from-blue-500/15 via-cyan-500/10 to-transparent blur-3xl" aria-hidden />
+        <div
+          className="pointer-events-none absolute -right-16 -top-16 h-64 w-64 rounded-full bg-gradient-to-br from-blue-500/15 via-cyan-500/10 to-transparent blur-3xl"
+          aria-hidden
+        />
         <div className="relative flex flex-col gap-4 lg:flex-row lg:items-end lg:justify-between">
           <div>
             <div className="inline-flex items-center gap-2 rounded-full border border-blue-200 bg-blue-50 px-3 py-1 text-xs font-semibold text-blue-700 dark:border-blue-500/30 dark:bg-blue-500/10 dark:text-blue-300">
               <Users className="h-3.5 w-3.5" />
               {c.users}
             </div>
-            <h1 className="mt-3 font-display text-3xl font-bold tracking-tight text-surface-900 dark:text-white">{c.title}</h1>
-            <p className="mt-1.5 text-sm text-surface-500 dark:text-surface-400">{c.subtitle}</p>
+            <h1 className="mt-3 font-display text-3xl font-bold tracking-tight text-surface-900 dark:text-white">
+              {c.title}
+            </h1>
+            <p className="mt-1.5 text-sm text-surface-500 dark:text-surface-400">
+              {c.subtitle}
+            </p>
           </div>
           <Button variant="outline" onClick={() => void handleRefresh()}>
-            <RefreshCw className={`mr-2 h-4 w-4 ${refreshing ? "animate-spin" : ""}`} />
+            <RefreshCw
+              className={`mr-2 h-4 w-4 ${refreshing ? "animate-spin" : ""}`}
+            />
             {c.refresh}
           </Button>
         </div>
@@ -214,7 +246,10 @@ export default function AdminUsersPage() {
             <Button onClick={handleSearchSubmit}>{c.search}</Button>
           </div>
 
-          <Select value={role} onValueChange={(value) => setRole(value as "all" | UserRole)}>
+          <Select
+            value={role}
+            onValueChange={(value) => setRole(value as "all" | UserRole)}
+          >
             <SelectTrigger>
               <SelectValue placeholder={c.role} />
             </SelectTrigger>
@@ -226,7 +261,12 @@ export default function AdminUsersPage() {
             </SelectContent>
           </Select>
 
-          <Select value={isActive} onValueChange={(value) => setIsActive(value as "all" | "true" | "false")}>
+          <Select
+            value={isActive}
+            onValueChange={(value) =>
+              setIsActive(value as "all" | "true" | "false")
+            }
+          >
             <SelectTrigger>
               <SelectValue placeholder={c.status} />
             </SelectTrigger>
@@ -238,7 +278,9 @@ export default function AdminUsersPage() {
           </Select>
 
           <div className="rounded-xl border border-surface-200 px-3 py-2 text-sm text-surface-600 dark:border-surface-700 dark:text-surface-300">
-            {c.showing(users.length, total)}
+            {loadState === "loading"
+              ? c.loading
+              : c.showing(users.length, total)}
           </div>
         </div>
       </section>
@@ -269,8 +311,12 @@ export default function AdminUsersPage() {
               {c.users}
             </span>
             <div className="flex gap-2 text-xs">
-              <Badge variant="success">{c.active}: {headerStats.activeCount}</Badge>
-              <Badge variant="secondary">{c.verifyYes}: {headerStats.verifiedCount}</Badge>
+              <Badge variant="success">
+                {c.active}: {headerStats.activeCount}
+              </Badge>
+              <Badge variant="secondary">
+                {c.verifyYes}: {headerStats.verifiedCount}
+              </Badge>
             </div>
           </CardTitle>
         </CardHeader>
@@ -286,8 +332,12 @@ export default function AdminUsersPage() {
               <div className="flex h-14 w-14 items-center justify-center rounded-full bg-surface-100 ring-8 ring-surface-50 dark:bg-surface-800 dark:ring-surface-900/40">
                 <Search className="h-7 w-7 text-surface-400" />
               </div>
-              <p className="mt-4 font-display text-lg font-semibold text-surface-900 dark:text-white">{c.noUsers}</p>
-              <p className="mt-1 max-w-xs text-sm text-surface-500">{c.tryAnother}</p>
+              <p className="mt-4 font-display text-lg font-semibold text-surface-900 dark:text-white">
+                {c.noUsers}
+              </p>
+              <p className="mt-1 max-w-xs text-sm text-surface-500">
+                {c.tryAnother}
+              </p>
             </div>
           ) : (
             <div className="space-y-2.5">
@@ -301,17 +351,35 @@ export default function AdminUsersPage() {
                     <div className="flex items-start gap-3 min-w-0">
                       <UserAvatar name={user.full_name} size="md" />
                       <div className="min-w-0 flex-1">
-                        <p className="truncate font-semibold text-surface-900 dark:text-white">{user.full_name}</p>
-                        <p className="truncate text-sm text-surface-500">{user.email}</p>
+                        <p className="truncate font-semibold text-surface-900 dark:text-white">
+                          {user.full_name}
+                        </p>
+                        <p className="truncate text-sm text-surface-500">
+                          {user.email}
+                        </p>
                         <div className="mt-1 grid grid-cols-1 gap-x-3 text-xs text-surface-500 sm:grid-cols-2">
-                          <p className="truncate">{c.createdAt}: <span className="font-medium text-surface-700 dark:text-surface-300">{formatRelativeTime(user.created_at, locale)}</span></p>
-                          <p className="truncate">{c.lastLogin}: <span className="font-medium text-surface-700 dark:text-surface-300">{user.last_login ? formatRelativeTime(user.last_login, locale) : c.never}</span></p>
+                          <p className="truncate">
+                            {c.createdAt}:{" "}
+                            <span className="font-medium text-surface-700 dark:text-surface-300">
+                              {formatRelativeTime(user.created_at, locale)}
+                            </span>
+                          </p>
+                          <p className="truncate">
+                            {c.lastLogin}:{" "}
+                            <span className="font-medium text-surface-700 dark:text-surface-300">
+                              {user.last_login
+                                ? formatRelativeTime(user.last_login, locale)
+                                : c.never}
+                            </span>
+                          </p>
                         </div>
                       </div>
                     </div>
 
                     <div className="flex items-center gap-2">
-                      <Badge variant="secondary">{roleLabel(locale, user.role)}</Badge>
+                      <Badge variant="secondary">
+                        {roleLabel(locale, user.role)}
+                      </Badge>
                       <Badge variant={user.is_verified ? "success" : "warning"}>
                         {user.is_verified ? c.verifyYes : c.verifyNo}
                       </Badge>
@@ -355,7 +423,11 @@ export default function AdminUsersPage() {
 
           {loadState === "ready" && hasMore && (
             <div className="mt-4 flex justify-center">
-              <Button variant="outline" disabled={loadingMore} onClick={() => void fetchUsers(true)}>
+              <Button
+                variant="outline"
+                disabled={loadingMore}
+                onClick={() => void fetchUsers(true)}
+              >
                 {loadingMore ? (
                   <>
                     <RefreshCw className="mr-2 h-4 w-4 animate-spin" />

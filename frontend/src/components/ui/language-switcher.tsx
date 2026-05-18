@@ -2,7 +2,7 @@
  * =============================================================================
  * LANGUAGE SWITCHER COMPONENT
  * =============================================================================
- * 
+ *
  * Til almashtirgich komponenti
  * Компонент переключения языка
  */
@@ -21,9 +21,9 @@ interface LanguageSwitcherProps {
   className?: string;
 }
 
-export function LanguageSwitcher({ 
+export function LanguageSwitcher({
   variant = "default",
-  className 
+  className,
 }: LanguageSwitcherProps) {
   const { locale, setLocale, locales } = useTranslation();
   const [isOpen, setIsOpen] = useState(false);
@@ -43,6 +43,10 @@ export function LanguageSwitcher({
 
   // Minimal variant - just flags
   if (variant === "minimal") {
+    const shortLabels: Record<Locale, string> = {
+      uz: "UZ",
+      ru: "RU",
+    };
     return (
       <div className={cn("flex items-center gap-1", className)}>
         {locales.map((loc) => (
@@ -50,14 +54,20 @@ export function LanguageSwitcher({
             key={loc}
             onClick={() => setLocale(loc)}
             className={cn(
-              "px-2 py-1 text-lg rounded-md transition-all",
+              "inline-flex items-center gap-1.5 px-2 py-1 text-lg rounded-md transition-all",
               locale === loc
                 ? "bg-primary/10 scale-110"
-                : "hover:bg-surface-100 opacity-60 hover:opacity-100"
+                : "hover:bg-surface-100 opacity-60 hover:opacity-100",
             )}
-            title={localeNames[loc]}
+            type="button"
+            title={`${shortLabels[loc]} — ${localeNames[loc]}`}
+            aria-label={`Switch language to ${localeNames[loc]}`}
+            aria-pressed={locale === loc}
           >
             {localeFlags[loc]}
+            <span className="text-[10px] font-semibold leading-none text-surface-600 dark:text-surface-300">
+              {shortLabels[loc]}
+            </span>
           </button>
         ))}
       </div>
@@ -73,7 +83,7 @@ export function LanguageSwitcher({
           "flex items-center gap-2 px-3 py-2 rounded-xl transition-all",
           "border border-surface-200 bg-white hover:bg-surface-50",
           "text-sm font-medium text-surface-700",
-          isOpen && "ring-2 ring-primary/20"
+          isOpen && "ring-2 ring-primary/20",
         )}
       >
         <span className="text-base">{localeFlags[locale]}</span>
@@ -81,7 +91,7 @@ export function LanguageSwitcher({
         <ChevronDown
           className={cn(
             "w-4 h-4 text-surface-400 transition-transform",
-            isOpen && "rotate-180"
+            isOpen && "rotate-180",
           )}
         />
       </button>
@@ -96,7 +106,7 @@ export function LanguageSwitcher({
             className={cn(
               "absolute right-0 mt-2 w-40 py-1 z-50",
               "bg-white rounded-xl shadow-lg border border-surface-200",
-              "overflow-hidden"
+              "overflow-hidden",
             )}
           >
             {locales.map((loc) => (
@@ -111,14 +121,12 @@ export function LanguageSwitcher({
                   "text-sm transition-colors",
                   locale === loc
                     ? "bg-primary/5 text-primary font-medium"
-                    : "text-surface-600 hover:bg-surface-50"
+                    : "text-surface-600 hover:bg-surface-50",
                 )}
               >
                 <span className="text-base">{localeFlags[loc]}</span>
                 <span className="flex-1">{localeNames[loc]}</span>
-                {locale === loc && (
-                  <Check className="w-4 h-4 text-primary" />
-                )}
+                {locale === loc && <Check className="w-4 h-4 text-primary" />}
               </button>
             ))}
           </motion.div>
@@ -142,7 +150,7 @@ export function LanguageSwitcherInline({ className }: { className?: string }) {
             "flex items-center gap-1.5 text-sm transition-all",
             locale === loc
               ? "text-primary font-medium"
-              : "text-surface-500 hover:text-surface-700"
+              : "text-surface-500 hover:text-surface-700",
           )}
         >
           <span>{localeFlags[loc]}</span>
@@ -154,16 +162,3 @@ export function LanguageSwitcherInline({ className }: { className?: string }) {
 }
 
 export default LanguageSwitcher;
-
-
-
-
-
-
-
-
-
-
-
-
-

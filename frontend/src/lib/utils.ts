@@ -17,12 +17,39 @@ export function cn(...inputs: ClassValue[]) {
 /**
  * Format relative time (e.g., "2 hours ago")
  */
-export function formatRelativeTime(dateString: string, locale: "uz" | "ru" = "uz"): string {
+export function formatRelativeTime(
+  dateString: string,
+  locale: "uz" | "ru" = "uz",
+): string {
+  const shorthandMatch = dateString.trim().match(/^(-?\d+)\s*([smhdw])$/i);
+  if (shorthandMatch) {
+    const rawValue = Number(shorthandMatch[1]);
+    const unit = shorthandMatch[2].toLowerCase();
+    const unitMap: Record<string, Intl.RelativeTimeFormatUnit> = {
+      s: "second",
+      m: "minute",
+      h: "hour",
+      d: "day",
+      w: "week",
+    };
+    const rtf = new Intl.RelativeTimeFormat(
+      locale === "ru" ? "ru-RU" : "uz-UZ",
+      { numeric: "auto" },
+    );
+    const value = rawValue < 0 ? rawValue : -rawValue;
+    return rtf.format(value, unitMap[unit]);
+  }
+
   const date = new Date(dateString);
+  if (Number.isNaN(date.getTime())) {
+    return "—";
+  }
   const now = new Date();
   const diffInSeconds = Math.floor((now.getTime() - date.getTime()) / 1000);
 
-  const rtf = new Intl.RelativeTimeFormat(locale === "ru" ? "ru-RU" : "uz-UZ", { numeric: "auto" });
+  const rtf = new Intl.RelativeTimeFormat(locale === "ru" ? "ru-RU" : "uz-UZ", {
+    numeric: "auto",
+  });
 
   if (diffInSeconds < 60) return rtf.format(0, "second");
 
@@ -75,7 +102,10 @@ export function formatDateTime(dateString: string): string {
 /**
  * Format currency
  */
-export function formatCurrency(amount: number, currency: string = "USD"): string {
+export function formatCurrency(
+  amount: number,
+  currency: string = "USD",
+): string {
   return new Intl.NumberFormat("en-US", {
     style: "currency",
     currency,
@@ -87,11 +117,19 @@ export function formatCurrency(amount: number, currency: string = "USD"): string
 /**
  * Format salary range
  */
-export function formatSalaryRange(min?: number, max?: number, locale: "uz" | "ru" = "uz"): string {
+export function formatSalaryRange(
+  min?: number,
+  max?: number,
+  locale: "uz" | "ru" = "uz",
+): string {
   const labels =
     locale === "ru"
       ? { notDisclosed: "Зарплата не указана", from: "От", upTo: "До" }
-      : { notDisclosed: "Maosh ko'rsatilmagan", from: "Dan boshlab", upTo: "Gacha" };
+      : {
+          notDisclosed: "Maosh ko'rsatilmagan",
+          from: "Dan boshlab",
+          upTo: "Gacha",
+        };
 
   if (!min && !max) return labels.notDisclosed;
   if (min && max) return `${formatCurrency(min)} - ${formatCurrency(max)}`;
@@ -152,7 +190,7 @@ export function slugify(text: string): string {
  */
 export function debounce<T extends (...args: any[]) => any>(
   func: T,
-  wait: number
+  wait: number,
 ): (...args: Parameters<T>) => void {
   let timeout: NodeJS.Timeout;
   return (...args: Parameters<T>) => {

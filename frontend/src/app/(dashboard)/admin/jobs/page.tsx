@@ -62,9 +62,12 @@ type AdminJob = {
 };
 
 const STATUS_TONE: Record<string, string> = {
-  active: "bg-emerald-100 text-emerald-700 dark:bg-emerald-500/20 dark:text-emerald-300",
-  draft: "bg-surface-100 text-surface-700 dark:bg-surface-700 dark:text-surface-200",
-  paused: "bg-amber-100 text-amber-700 dark:bg-amber-500/20 dark:text-amber-300",
+  active:
+    "bg-emerald-100 text-emerald-700 dark:bg-emerald-500/20 dark:text-emerald-300",
+  draft:
+    "bg-surface-100 text-surface-700 dark:bg-surface-700 dark:text-surface-200",
+  paused:
+    "bg-amber-100 text-amber-700 dark:bg-amber-500/20 dark:text-amber-300",
   closed: "bg-red-100 text-red-700 dark:bg-red-500/20 dark:text-red-300",
 };
 
@@ -90,7 +93,9 @@ export default function AdminJobsPage() {
             title: "Модерация вакансий",
             subtitle: "Платформенный список вакансий со всеми компаниями.",
             refresh: "Обновить",
-            search: "Поиск по названию или компании",
+            search: "Поиск",
+            searchPlaceholder: "Название или компания",
+            loading: "Загрузка...",
             allStatuses: "Все статусы",
             active: "Активные",
             draft: "Черновики",
@@ -109,7 +114,8 @@ export default function AdminJobsPage() {
             close: "Закрыть",
             del: "Удалить",
             delConfirmTitle: "Удалить вакансию?",
-            delConfirmBody: "Эта вакансия будет помечена как удалённая и исчезнет из публичного списка.",
+            delConfirmBody:
+              "Эта вакансия будет помечена как удалённая и исчезнет из публичного списка.",
             cancel: "Отмена",
             confirm: "Удалить",
             showing: (a: number, b: number) => `Показано ${a} из ${b}`,
@@ -118,7 +124,9 @@ export default function AdminJobsPage() {
             title: "Vakansiyalar moderatsiyasi",
             subtitle: "Barcha kompaniyalarning vakansiyalari ro'yxati.",
             refresh: "Yangilash",
-            search: "Vakansiya yoki kompaniya bo'yicha qidirish",
+            search: "Qidirish",
+            searchPlaceholder: "Vakansiya yoki kompaniya",
+            loading: "Yuklanmoqda...",
             allStatuses: "Barcha holatlar",
             active: "Faol",
             draft: "Qoralama",
@@ -137,12 +145,13 @@ export default function AdminJobsPage() {
             close: "Yopish",
             del: "O'chirish",
             delConfirmTitle: "Vakansiyani o'chirishni tasdiqlang",
-            delConfirmBody: "Vakansiya o'chirilgan deb belgilanadi va ochiq ro'yxatdan chiqariladi.",
+            delConfirmBody:
+              "Vakansiya o'chirilgan deb belgilanadi va ochiq ro'yxatdan chiqariladi.",
             cancel: "Bekor qilish",
             confirm: "O'chirish",
             showing: (a: number, b: number) => `${a} / ${b} ko'rsatilmoqda`,
           },
-    [isRu]
+    [isRu],
   );
 
   const load = async (silent = false) => {
@@ -155,7 +164,8 @@ export default function AdminJobsPage() {
         status: statusFilter === "all" ? undefined : statusFilter,
         limit: 30,
       });
-      const data = (res.data as { data: { jobs: AdminJob[]; total: number } }).data;
+      const data = (res.data as { data: { jobs: AdminJob[]; total: number } })
+        .data;
       setJobs(data.jobs);
       setTotal(data.total);
     } catch (e) {
@@ -176,7 +186,7 @@ export default function AdminJobsPage() {
     try {
       await adminApi.updateJobStatus(job.id, next);
       setJobs((prev) =>
-        prev.map((j) => (j.id === job.id ? { ...j, status: next } : j))
+        prev.map((j) => (j.id === job.id ? { ...j, status: next } : j)),
       );
     } catch (e) {
       setError(getErrorMessage(e));
@@ -213,10 +223,18 @@ export default function AdminJobsPage() {
             <h1 className="mt-3 font-display text-3xl font-bold tracking-tight text-surface-900 dark:text-white">
               {t.title}
             </h1>
-            <p className="mt-2 text-sm text-surface-600 dark:text-surface-400">{t.subtitle}</p>
+            <p className="mt-2 text-sm text-surface-600 dark:text-surface-400">
+              {t.subtitle}
+            </p>
           </div>
-          <Button variant="outline" onClick={() => void load(true)} disabled={refreshing}>
-            <RefreshCw className={`mr-2 h-4 w-4 ${refreshing ? "animate-spin" : ""}`} />
+          <Button
+            variant="outline"
+            onClick={() => void load(true)}
+            disabled={refreshing}
+          >
+            <RefreshCw
+              className={`mr-2 h-4 w-4 ${refreshing ? "animate-spin" : ""}`}
+            />
             {t.refresh}
           </Button>
         </div>
@@ -229,7 +247,7 @@ export default function AdminJobsPage() {
             <Input
               value={draft}
               onChange={(e) => setDraft(e.target.value)}
-              placeholder={t.search}
+              placeholder={t.searchPlaceholder}
               icon={<Search className="h-4 w-4" />}
               onKeyDown={(e) => {
                 if (e.key === "Enter") setSearch(draft.trim());
@@ -248,9 +266,9 @@ export default function AdminJobsPage() {
               <SelectItem value="closed">{t.closed}</SelectItem>
             </SelectContent>
           </Select>
-          <Button onClick={() => setSearch(draft.trim())}>{t.refresh}</Button>
+          <Button onClick={() => setSearch(draft.trim())}>{t.search}</Button>
           <div className="ml-auto rounded-xl border border-surface-200 px-3 py-2 text-sm text-surface-600 dark:border-surface-700 dark:text-surface-300">
-            {t.showing(jobs.length, total)}
+            {loading ? t.loading : t.showing(jobs.length, total)}
           </div>
         </CardContent>
       </Card>
@@ -281,7 +299,9 @@ export default function AdminJobsPage() {
             </div>
           ) : jobs.length === 0 ? (
             <div className="rounded-2xl border border-dashed border-surface-200 py-12 text-center dark:border-surface-700">
-              <p className="font-medium text-surface-900 dark:text-white">{t.empty}</p>
+              <p className="font-medium text-surface-900 dark:text-white">
+                {t.empty}
+              </p>
             </div>
           ) : (
             <div className="space-y-3">
@@ -313,7 +333,9 @@ export default function AdminJobsPage() {
                           <ShieldCheck className="h-3.5 w-3.5 text-emerald-600" />
                         ) : null}
                       </p>
-                      <p className="truncate text-xs text-surface-500">{job.company.email}</p>
+                      <p className="truncate text-xs text-surface-500">
+                        {job.company.email}
+                      </p>
                       <div className="mt-1 flex items-center gap-3 text-xs text-surface-600 dark:text-surface-300">
                         <span className="flex items-center gap-1">
                           <Users className="h-3 w-3" /> {job.applications_count}
@@ -324,7 +346,9 @@ export default function AdminJobsPage() {
                       </div>
                     </div>
                     <div className="flex items-center">
-                      <span className={`inline-flex items-center rounded-full px-2.5 py-1 text-xs font-semibold ${tone}`}>
+                      <span
+                        className={`inline-flex items-center rounded-full px-2.5 py-1 text-xs font-semibold ${tone}`}
+                      >
                         {job.status}
                       </span>
                     </div>
@@ -380,7 +404,10 @@ export default function AdminJobsPage() {
         </CardContent>
       </Card>
 
-      <Dialog open={!!confirmDelete} onOpenChange={(o) => !o && setConfirmDelete(null)}>
+      <Dialog
+        open={!!confirmDelete}
+        onOpenChange={(o) => !o && setConfirmDelete(null)}
+      >
         <DialogContent>
           <DialogHeader>
             <DialogTitle>{t.delConfirmTitle}</DialogTitle>
