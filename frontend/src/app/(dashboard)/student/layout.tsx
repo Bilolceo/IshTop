@@ -319,7 +319,7 @@ export default function StudentDashboardLayout({
             <p className="mt-2 text-sm text-surface-600 dark:text-surface-400">
               {t("dashboard.sidebar.helpText")}
             </p>
-            <Link href="/student/settings#privacy" className="block">
+            <Link href="/student/help" className="block">
               <Button variant="outline" size="sm" className="mt-3 w-full">
                 {t("dashboard.sidebar.viewDocs")}
               </Button>
