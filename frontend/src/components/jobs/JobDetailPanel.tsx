@@ -59,7 +59,9 @@ export function JobDetailPanel({
             <h2 className="text-2xl font-bold text-surface-900 dark:text-white leading-tight">
               {job.title}
             </h2>
-            <p className="mt-0.5 text-surface-600 dark:text-surface-400">{job.company?.name}</p>
+            <p className="mt-0.5 text-surface-600 dark:text-surface-400">
+              {job.company?.name}
+            </p>
             <div className="mt-2 flex flex-wrap items-center gap-2">
               <span className="flex items-center gap-1 text-sm text-surface-500">
                 <MapPin className="h-3.5 w-3.5" />
@@ -82,6 +84,10 @@ export function JobDetailPanel({
           {/* Close button (mobile only) */}
           <button
             onClick={onClose}
+            aria-label={
+              isRu ? "Закрыть детали вакансии" : "Ish tafsilotlarini yopish"
+            }
+            title={isRu ? "Закрыть" : "Yopish"}
             className="rounded-lg p-2 text-surface-400 hover:bg-surface-100 hover:text-surface-600 lg:hidden"
           >
             <X className="h-5 w-5" />
@@ -110,14 +116,23 @@ export function JobDetailPanel({
               </>
             )}
           </Button>
-          <Button variant="outline" size="icon" onClick={onShare}>
+          <Button
+            variant="outline"
+            size="icon"
+            onClick={onShare}
+            aria-label={isRu ? "Поделиться вакансией" : "Ishni ulashish"}
+            title={isRu ? "Поделиться" : "Ulashish"}
+          >
             <Share2 className="h-4 w-4" />
           </Button>
         </div>
       </div>
 
       {/* Scrollable body */}
-      <div className="flex-1 overflow-y-auto px-6 py-6">
+      <div
+        className="flex-1 overflow-y-auto px-6 py-6"
+        aria-label={isRu ? "Детали вакансии" : "Ish tafsilotlari"}
+      >
         {/* Quick info grid */}
         <div className="grid grid-cols-2 gap-4 rounded-xl bg-surface-50 p-4 dark:bg-surface-800/50">
           <div className="flex items-center gap-3">
@@ -125,8 +140,12 @@ export function JobDetailPanel({
               <MapPin className="h-5 w-5 text-purple-600" />
             </div>
             <div>
-              <p className="text-xs text-surface-500">{isRu ? "Локация" : "Joylashuv"}</p>
-              <p className="font-medium text-surface-900 dark:text-white">{job.location}</p>
+              <p className="text-xs text-surface-500">
+                {isRu ? "Локация" : "Joylashuv"}
+              </p>
+              <p className="font-medium text-surface-900 dark:text-white">
+                {job.location}
+              </p>
             </div>
           </div>
           <div className="flex items-center gap-3">
@@ -134,7 +153,9 @@ export function JobDetailPanel({
               <DollarSign className="h-5 w-5 text-green-600" />
             </div>
             <div>
-              <p className="text-xs text-surface-500">{isRu ? "Зарплата" : "Maosh"}</p>
+              <p className="text-xs text-surface-500">
+                {isRu ? "Зарплата" : "Maosh"}
+              </p>
               <p className="font-medium text-surface-900 dark:text-white">
                 {formatSalaryRange(job.salary_min, job.salary_max)}
               </p>
@@ -145,7 +166,9 @@ export function JobDetailPanel({
               <Briefcase className="h-5 w-5 text-blue-600" />
             </div>
             <div>
-              <p className="text-xs text-surface-500">{isRu ? "Опыт" : "Tajriba"}</p>
+              <p className="text-xs text-surface-500">
+                {isRu ? "Опыт" : "Tajriba"}
+              </p>
               <p className="font-medium text-surface-900 dark:text-white capitalize">
                 {job.experience_level}
               </p>
@@ -156,7 +179,9 @@ export function JobDetailPanel({
               <Users className="h-5 w-5 text-amber-600" />
             </div>
             <div>
-              <p className="text-xs text-surface-500">{isRu ? "Кандидаты" : "Nomzodlar"}</p>
+              <p className="text-xs text-surface-500">
+                {isRu ? "Кандидаты" : "Nomzodlar"}
+              </p>
               <p className="font-medium text-surface-900 dark:text-white">
                 {job.applications_count} {isRu ? "подали" : "ariza"}
               </p>
@@ -202,7 +227,9 @@ export function JobDetailPanel({
                   <Clock className="h-4 w-4 text-surface-500" />
                 </div>
                 <div>
-                  <p className="text-xs text-surface-500">{isRu ? "Опыт" : "Tajriba"}</p>
+                  <p className="text-xs text-surface-500">
+                    {isRu ? "Опыт" : "Tajriba"}
+                  </p>
                   <p className="text-sm font-medium text-surface-900 dark:text-white">
                     {job.requirements.experience}
                   </p>
@@ -216,7 +243,9 @@ export function JobDetailPanel({
                   <GraduationCap className="h-4 w-4 text-surface-500" />
                 </div>
                 <div>
-                  <p className="text-xs text-surface-500">{isRu ? "Образование" : "Ta'lim"}</p>
+                  <p className="text-xs text-surface-500">
+                    {isRu ? "Образование" : "Ta'lim"}
+                  </p>
                   <p className="text-sm font-medium text-surface-900 dark:text-white">
                     {job.requirements.education}
                   </p>

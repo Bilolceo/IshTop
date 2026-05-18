@@ -95,7 +95,7 @@ const experienceSchema = z.object({
       endDate: z.string().optional(),
       isCurrent: z.boolean().optional(),
       description: z.string().min(10, "Tavsif majburiy"),
-    })
+    }),
   ),
 });
 
@@ -106,7 +106,7 @@ const educationSchema = z.object({
       degree: z.string().min(1, "Daraja majburiy"),
       field: z.string().min(1, "Yo'nalish majburiy"),
       year: z.string().min(1, "Yil majburiy"),
-    })
+    }),
   ),
 });
 
@@ -117,7 +117,7 @@ const skillsSchema = z.object({
     z.object({
       name: z.string(),
       proficiency: z.string(),
-    })
+    }),
   ),
 });
 
@@ -127,14 +127,14 @@ const additionalSchema = z.object({
       name: z.string(),
       issuer: z.string(),
       year: z.string(),
-    })
+    }),
   ),
   projects: z.array(
     z.object({
       name: z.string(),
       description: z.string(),
       url: z.string().optional(),
-    })
+    }),
   ),
 });
 
@@ -152,25 +152,82 @@ type ResumeFormData = z.infer<typeof resumeSchema>;
 // =============================================================================
 
 const steps = [
-  { id: 1, titleKey: "aiResumeBuilder.personalInfo", icon: User, descriptionKey: "aiResumeBuilder.basicDetails" },
-  { id: 2, titleKey: "aiResumeBuilder.experience", icon: Briefcase, descriptionKey: "aiResumeBuilder.workHistory" },
-  { id: 3, titleKey: "aiResumeBuilder.education", icon: GraduationCap, descriptionKey: "aiResumeBuilder.academicBackground" },
-  { id: 4, titleKey: "aiResumeBuilder.skills", icon: Code, descriptionKey: "aiResumeBuilder.yourExpertise" },
-  { id: 5, titleKey: "aiResumeBuilder.additional", icon: Award, descriptionKey: "aiResumeBuilder.extraSections" },
+  {
+    id: 1,
+    titleKey: "aiResumeBuilder.personalInfo",
+    icon: User,
+    descriptionKey: "aiResumeBuilder.basicDetails",
+  },
+  {
+    id: 2,
+    titleKey: "aiResumeBuilder.experience",
+    icon: Briefcase,
+    descriptionKey: "aiResumeBuilder.workHistory",
+  },
+  {
+    id: 3,
+    titleKey: "aiResumeBuilder.education",
+    icon: GraduationCap,
+    descriptionKey: "aiResumeBuilder.academicBackground",
+  },
+  {
+    id: 4,
+    titleKey: "aiResumeBuilder.skills",
+    icon: Code,
+    descriptionKey: "aiResumeBuilder.yourExpertise",
+  },
+  {
+    id: 5,
+    titleKey: "aiResumeBuilder.additional",
+    icon: Award,
+    descriptionKey: "aiResumeBuilder.extraSections",
+  },
 ];
 
 const templates = [
-  { id: "modern", nameKey: "aiResumeBuilder.modern", descriptionKey: "aiResumeBuilder.modernDesc" },
-  { id: "classic", nameKey: "aiResumeBuilder.classic", descriptionKey: "aiResumeBuilder.classicDesc" },
-  { id: "minimal", nameKey: "aiResumeBuilder.minimal", descriptionKey: "aiResumeBuilder.minimalDesc" },
-  { id: "creative", nameKey: "aiResumeBuilder.creative", descriptionKey: "aiResumeBuilder.creativeDesc" },
+  {
+    id: "modern",
+    nameKey: "aiResumeBuilder.modern",
+    descriptionKey: "aiResumeBuilder.modernDesc",
+  },
+  {
+    id: "classic",
+    nameKey: "aiResumeBuilder.classic",
+    descriptionKey: "aiResumeBuilder.classicDesc",
+  },
+  {
+    id: "minimal",
+    nameKey: "aiResumeBuilder.minimal",
+    descriptionKey: "aiResumeBuilder.minimalDesc",
+  },
+  {
+    id: "creative",
+    nameKey: "aiResumeBuilder.creative",
+    descriptionKey: "aiResumeBuilder.creativeDesc",
+  },
 ];
 
 const tones = [
-  { id: "professional", nameKey: "aiResumeBuilder.professional", descriptionKey: "aiResumeBuilder.professionalDesc" },
-  { id: "confident", nameKey: "aiResumeBuilder.confident", descriptionKey: "aiResumeBuilder.confidentDesc" },
-  { id: "friendly", nameKey: "aiResumeBuilder.friendly", descriptionKey: "aiResumeBuilder.friendlyDesc" },
-  { id: "technical", nameKey: "aiResumeBuilder.technical", descriptionKey: "aiResumeBuilder.technicalDesc" },
+  {
+    id: "professional",
+    nameKey: "aiResumeBuilder.professional",
+    descriptionKey: "aiResumeBuilder.professionalDesc",
+  },
+  {
+    id: "confident",
+    nameKey: "aiResumeBuilder.confident",
+    descriptionKey: "aiResumeBuilder.confidentDesc",
+  },
+  {
+    id: "friendly",
+    nameKey: "aiResumeBuilder.friendly",
+    descriptionKey: "aiResumeBuilder.friendlyDesc",
+  },
+  {
+    id: "technical",
+    nameKey: "aiResumeBuilder.technical",
+    descriptionKey: "aiResumeBuilder.technicalDesc",
+  },
 ];
 
 // =============================================================================
@@ -181,6 +238,7 @@ export default function AIResumeBuilderPage() {
   const router = useRouter();
   const { user } = useAuth();
   const { t, locale } = useTranslation();
+  const isRu = locale === "ru";
   const { generateResume, isGenerating } = useResume();
   const [currentStep, setCurrentStep] = useState(1);
   const [selectedTemplate, setSelectedTemplate] = useState("modern");
@@ -188,7 +246,7 @@ export default function AIResumeBuilderPage() {
   const [isGenerated, setIsGenerated] = useState(false);
   const [generatedResume, setGeneratedResume] = useState<Resume | null>(null);
   const [isDownloadingPdf, setIsDownloadingPdf] = useState(false);
-  const [previewZoom, setPreviewZoom] = useState(100);
+  const [previewZoom, setPreviewZoom] = useState(90);
   const [lastSaved, setLastSaved] = useState<Date | null>(null);
   const [skillInput, setSkillInput] = useState({ technical: "", soft: "" });
 
@@ -221,9 +279,7 @@ export default function AIResumeBuilderPage() {
           description: "",
         },
       ],
-      education: [
-        { institution: "", degree: "", field: "", year: "" },
-      ],
+      education: [{ institution: "", degree: "", field: "", year: "" }],
       technicalSkills: [],
       softSkills: [],
       languages: [{ name: "", proficiency: "" }],
@@ -235,22 +291,29 @@ export default function AIResumeBuilderPage() {
   const formData = watch();
   const roleSignal = useMemo(() => {
     const title = formData.professionalTitle || "";
-    const positions = (formData.experiences || []).map((exp) => exp.position || "").join(" ");
-    const fields = (formData.education || []).map((edu) => edu.field || "").join(" ");
+    const positions = (formData.experiences || [])
+      .map((exp) => exp.position || "")
+      .join(" ");
+    const fields = (formData.education || [])
+      .map((edu) => edu.field || "")
+      .join(" ");
     return `${title} ${positions} ${fields}`.trim();
   }, [formData.professionalTitle, formData.experiences, formData.education]);
 
-  const { profile: activeSkillProfile, technical: technicalSkillSuggestions, soft: softSkillSuggestions } =
-    useMemo(
-      () =>
-        getSkillSuggestions(
-          roleSignal,
-          formData.technicalSkills || [],
-          formData.softSkills || [],
-          locale
-        ),
-      [formData.softSkills, formData.technicalSkills, locale, roleSignal]
-    );
+  const {
+    profile: activeSkillProfile,
+    technical: technicalSkillSuggestions,
+    soft: softSkillSuggestions,
+  } = useMemo(
+    () =>
+      getSkillSuggestions(
+        roleSignal,
+        formData.technicalSkills || [],
+        formData.softSkills || [],
+        locale,
+      ),
+    [formData.softSkills, formData.technicalSkills, locale, roleSignal],
+  );
 
   // Field arrays
   const {
@@ -347,12 +410,13 @@ export default function AIResumeBuilderPage() {
   const addSkill = (type: "technical" | "soft") => {
     const value = skillInput[type].trim();
     if (value) {
-      const currentSkills = formData[type === "technical" ? "technicalSkills" : "softSkills"] || [];
+      const currentSkills =
+        formData[type === "technical" ? "technicalSkills" : "softSkills"] || [];
       if (!currentSkills.includes(value)) {
-        setValue(
-          type === "technical" ? "technicalSkills" : "softSkills",
-          [...currentSkills, value]
-        );
+        setValue(type === "technical" ? "technicalSkills" : "softSkills", [
+          ...currentSkills,
+          value,
+        ]);
       }
       setSkillInput((prev) => ({ ...prev, [type]: "" }));
     }
@@ -362,7 +426,10 @@ export default function AIResumeBuilderPage() {
   const removeSkill = (type: "technical" | "soft", skill: string) => {
     const field = type === "technical" ? "technicalSkills" : "softSkills";
     const currentSkills = formData[field] || [];
-    setValue(field, currentSkills.filter((s) => s !== skill));
+    setValue(
+      field,
+      currentSkills.filter((s) => s !== skill),
+    );
   };
 
   // Generate Resume using AI API
@@ -379,7 +446,9 @@ export default function AIResumeBuilderPage() {
           professional_title: formData.professionalTitle,
           linkedin_url: formData.linkedinUrl || undefined,
           portfolio_url: formData.portfolioUrl || undefined,
-          skills: [...formData.technicalSkills, ...formData.softSkills].filter(Boolean),
+          skills: [...formData.technicalSkills, ...formData.softSkills].filter(
+            Boolean,
+          ),
           experience: formData.experiences.map((exp) => ({
             company: exp.company,
             position: exp.position,
@@ -429,7 +498,10 @@ export default function AIResumeBuilderPage() {
       const blob = new Blob([response.data], { type: "application/pdf" });
       const url = window.URL.createObjectURL(blob);
       const link = document.createElement("a");
-      const filename = `${generatedResume.title || "resume"}`.replace(/[\\/:*?"<>|]+/g, "_");
+      const filename = `${generatedResume.title || "resume"}`.replace(
+        /[\\/:*?"<>|]+/g,
+        "_",
+      );
       link.href = url;
       link.download = `${filename}.pdf`;
       document.body.appendChild(link);
@@ -510,8 +582,12 @@ export default function AIResumeBuilderPage() {
           {/* Progress Bar */}
           <div className="mt-4">
             <div className="mb-2 flex justify-between text-xs">
-              <span>{t("aiResumeBuilder.stepOf")} {currentStep}/{steps.length}</span>
-              <span>{Math.round(progress)}% {t("aiResumeBuilder.complete")}</span>
+              <span>
+                {t("aiResumeBuilder.stepOf")} {currentStep}/{steps.length}
+              </span>
+              <span>
+                {Math.round(progress)}% {t("aiResumeBuilder.complete")}
+              </span>
             </div>
             <Progress value={progress} className="h-2" />
           </div>
@@ -527,8 +603,8 @@ export default function AIResumeBuilderPage() {
                   currentStep === step.id
                     ? "bg-purple-100 text-purple-700"
                     : currentStep > step.id
-                    ? "bg-green-100 text-green-700"
-                    : "bg-surface-100 text-surface-500"
+                      ? "bg-green-100 text-green-700"
+                      : "bg-surface-100 text-surface-500",
                 )}
               >
                 <step.icon className="h-4 w-4" />
@@ -552,7 +628,9 @@ export default function AIResumeBuilderPage() {
               >
                 <div className="grid gap-4 sm:grid-cols-2">
                   <div className="sm:col-span-2">
-                    <Label htmlFor="fullName">{t("aiResumeBuilder.fullName")}</Label>
+                    <Label htmlFor="fullName">
+                      {t("aiResumeBuilder.fullName")}
+                    </Label>
                     <Input
                       id="fullName"
                       placeholder={t("auth.register.placeholders.fullName")}
@@ -583,7 +661,9 @@ export default function AIResumeBuilderPage() {
                     />
                   </div>
                   <div>
-                    <Label htmlFor="location">{t("aiResumeBuilder.location")}</Label>
+                    <Label htmlFor="location">
+                      {t("aiResumeBuilder.location")}
+                    </Label>
                     <Input
                       id="location"
                       placeholder="Tashkent, Uzbekistan"
@@ -592,17 +672,23 @@ export default function AIResumeBuilderPage() {
                     />
                   </div>
                   <div>
-                    <Label htmlFor="professionalTitle">{t("aiResumeBuilder.professionalTitle")}</Label>
-                  <Input
-                    id="professionalTitle"
-                    placeholder={t("aiResumeBuilder.professionalTitlePlaceholder")}
-                    icon={<Briefcase className="h-4 w-4" />}
-                    error={errors.professionalTitle?.message}
-                    {...register("professionalTitle")}
+                    <Label htmlFor="professionalTitle">
+                      {t("aiResumeBuilder.professionalTitle")}
+                    </Label>
+                    <Input
+                      id="professionalTitle"
+                      placeholder={t(
+                        "aiResumeBuilder.professionalTitlePlaceholder",
+                      )}
+                      icon={<Briefcase className="h-4 w-4" />}
+                      error={errors.professionalTitle?.message}
+                      {...register("professionalTitle")}
                     />
                   </div>
                   <div>
-                    <Label htmlFor="linkedinUrl">{t("aiResumeBuilder.linkedinUrl")}</Label>
+                    <Label htmlFor="linkedinUrl">
+                      {t("aiResumeBuilder.linkedinUrl")}
+                    </Label>
                     <Input
                       id="linkedinUrl"
                       placeholder="https://linkedin.com/in/..."
@@ -611,7 +697,9 @@ export default function AIResumeBuilderPage() {
                     />
                   </div>
                   <div>
-                    <Label htmlFor="portfolioUrl">{t("aiResumeBuilder.portfolioUrl")}</Label>
+                    <Label htmlFor="portfolioUrl">
+                      {t("aiResumeBuilder.portfolioUrl")}
+                    </Label>
                     <Input
                       id="portfolioUrl"
                       placeholder="https://yoursite.com"
@@ -689,7 +777,9 @@ export default function AIResumeBuilderPage() {
                       <div className="sm:col-span-2">
                         <Label>{t("aiResumeBuilder.description")}</Label>
                         <Textarea
-                          placeholder={t("aiResumeBuilder.descriptionPlaceholder")}
+                          placeholder={t(
+                            "aiResumeBuilder.descriptionPlaceholder",
+                          )}
                           rows={4}
                           {...register(`experiences.${index}.description`)}
                         />
@@ -809,7 +899,8 @@ export default function AIResumeBuilderPage() {
                   <Label>{t("aiResumeBuilder.technicalSkills")}</Label>
                   {activeSkillProfile && (
                     <p className="mt-1 text-xs text-emerald-700">
-                      {t("aiResumeBuilder.roleMatchedSuggestions")}: {activeSkillProfile.label}
+                      {t("aiResumeBuilder.roleMatchedSuggestions")}:{" "}
+                      {activeSkillProfile.label}
                     </p>
                   )}
                   <div className="mt-2 flex gap-2">
@@ -817,9 +908,15 @@ export default function AIResumeBuilderPage() {
                       placeholder={t("aiResumeBuilder.addSkillPlaceholder")}
                       value={skillInput.technical}
                       onChange={(e) =>
-                        setSkillInput((prev) => ({ ...prev, technical: e.target.value }))
+                        setSkillInput((prev) => ({
+                          ...prev,
+                          technical: e.target.value,
+                        }))
                       }
-                      onKeyPress={(e) => e.key === "Enter" && (e.preventDefault(), addSkill("technical"))}
+                      onKeyPress={(e) =>
+                        e.key === "Enter" &&
+                        (e.preventDefault(), addSkill("technical"))
+                      }
                     />
                     <Button
                       type="button"
@@ -842,23 +939,25 @@ export default function AIResumeBuilderPage() {
                     ))}
                   </div>
                   <div className="mt-2">
-                    <p className="text-xs text-surface-500 mb-2">{t("aiResumeBuilder.suggestedSkills")}</p>
+                    <p className="text-xs text-surface-500 mb-2">
+                      {t("aiResumeBuilder.suggestedSkills")}
+                    </p>
                     <div className="flex flex-wrap gap-1">
                       {technicalSkillSuggestions.map((skill) => (
-                          <button
-                            key={skill}
-                            type="button"
-                            onClick={() =>
-                              setValue("technicalSkills", [
-                                ...(formData.technicalSkills || []),
-                                skill,
-                              ])
-                            }
-                            className="rounded-full border border-surface-200 px-2 py-0.5 text-xs text-surface-600 hover:border-purple-300 hover:bg-purple-50"
-                          >
-                            + {skill}
-                          </button>
-                        ))}
+                        <button
+                          key={skill}
+                          type="button"
+                          onClick={() =>
+                            setValue("technicalSkills", [
+                              ...(formData.technicalSkills || []),
+                              skill,
+                            ])
+                          }
+                          className="rounded-full border border-surface-200 px-2 py-0.5 text-xs text-surface-600 hover:border-purple-300 hover:bg-purple-50"
+                        >
+                          + {skill}
+                        </button>
+                      ))}
                     </div>
                   </div>
                 </div>
@@ -871,9 +970,15 @@ export default function AIResumeBuilderPage() {
                       placeholder={t("aiResumeBuilder.addSkillPlaceholder")}
                       value={skillInput.soft}
                       onChange={(e) =>
-                        setSkillInput((prev) => ({ ...prev, soft: e.target.value }))
+                        setSkillInput((prev) => ({
+                          ...prev,
+                          soft: e.target.value,
+                        }))
                       }
-                      onKeyPress={(e) => e.key === "Enter" && (e.preventDefault(), addSkill("soft"))}
+                      onKeyPress={(e) =>
+                        e.key === "Enter" &&
+                        (e.preventDefault(), addSkill("soft"))
+                      }
                     />
                     <Button
                       type="button"
@@ -896,23 +1001,25 @@ export default function AIResumeBuilderPage() {
                     ))}
                   </div>
                   <div className="mt-2">
-                    <p className="text-xs text-surface-500 mb-2">{t("aiResumeBuilder.suggestedSkills")}</p>
+                    <p className="text-xs text-surface-500 mb-2">
+                      {t("aiResumeBuilder.suggestedSkills")}
+                    </p>
                     <div className="flex flex-wrap gap-1">
                       {softSkillSuggestions.map((skill) => (
-                          <button
-                            key={skill}
-                            type="button"
-                            onClick={() =>
-                              setValue("softSkills", [
-                                ...(formData.softSkills || []),
-                                skill,
-                              ])
-                            }
-                            className="rounded-full border border-surface-200 px-2 py-0.5 text-xs text-surface-600 hover:border-purple-300 hover:bg-purple-50"
-                          >
-                            + {skill}
-                          </button>
-                        ))}
+                        <button
+                          key={skill}
+                          type="button"
+                          onClick={() =>
+                            setValue("softSkills", [
+                              ...(formData.softSkills || []),
+                              skill,
+                            ])
+                          }
+                          className="rounded-full border border-surface-200 px-2 py-0.5 text-xs text-surface-600 hover:border-purple-300 hover:bg-purple-50"
+                        >
+                          + {skill}
+                        </button>
+                      ))}
                     </div>
                   </div>
                 </div>
@@ -934,14 +1041,26 @@ export default function AIResumeBuilderPage() {
                           }
                         >
                           <SelectTrigger className="w-44">
-                            <SelectValue placeholder={t("aiResumeBuilder.level")} />
+                            <SelectValue
+                              placeholder={t("aiResumeBuilder.level")}
+                            />
                           </SelectTrigger>
                           <SelectContent>
-                            <SelectItem value="native">{t("aiResumeBuilder.native")}</SelectItem>
-                            <SelectItem value="fluent">{t("aiResumeBuilder.fluent")}</SelectItem>
-                            <SelectItem value="advanced">{t("aiResumeBuilder.advanced")}</SelectItem>
-                            <SelectItem value="intermediate">{t("aiResumeBuilder.intermediate")}</SelectItem>
-                            <SelectItem value="basic">{t("aiResumeBuilder.basic")}</SelectItem>
+                            <SelectItem value="native">
+                              {t("aiResumeBuilder.native")}
+                            </SelectItem>
+                            <SelectItem value="fluent">
+                              {t("aiResumeBuilder.fluent")}
+                            </SelectItem>
+                            <SelectItem value="advanced">
+                              {t("aiResumeBuilder.advanced")}
+                            </SelectItem>
+                            <SelectItem value="intermediate">
+                              {t("aiResumeBuilder.intermediate")}
+                            </SelectItem>
+                            <SelectItem value="basic">
+                              {t("aiResumeBuilder.basic")}
+                            </SelectItem>
                           </SelectContent>
                         </Select>
                         {languageFields.length > 1 && (
@@ -960,7 +1079,9 @@ export default function AIResumeBuilderPage() {
                       type="button"
                       variant="outline"
                       size="sm"
-                      onClick={() => appendLanguage({ name: "", proficiency: "" })}
+                      onClick={() =>
+                        appendLanguage({ name: "", proficiency: "" })
+                      }
                     >
                       <Plus className="mr-2 h-4 w-4" />
                       {t("aiResumeBuilder.addLanguage")}
@@ -995,11 +1116,15 @@ export default function AIResumeBuilderPage() {
                           "rounded-xl border-2 p-3 text-left transition-all",
                           selectedTemplate === template.id
                             ? "border-purple-500 bg-purple-50"
-                            : "border-surface-200 hover:border-surface-300"
+                            : "border-surface-200 hover:border-surface-300",
                         )}
                       >
-                        <p className="font-medium text-surface-900">{t(template.nameKey)}</p>
-                        <p className="text-xs text-surface-500">{t(template.descriptionKey)}</p>
+                        <p className="font-medium text-surface-900">
+                          {t(template.nameKey)}
+                        </p>
+                        <p className="text-xs text-surface-500">
+                          {t(template.descriptionKey)}
+                        </p>
                       </button>
                     ))}
                   </div>
@@ -1021,11 +1146,15 @@ export default function AIResumeBuilderPage() {
                           "rounded-xl border-2 p-3 text-left transition-all",
                           selectedTone === tone.id
                             ? "border-purple-500 bg-purple-50"
-                            : "border-surface-200 hover:border-surface-300"
+                            : "border-surface-200 hover:border-surface-300",
                         )}
                       >
-                        <p className="font-medium text-surface-900">{t(tone.nameKey)}</p>
-                        <p className="text-xs text-surface-500">{t(tone.descriptionKey)}</p>
+                        <p className="font-medium text-surface-900">
+                          {t(tone.nameKey)}
+                        </p>
+                        <p className="text-xs text-surface-500">
+                          {t(tone.descriptionKey)}
+                        </p>
                       </button>
                     ))}
                   </div>
@@ -1126,22 +1255,46 @@ export default function AIResumeBuilderPage() {
         <div className="flex items-center justify-between border-b border-surface-200 bg-white p-4 dark:border-surface-700 dark:bg-surface-900">
           <div className="flex items-center gap-2">
             <Eye className="h-5 w-5 text-surface-500" />
-            <span className="font-medium text-surface-900 dark:text-white">{t("aiResumeBuilder.livePreview")}</span>
+            <span className="font-medium text-surface-900 dark:text-white">
+              {t("aiResumeBuilder.livePreview")}
+            </span>
           </div>
           <div className="flex items-center gap-2">
             {/* Zoom controls */}
             <Button
               variant="ghost"
               size="icon"
-              onClick={() => setPreviewZoom((z) => Math.max(50, z - 10))}
+              onClick={() => setPreviewZoom((z) => Math.max(60, z - 10))}
+              title={isRu ? "Уменьшить масштаб" : "Masshtabni kichraytirish"}
+              aria-label={
+                isRu ? "Уменьшить масштаб" : "Masshtabni kichraytirish"
+              }
             >
               <ZoomOut className="h-4 w-4" />
             </Button>
-            <span className="text-sm text-surface-500 w-12 text-center">{previewZoom}%</span>
+            <span
+              className="w-24 text-center text-sm text-surface-500"
+              title={
+                isRu
+                  ? "Текущий масштаб предпросмотра"
+                  : "Joriy preview masshtabi"
+              }
+              aria-label={
+                isRu
+                  ? "Текущий масштаб предпросмотра"
+                  : "Joriy preview masshtabi"
+              }
+            >
+              {isRu ? "Масштаб" : "Masshtab"} {previewZoom}%
+            </span>
             <Button
               variant="ghost"
               size="icon"
-              onClick={() => setPreviewZoom((z) => Math.min(150, z + 10))}
+              onClick={() => setPreviewZoom((z) => Math.min(100, z + 10))}
+              title={isRu ? "Увеличить масштаб" : "Masshtabni kattalashtirish"}
+              aria-label={
+                isRu ? "Увеличить масштаб" : "Masshtabni kattalashtirish"
+              }
             >
               <ZoomIn className="h-4 w-4" />
             </Button>
@@ -1151,6 +1304,16 @@ export default function AIResumeBuilderPage() {
               size="sm"
               onClick={handleDownloadGenerated}
               disabled={!generatedResume || isDownloadingPdf}
+              title={
+                isRu
+                  ? "Резюме yuklab olish (PDF)"
+                  : "Rezyumeni PDF qilib yuklab olish"
+              }
+              aria-label={
+                isRu
+                  ? "Резюме yuklab olish (PDF)"
+                  : "Rezyumeni PDF qilib yuklab olish"
+              }
             >
               {isDownloadingPdf ? (
                 <Loader2 className="mr-2 h-4 w-4 animate-spin" />
@@ -1163,13 +1326,13 @@ export default function AIResumeBuilderPage() {
         </div>
 
         {/* Preview Content */}
-        <div className="flex-1 overflow-auto p-8">
+        <div className="flex-1 overflow-y-auto overflow-x-hidden p-4 xl:p-6">
           <div
             className="mx-auto bg-white shadow-2xl transition-transform dark:bg-surface-800"
             style={{
               transform: `scale(${previewZoom / 100})`,
               transformOrigin: "top center",
-              width: "210mm",
+              width: "min(210mm, 100%)",
               minHeight: "297mm",
             }}
           >
@@ -1211,15 +1374,21 @@ export default function AIResumeBuilderPage() {
                   {t("aiResumeBuilder.aiResumeReady")}
                 </p>
                 <div className="mt-6 flex gap-3">
-                  <Button variant="outline" onClick={() => setIsGenerated(false)}>
+                  <Button
+                    variant="outline"
+                    onClick={() => setIsGenerated(false)}
+                  >
                     {t("aiResumeBuilder.editResume")}
                   </Button>
                   <Button
                     variant="outline"
-                    onClick={() => generatedResume && router.push(`/student/resumes/${generatedResume.id}`)}
+                    onClick={() =>
+                      generatedResume &&
+                      router.push(`/student/resumes/${generatedResume.id}`)
+                    }
                     disabled={!generatedResume}
                   >
-                    Ko&apos;rish
+                    {isRu ? "Открыть" : "Ko&apos;rish"}
                   </Button>
                   <Button
                     className="bg-gradient-to-r from-emerald-500 to-cyan-600"
@@ -1242,19 +1411,3 @@ export default function AIResumeBuilderPage() {
     </div>
   );
 }
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-

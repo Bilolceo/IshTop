@@ -108,16 +108,23 @@ export default function ResumesPage() {
   // Filter and sort resumes
   const filteredResumes = resumes
     .filter((resume) => {
-      const matchesSearch = resume.title.toLowerCase().includes(searchQuery.toLowerCase());
-      const matchesStatus = statusFilter === "all" || resume.status === statusFilter;
+      const matchesSearch = resume.title
+        .toLowerCase()
+        .includes(searchQuery.toLowerCase());
+      const matchesStatus =
+        statusFilter === "all" || resume.status === statusFilter;
       return matchesSearch && matchesStatus;
     })
     .sort((a, b) => {
       switch (sortBy) {
         case "updated":
-          return new Date(b.updated_at).getTime() - new Date(a.updated_at).getTime();
+          return (
+            new Date(b.updated_at).getTime() - new Date(a.updated_at).getTime()
+          );
         case "created":
-          return new Date(b.created_at).getTime() - new Date(a.created_at).getTime();
+          return (
+            new Date(b.created_at).getTime() - new Date(a.created_at).getTime()
+          );
         case "title":
           return a.title.localeCompare(b.title);
         case "views":
@@ -146,7 +153,13 @@ export default function ResumesPage() {
         });
         break;
       case "delete":
-        if (confirm(isRu ? "Вы уверены, что хотите удалить это резюме?" : "Ushbu rezyumeni o'chirishga ishonchingiz komilmi?")) {
+        if (
+          confirm(
+            isRu
+              ? "Вы уверены, что хотите удалить это резюме?"
+              : "Ushbu rezyumeni o'chirishga ishonchingiz komilmi?",
+          )
+        ) {
           await deleteResume(resume.id);
         }
         break;
@@ -158,6 +171,15 @@ export default function ResumesPage() {
     published: resumes.filter((r) => r.status === "published").length,
     drafts: resumes.filter((r) => r.status === "draft").length,
     aiGenerated: resumes.filter((r) => r.ai_generated).length,
+  };
+
+  const renderStatValue = (value: number) => {
+    if (isLoading) {
+      return (
+        <span className="inline-block h-8 w-10 animate-pulse rounded bg-surface-200 dark:bg-surface-700" />
+      );
+    }
+    return value;
   };
 
   return (
@@ -176,9 +198,7 @@ export default function ResumesPage() {
           <h1 className="font-display text-2xl font-bold text-surface-900 dark:text-white">
             {t("resumesPage.title")}
           </h1>
-          <p className="mt-1 text-surface-500">
-            {t("resumesPage.subtitle")}
-          </p>
+          <p className="mt-1 text-surface-500">{t("resumesPage.subtitle")}</p>
         </div>
         <Button
           onClick={() => setShowCreateDialog(true)}
@@ -197,8 +217,12 @@ export default function ResumesPage() {
               <FileText className="h-5 w-5 text-purple-600" />
             </div>
             <div>
-              <p className="text-2xl font-bold text-surface-900 dark:text-white">{stats.total}</p>
-              <p className="text-xs text-surface-500">{t("resumesPage.totalResumes")}</p>
+              <p className="text-2xl font-bold text-surface-900 dark:text-white">
+                {renderStatValue(stats.total)}
+              </p>
+              <p className="text-xs text-surface-500">
+                {t("resumesPage.totalResumes")}
+              </p>
             </div>
           </CardContent>
         </Card>
@@ -208,8 +232,12 @@ export default function ResumesPage() {
               <Globe className="h-5 w-5 text-green-600" />
             </div>
             <div>
-              <p className="text-2xl font-bold text-surface-900 dark:text-white">{stats.published}</p>
-              <p className="text-xs text-surface-500">{t("resumesPage.published")}</p>
+              <p className="text-2xl font-bold text-surface-900 dark:text-white">
+                {renderStatValue(stats.published)}
+              </p>
+              <p className="text-xs text-surface-500">
+                {t("resumesPage.published")}
+              </p>
             </div>
           </CardContent>
         </Card>
@@ -219,8 +247,12 @@ export default function ResumesPage() {
               <Clock className="h-5 w-5 text-amber-600" />
             </div>
             <div>
-              <p className="text-2xl font-bold text-surface-900 dark:text-white">{stats.drafts}</p>
-              <p className="text-xs text-surface-500">{t("resumesPage.drafts")}</p>
+              <p className="text-2xl font-bold text-surface-900 dark:text-white">
+                {renderStatValue(stats.drafts)}
+              </p>
+              <p className="text-xs text-surface-500">
+                {t("resumesPage.drafts")}
+              </p>
             </div>
           </CardContent>
         </Card>
@@ -230,8 +262,12 @@ export default function ResumesPage() {
               <Sparkles className="h-5 w-5 text-cyan-600" />
             </div>
             <div>
-              <p className="text-2xl font-bold text-surface-900 dark:text-white">{stats.aiGenerated}</p>
-              <p className="text-xs text-surface-500">{t("resumesPage.aiGenerated")}</p>
+              <p className="text-2xl font-bold text-surface-900 dark:text-white">
+                {renderStatValue(stats.aiGenerated)}
+              </p>
+              <p className="text-xs text-surface-500">
+                {t("resumesPage.aiGenerated")}
+              </p>
             </div>
           </CardContent>
         </Card>
@@ -261,10 +297,18 @@ export default function ResumesPage() {
                     <SelectValue placeholder={t("resumesPage.allStatus")} />
                   </SelectTrigger>
                   <SelectContent>
-                    <SelectItem value="all">{t("resumesPage.allStatus")}</SelectItem>
-                    <SelectItem value="published">{t("resumesPage.published")}</SelectItem>
-                    <SelectItem value="draft">{t("resumesPage.drafts")}</SelectItem>
-                    <SelectItem value="archived">{t("dashboard.resumes.status.archived")}</SelectItem>
+                    <SelectItem value="all">
+                      {t("resumesPage.allStatus")}
+                    </SelectItem>
+                    <SelectItem value="published">
+                      {t("resumesPage.published")}
+                    </SelectItem>
+                    <SelectItem value="draft">
+                      {t("resumesPage.drafts")}
+                    </SelectItem>
+                    <SelectItem value="archived">
+                      {t("dashboard.resumes.status.archived")}
+                    </SelectItem>
                   </SelectContent>
                 </Select>
 
@@ -275,10 +319,18 @@ export default function ResumesPage() {
                     <SelectValue placeholder={t("resumesPage.sortBy")} />
                   </SelectTrigger>
                   <SelectContent>
-                    <SelectItem value="updated">{t("resumesPage.lastUpdated")}</SelectItem>
-                    <SelectItem value="created">{t("resumesPage.dateCreated")}</SelectItem>
-                    <SelectItem value="title">{t("resumesPage.titleSort")}</SelectItem>
-                    <SelectItem value="views">{t("resumesPage.viewsSort")}</SelectItem>
+                    <SelectItem value="updated">
+                      {t("resumesPage.lastUpdated")}
+                    </SelectItem>
+                    <SelectItem value="created">
+                      {t("resumesPage.dateCreated")}
+                    </SelectItem>
+                    <SelectItem value="title">
+                      {t("resumesPage.titleSort")}
+                    </SelectItem>
+                    <SelectItem value="views">
+                      {t("resumesPage.viewsSort")}
+                    </SelectItem>
                   </SelectContent>
                 </Select>
               </div>
@@ -313,7 +365,9 @@ export default function ResumesPage() {
 
       {/* Resume Grid/List */}
       {isLoading ? (
-        <div className={`grid gap-4 ${viewMode === "grid" ? "md:grid-cols-2 lg:grid-cols-3" : ""}`}>
+        <div
+          className={`grid gap-4 ${viewMode === "grid" ? "md:grid-cols-2 lg:grid-cols-3" : ""}`}
+        >
           {[1, 2, 3].map((i) => (
             <SkeletonCard key={i} />
           ))}
@@ -327,13 +381,21 @@ export default function ResumesPage() {
               </div>
               <h3 className="font-display text-xl font-semibold text-surface-900 dark:text-white">
                 {searchQuery || statusFilter !== "all"
-                  ? (isRu ? "Резюме не найдены" : "Rezyumelar topilmadi")
-                  : (isRu ? "Резюме пока нет" : "Hozircha rezyume yo'q")}
+                  ? isRu
+                    ? "Резюме не найдены"
+                    : "Rezyumelar topilmadi"
+                  : isRu
+                    ? "Резюме пока нет"
+                    : "Hozircha rezyume yo'q"}
               </h3>
               <p className="mt-2 max-w-sm text-surface-500">
                 {searchQuery || statusFilter !== "all"
-                  ? (isRu ? "Попробуйте изменить поиск или фильтры." : "Qidiruv yoki filtrlarni o'zgartirib ko'ring.")
-                  : (isRu ? "Создайте первое резюме, чтобы начать подавать заявки." : "Ish topish uchun birinchi rezyumeni yarating.")}
+                  ? isRu
+                    ? "Попробуйте изменить поиск или фильтры."
+                    : "Qidiruv yoki filtrlarni o'zgartirib ko'ring."
+                  : isRu
+                    ? "Создайте первое резюме, чтобы начать подавать заявки."
+                    : "Ish topish uchun birinchi rezyumeni yarating."}
               </p>
               {!searchQuery && statusFilter === "all" && (
                 <Button
@@ -341,7 +403,9 @@ export default function ResumesPage() {
                   className="mt-6 bg-gradient-to-r from-purple-500 to-indigo-600"
                 >
                   <Plus className="mr-2 h-4 w-4" />
-                  {isRu ? "Создать первое резюме" : "Birinchi rezyumeni yaratish"}
+                  {isRu
+                    ? "Создать первое резюме"
+                    : "Birinchi rezyumeni yaratish"}
                 </Button>
               )}
             </CardContent>
@@ -370,22 +434,29 @@ export default function ResumesPage() {
                           resume.status === "published"
                             ? "success"
                             : resume.status === "draft"
-                            ? "warning"
-                            : "secondary"
+                              ? "warning"
+                              : "secondary"
                         }
                       >
-                        {resume.status === "published" && <Globe className="mr-1 h-3 w-3" />}
-                        {resume.status === "draft" && <Clock className="mr-1 h-3 w-3" />}
+                        {resume.status === "published" && (
+                          <Globe className="mr-1 h-3 w-3" />
+                        )}
+                        {resume.status === "draft" && (
+                          <Clock className="mr-1 h-3 w-3" />
+                        )}
                         {resume.status}
                       </Badge>
                       {resume.ai_generated && (
-                        <Badge variant="default" className="gap-1 bg-gradient-to-r from-purple-500 to-indigo-600">
+                        <Badge
+                          variant="default"
+                          className="gap-1 bg-gradient-to-r from-purple-500 to-indigo-600"
+                        >
                           <Sparkles className="h-3 w-3" />
                           AI
                         </Badge>
                       )}
                     </div>
-                    
+
                     {/* ATS Score */}
                     {resume.ats_score && (
                       <div className="flex items-center gap-1 rounded-full bg-green-100 px-2 py-0.5 text-xs font-semibold text-green-700">
@@ -404,7 +475,10 @@ export default function ResumesPage() {
                   <div className="mt-2 flex items-center gap-4 text-sm text-surface-500">
                     <span className="flex items-center gap-1">
                       <Clock className="h-4 w-4" />
-                      {formatRelativeTime(resume.updated_at)}
+                      {formatRelativeTime(
+                        resume.updated_at,
+                        isRu ? "ru" : "uz",
+                      )}
                     </span>
                     <span className="flex items-center gap-1">
                       <Eye className="h-4 w-4" />
@@ -414,15 +488,32 @@ export default function ResumesPage() {
 
                   {/* Actions */}
                   <div className="mt-4 flex items-center gap-2">
-                    <Link href={`/student/resumes/${resume.id}`} className="flex-1">
+                    <Link
+                      href={`/student/resumes/${resume.id}`}
+                      className="flex-1"
+                    >
                       <Button variant="outline" size="sm" className="w-full">
                         <Eye className="mr-2 h-4 w-4" />
                         {isRu ? "Открыть" : "Ochish"}
                       </Button>
                     </Link>
                     <Link href={`/student/resumes/${resume.id}/edit`}>
-                      <Button variant="ghost" size="sm">
+                      <Button
+                        variant="ghost"
+                        size="sm"
+                        title={
+                          isRu ? "Редактировать резюме" : "Rezyumeni tahrirlash"
+                        }
+                        aria-label={
+                          isRu ? "Редактировать резюме" : "Rezyumeni tahrirlash"
+                        }
+                      >
                         <Edit className="h-4 w-4" />
+                        <span className="sr-only">
+                          {isRu
+                            ? "Редактировать резюме"
+                            : "Rezyumeni tahrirlash"}
+                        </span>
                       </Button>
                     </Link>
 
@@ -431,9 +522,28 @@ export default function ResumesPage() {
                       <Button
                         variant="ghost"
                         size="sm"
-                        onClick={() => setActiveMenu(activeMenu === resume.id ? null : resume.id)}
+                        onClick={() =>
+                          setActiveMenu(
+                            activeMenu === resume.id ? null : resume.id,
+                          )
+                        }
+                        title={
+                          isRu
+                            ? "Дополнительные действия"
+                            : "Qo'shimcha amallar"
+                        }
+                        aria-label={
+                          isRu
+                            ? "Дополнительные действия"
+                            : "Qo'shimcha amallar"
+                        }
                       >
                         <MoreVertical className="h-4 w-4" />
+                        <span className="sr-only">
+                          {isRu
+                            ? "Дополнительные действия"
+                            : "Qo'shimcha amallar"}
+                        </span>
                       </Button>
 
                       <AnimatePresence>
@@ -451,7 +561,9 @@ export default function ResumesPage() {
                             >
                               {resume.status === "draft" && (
                                 <button
-                                  onClick={() => handleAction("publish", resume)}
+                                  onClick={() =>
+                                    handleAction("publish", resume)
+                                  }
                                   className="flex w-full items-center gap-2 rounded-lg px-3 py-2 text-sm text-surface-600 hover:bg-surface-100 dark:text-surface-400 dark:hover:bg-surface-700"
                                 >
                                   <Globe className="h-4 w-4" />
@@ -460,7 +572,9 @@ export default function ResumesPage() {
                               )}
                               {resume.status === "published" && (
                                 <button
-                                  onClick={() => handleAction("archive", resume)}
+                                  onClick={() =>
+                                    handleAction("archive", resume)
+                                  }
                                   className="flex w-full items-center gap-2 rounded-lg px-3 py-2 text-sm text-surface-600 hover:bg-surface-100 dark:text-surface-400 dark:hover:bg-surface-700"
                                 >
                                   <Archive className="h-4 w-4" />
@@ -475,7 +589,9 @@ export default function ResumesPage() {
                                 {isRu ? "Скачать PDF" : "PDF yuklab olish"}
                               </button>
                               <button
-                                onClick={() => handleAction("duplicate", resume)}
+                                onClick={() =>
+                                  handleAction("duplicate", resume)
+                                }
                                 className="flex w-full items-center gap-2 rounded-lg px-3 py-2 text-sm text-surface-600 hover:bg-surface-100 dark:text-surface-400 dark:hover:bg-surface-700"
                               >
                                 <Copy className="h-4 w-4" />
@@ -506,7 +622,9 @@ export default function ResumesPage() {
       <Dialog open={showCreateDialog} onOpenChange={setShowCreateDialog}>
         <DialogContent className="sm:max-w-lg">
           <DialogHeader>
-            <DialogTitle className="font-display text-2xl">{t("resumesPage.createNewResume")}</DialogTitle>
+            <DialogTitle className="font-display text-2xl">
+              {t("resumesPage.createNewResume")}
+            </DialogTitle>
             <DialogDescription>
               {t("resumesPage.chooseMethod")}
             </DialogDescription>
@@ -514,7 +632,10 @@ export default function ResumesPage() {
 
           <div className="mt-4 space-y-4">
             {/* AI Generation Option */}
-            <Link href="/student/resumes/create-ai" onClick={() => setShowCreateDialog(false)}>
+            <Link
+              href="/student/resumes/create-ai"
+              onClick={() => setShowCreateDialog(false)}
+            >
               <motion.div
                 whileHover={{ scale: 1.02 }}
                 whileTap={{ scale: 0.98 }}
@@ -527,7 +648,9 @@ export default function ResumesPage() {
                   </div>
                   <div className="flex-1">
                     <div className="flex items-center gap-2">
-                      <h3 className="font-display text-lg font-semibold">{t("resumesPage.generateWithAI")}</h3>
+                      <h3 className="font-display text-lg font-semibold">
+                        {t("resumesPage.generateWithAI")}
+                      </h3>
                       <span className="rounded-full bg-white/20 px-2 py-0.5 text-xs font-medium">
                         {t("resumesPage.recommended")}
                       </span>
@@ -541,7 +664,10 @@ export default function ResumesPage() {
             </Link>
 
             {/* Manual Entry Option */}
-            <Link href="/student/resumes/create" onClick={() => setShowCreateDialog(false)}>
+            <Link
+              href="/student/resumes/create"
+              onClick={() => setShowCreateDialog(false)}
+            >
               <motion.div
                 whileHover={{ scale: 1.02 }}
                 whileTap={{ scale: 0.98 }}

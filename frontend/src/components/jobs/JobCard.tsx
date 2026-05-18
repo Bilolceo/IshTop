@@ -1,7 +1,15 @@
 "use client";
 
 import { motion } from "framer-motion";
-import { MapPin, DollarSign, Clock, Bookmark, BookmarkCheck, Zap, Target } from "lucide-react";
+import {
+  MapPin,
+  DollarSign,
+  Clock,
+  Bookmark,
+  BookmarkCheck,
+  Zap,
+  Target,
+} from "lucide-react";
 import { useTranslation } from "@/hooks/useTranslation";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
@@ -38,7 +46,7 @@ export function JobCard({
         "hover:bg-surface-50 dark:hover:bg-surface-800",
         isSelected
           ? "border-purple-500 bg-purple-50/50 shadow-md ring-2 ring-purple-500 dark:bg-purple-900/10"
-          : "border-transparent bg-white hover:border-surface-200 hover:shadow-md dark:bg-surface-800 dark:hover:border-surface-600"
+          : "border-transparent bg-white hover:border-surface-200 hover:shadow-md dark:bg-surface-800 dark:hover:border-surface-600",
       )}
     >
       {/* Bookmark — top right absolute */}
@@ -47,11 +55,29 @@ export function JobCard({
           e.stopPropagation();
           onToggleSave();
         }}
+        title={
+          isSaved
+            ? isRu
+              ? "Снять из сохранённых"
+              : "Saqlanganlardan olib tashlash"
+            : isRu
+              ? "Сохранить вакансию"
+              : "Ishni saqlash"
+        }
+        aria-label={
+          isSaved
+            ? isRu
+              ? "Снять из сохранённых"
+              : "Saqlanganlardan olib tashlash"
+            : isRu
+              ? "Сохранить вакансию"
+              : "Ishni saqlash"
+        }
         className={cn(
           "absolute right-3 top-3 rounded-lg p-1.5 transition-colors",
           isSaved
             ? "bg-purple-100 text-purple-600"
-            : "text-surface-400 hover:bg-surface-100 hover:text-surface-600"
+            : "text-surface-400 hover:bg-surface-100 hover:text-surface-600",
         )}
       >
         {isSaved ? (
@@ -84,15 +110,22 @@ export function JobCard({
         </span>
         <span className="flex items-center gap-1">
           <DollarSign className="h-3 w-3" />
-          {formatSalaryRange(job.salary_min, job.salary_max) || (isRu ? "Зарплата не указана" : "Maosh ko'rsatilmagan")}
+          {formatSalaryRange(job.salary_min, job.salary_max) ||
+            (isRu ? "Зарплата не указана" : "Maosh ko'rsatilmagan")}
         </span>
         <span className="flex items-center gap-1">
           <Clock className="h-3 w-3" />
-          {formatRelativeTime(job.created_at)}
+          {formatRelativeTime(job.created_at, isRu ? "ru" : "uz")}
         </span>
         {job.matchScore ? (
           <Badge
-            variant={job.matchScore >= 80 ? "success" : job.matchScore >= 60 ? "warning" : "secondary"}
+            variant={
+              job.matchScore >= 80
+                ? "success"
+                : job.matchScore >= 60
+                  ? "warning"
+                  : "secondary"
+            }
             className="gap-1 ml-auto"
           >
             <Target className="h-3 w-3" />

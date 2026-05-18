@@ -114,8 +114,12 @@ export default function JobsPage() {
   const router = useRouter();
   const { jobs, isLoading, fetchJobs, matchJobs } = useJobs();
 
-  const [localJobs, setLocalJobs] = useState<(Job & { matchScore?: number })[]>([]);
-  const [selectedJob, setSelectedJob] = useState<(Job & { matchScore?: number }) | null>(null);
+  const [localJobs, setLocalJobs] = useState<(Job & { matchScore?: number })[]>(
+    [],
+  );
+  const [selectedJob, setSelectedJob] = useState<
+    (Job & { matchScore?: number }) | null
+  >(null);
   const [savedJobs, setSavedJobs] = useState<Set<string>>(new Set());
   const [feedMode, setFeedMode] = useState<"matched" | "all">("matched");
   const [hasPublishedResume, setHasPublishedResume] = useState(false);
@@ -144,7 +148,11 @@ export default function JobsPage() {
   // -------------------------------------------------------------------------
 
   const loadMatchedJobs = useCallback(async () => {
-    const response = await resumeApi.list({ status: "published", page: 1, limit: 100 });
+    const response = await resumeApi.list({
+      status: "published",
+      page: 1,
+      limit: 100,
+    });
     const payload = response.data?.data || response.data;
     const resumes = Array.isArray(payload?.resumes)
       ? payload.resumes
@@ -187,17 +195,20 @@ export default function JobsPage() {
         await fetchJobs();
       }
     },
-    [fetchJobs, loadMatchedJobs]
+    [fetchJobs, loadMatchedJobs],
   );
 
   useEffect(() => {
     void loadJobsForFeedMode("matched");
-    jobApi.savedJobs({ limit: 100 }).then((res) => {
-      const data = res.data?.data || res.data;
-      if (Array.isArray(data)) {
-        setSavedJobs(new Set(data.map((j: any) => j.id)));
-      }
-    }).catch(() => {});
+    jobApi
+      .savedJobs({ limit: 100 })
+      .then((res) => {
+        const data = res.data?.data || res.data;
+        if (Array.isArray(data)) {
+          setSavedJobs(new Set(data.map((j: any) => j.id)));
+        }
+      })
+      .catch(() => {});
   }, [loadJobsForFeedMode]);
 
   useEffect(() => {
@@ -227,7 +238,7 @@ export default function JobsPage() {
         toast.info(
           isRu
             ? "Опубликованное резюме не найдено. Сначала опубликуйте резюме."
-            : "Nashr qilingan rezyume topilmadi. Avval rezyumeni nashr qiling."
+            : "Nashr qilingan rezyume topilmadi. Avval rezyumeni nashr qiling.",
         );
         return;
       }
@@ -236,7 +247,7 @@ export default function JobsPage() {
       toast.error(
         isRu
           ? "Не удалось загрузить подходящие вакансии."
-          : "Mos ishlarni yuklashda xatolik yuz berdi."
+          : "Mos ishlarni yuklashda xatolik yuz berdi.",
       );
     }
   }, [isRu, loadMatchedJobs]);
@@ -270,13 +281,13 @@ export default function JobsPage() {
       job.title.toLowerCase().includes(searchQuery.toLowerCase()) ||
       job.company?.name?.toLowerCase().includes(searchQuery.toLowerCase()) ||
       job.requirements.skills?.some((skill) =>
-        skill.toLowerCase().includes(searchQuery.toLowerCase())
+        skill.toLowerCase().includes(searchQuery.toLowerCase()),
       );
 
     const matchesLocation =
       filters.locations.length === 0 ||
       filters.locations.some((loc) =>
-        job.location.toLowerCase().includes(loc.toLowerCase())
+        job.location.toLowerCase().includes(loc.toLowerCase()),
       );
 
     const matchesJobType =
@@ -309,12 +320,17 @@ export default function JobsPage() {
       case "salary":
         return (b.salary_max || 0) - (a.salary_max || 0);
       case "date":
-        return new Date(b.created_at).getTime() - new Date(a.created_at).getTime();
+        return (
+          new Date(b.created_at).getTime() - new Date(a.created_at).getTime()
+        );
       case "relevance":
       default:
         return (b.matchScore || 0) - (a.matchScore || 0);
     }
   });
+
+  const isMatchedEmpty =
+    feedMode === "matched" && !isLoading && sortedJobs.length === 0;
 
   // -------------------------------------------------------------------------
   // Actions
@@ -363,7 +379,7 @@ export default function JobsPage() {
           setTimeout(() => setIsLoadingMore(false), 1000);
         }
       },
-      { threshold: 0.1 }
+      { threshold: 0.1 },
     );
     if (loadMoreRef.current) observerRef.current.observe(loadMoreRef.current);
     return () => observerRef.current?.disconnect();
@@ -414,7 +430,9 @@ export default function JobsPage() {
                   className="absolute left-0 right-0 top-full z-50 mt-1 rounded-xl border border-surface-200 bg-white p-2 shadow-lg dark:border-surface-700 dark:bg-surface-800"
                 >
                   {getSearchSuggestions(isRu)
-                    .filter((s) => s.toLowerCase().includes(searchQuery.toLowerCase()))
+                    .filter((s) =>
+                      s.toLowerCase().includes(searchQuery.toLowerCase()),
+                    )
                     .slice(0, 5)
                     .map((suggestion) => (
                       <button
@@ -442,7 +460,8 @@ export default function JobsPage() {
               variant={feedMode === "matched" ? "default" : "ghost"}
               onClick={() => void switchToMatchedJobs()}
               className={cn(
-                feedMode === "matched" && "bg-gradient-to-r from-purple-500 to-indigo-600"
+                feedMode === "matched" &&
+                  "bg-gradient-to-r from-purple-500 to-indigo-600",
               )}
             >
               <Target className="mr-1 h-3.5 w-3.5" />
@@ -454,7 +473,8 @@ export default function JobsPage() {
               variant={feedMode === "all" ? "default" : "ghost"}
               onClick={() => void switchToAllJobs()}
               className={cn(
-                feedMode === "all" && "bg-gradient-to-r from-purple-500 to-indigo-600"
+                feedMode === "all" &&
+                  "bg-gradient-to-r from-purple-500 to-indigo-600",
               )}
             >
               <Briefcase className="mr-1 h-3.5 w-3.5" />
@@ -537,9 +557,9 @@ export default function JobsPage() {
       {/* ------------------------------------------------------------------ */}
       {/* BODY: 2-column                                                      */}
       {/* ------------------------------------------------------------------ */}
-      <div className="flex flex-1 overflow-hidden">
+      <div className="flex min-w-0 flex-1 overflow-hidden">
         {/* LEFT: job list */}
-        <div className="w-full overflow-y-auto border-r border-surface-200 dark:border-surface-700 lg:w-[420px] xl:w-[460px]">
+        <div className="w-full overflow-y-auto border-r border-surface-200 dark:border-surface-700 lg:w-[420px] lg:shrink-0 xl:w-[460px]">
           {isLoading ? (
             <div className="space-y-3 p-4">
               {[1, 2, 3, 4, 5].map((i) => (
@@ -567,17 +587,46 @@ export default function JobsPage() {
                 <Briefcase className="h-8 w-8 text-surface-400" />
               </div>
               <h3 className="font-semibold text-surface-900 dark:text-white">
-                {isRu ? "Вакансии не найдены" : "Ishlar topilmadi"}
+                {isMatchedEmpty
+                  ? isRu
+                    ? "Подходящие вакансии пока не найдены"
+                    : "Mos ishlar hozircha topilmadi"
+                  : isRu
+                    ? "Вакансии не найдены"
+                    : "Ishlar topilmadi"}
               </h3>
               <p className="mt-2 text-sm text-surface-500">
-                {isRu
-                  ? "Попробуйте изменить фильтры или поиск."
-                  : "Filtrlar yoki qidiruvni o'zgartiring."}
+                {isMatchedEmpty
+                  ? isRu
+                    ? "Рекомендации зависят от вашего резюме. Посмотрите все вакансии или обновите резюме."
+                    : "Tavsiyalar rezyumengizga bog'liq. Barcha ishlarni ko'ring yoki rezyumeni yangilang."
+                  : isRu
+                    ? "Попробуйте изменить фильтры или поиск."
+                    : "Filtrlar yoki qidiruvni o'zgartiring."}
               </p>
-              <Button variant="outline" onClick={resetFilters} className="mt-4" size="sm">
-                <RotateCcw className="mr-2 h-4 w-4" />
-                {isRu ? "Сбросить фильтры" : "Filtrlarni tozalash"}
-              </Button>
+              {isMatchedEmpty ? (
+                <Button
+                  variant="outline"
+                  onClick={() => void switchToAllJobs()}
+                  className="mt-4"
+                  size="sm"
+                >
+                  <Briefcase className="mr-2 h-4 w-4" />
+                  {isRu
+                    ? "Показать все вакансии"
+                    : "Barcha ishlarni ko'rsatish"}
+                </Button>
+              ) : (
+                <Button
+                  variant="outline"
+                  onClick={resetFilters}
+                  className="mt-4"
+                  size="sm"
+                >
+                  <RotateCcw className="mr-2 h-4 w-4" />
+                  {isRu ? "Сбросить фильтры" : "Filtrlarni tozalash"}
+                </Button>
+              )}
             </div>
           ) : (
             <div className="space-y-2 p-3">
@@ -609,7 +658,7 @@ export default function JobsPage() {
         </div>
 
         {/* RIGHT: detail panel — hidden below lg */}
-        <div className="hidden flex-1 overflow-y-auto lg:block">
+        <div className="hidden min-w-0 flex-1 overflow-hidden lg:block">
           <AnimatePresence mode="wait">
             {selectedJob ? (
               <JobDetailPanel
@@ -621,7 +670,7 @@ export default function JobsPage() {
                 onApply={() => handleApply(selectedJob)}
                 onShare={() => {
                   navigator.clipboard.writeText(
-                    `${window.location.origin}/jobs/${selectedJob.id}`
+                    `${window.location.origin}/jobs/${selectedJob.id}`,
                   );
                 }}
               />
@@ -649,7 +698,7 @@ export default function JobsPage() {
               onApply={() => handleApply(selectedJob)}
               onShare={() => {
                 navigator.clipboard.writeText(
-                  `${window.location.origin}/jobs/${selectedJob.id}`
+                  `${window.location.origin}/jobs/${selectedJob.id}`,
                 );
               }}
             />
@@ -669,7 +718,9 @@ export default function JobsPage() {
           <div className="space-y-5 pt-2">
             {/* Location */}
             <div>
-              <p className="mb-2 text-sm font-medium">{isRu ? "Локация" : "Joylashuv"}</p>
+              <p className="mb-2 text-sm font-medium">
+                {isRu ? "Локация" : "Joylashuv"}
+              </p>
               {[
                 { value: "tashkent", label: isRu ? "Ташкент" : "Toshkent" },
                 { value: "samarkand", label: isRu ? "Самарканд" : "Samarqand" },
@@ -677,7 +728,10 @@ export default function JobsPage() {
                 { value: "remote", label: isRu ? "Удалённо" : "Masofaviy" },
                 { value: "hybrid", label: isRu ? "Гибрид" : "Aralash" },
               ].map((opt) => (
-                <label key={opt.value} className="flex cursor-pointer items-center gap-3 py-1">
+                <label
+                  key={opt.value}
+                  className="flex cursor-pointer items-center gap-3 py-1"
+                >
                   <input
                     type="checkbox"
                     checked={filters.locations.includes(opt.value)}
@@ -696,15 +750,26 @@ export default function JobsPage() {
 
             {/* Job Type */}
             <div>
-              <p className="mb-2 text-sm font-medium">{isRu ? "Тип работы" : "Ish turi"}</p>
+              <p className="mb-2 text-sm font-medium">
+                {isRu ? "Тип работы" : "Ish turi"}
+              </p>
               {[
-                { value: "full_time", label: isRu ? "Полная занятость" : "To'liq ish kuni" },
-                { value: "part_time", label: isRu ? "Частичная занятость" : "Yarim kunlik" },
+                {
+                  value: "full_time",
+                  label: isRu ? "Полная занятость" : "To'liq ish kuni",
+                },
+                {
+                  value: "part_time",
+                  label: isRu ? "Частичная занятость" : "Yarim kunlik",
+                },
                 { value: "remote", label: isRu ? "Удалённо" : "Masofaviy" },
                 { value: "hybrid", label: isRu ? "Гибрид" : "Aralash" },
                 { value: "contract", label: isRu ? "Контракт" : "Shartnoma" },
               ].map((opt) => (
-                <label key={opt.value} className="flex cursor-pointer items-center gap-3 py-1">
+                <label
+                  key={opt.value}
+                  className="flex cursor-pointer items-center gap-3 py-1"
+                >
                   <input
                     type="checkbox"
                     checked={filters.jobTypes.includes(opt.value)}
@@ -723,22 +788,32 @@ export default function JobsPage() {
 
             {/* Experience */}
             <div>
-              <p className="mb-2 text-sm font-medium">{isRu ? "Опыт" : "Tajriba"}</p>
+              <p className="mb-2 text-sm font-medium">
+                {isRu ? "Опыт" : "Tajriba"}
+              </p>
               {[
                 { value: "junior", label: isRu ? "Начинающий" : "Boshlovchi" },
                 { value: "mid", label: isRu ? "Средний" : "O'rta" },
                 { value: "senior", label: isRu ? "Старший" : "Katta" },
                 { value: "lead", label: isRu ? "Руководитель" : "Rahbar" },
               ].map((opt) => (
-                <label key={opt.value} className="flex cursor-pointer items-center gap-3 py-1">
+                <label
+                  key={opt.value}
+                  className="flex cursor-pointer items-center gap-3 py-1"
+                >
                   <input
                     type="checkbox"
                     checked={filters.experienceLevels.includes(opt.value)}
                     onChange={() => {
                       const next = filters.experienceLevels.includes(opt.value)
-                        ? filters.experienceLevels.filter((v) => v !== opt.value)
+                        ? filters.experienceLevels.filter(
+                            (v) => v !== opt.value,
+                          )
                         : [...filters.experienceLevels, opt.value];
-                      setFilters((prev) => ({ ...prev, experienceLevels: next }));
+                      setFilters((prev) => ({
+                        ...prev,
+                        experienceLevels: next,
+                      }));
                     }}
                     className="h-4 w-4 rounded border-surface-300 text-purple-600"
                   />
@@ -754,7 +829,9 @@ export default function JobsPage() {
               </p>
               <SalarySlider
                 value={filters.salaryRange}
-                onChange={(val) => setFilters((prev) => ({ ...prev, salaryRange: val }))}
+                onChange={(val) =>
+                  setFilters((prev) => ({ ...prev, salaryRange: val }))
+                }
               />
             </div>
           </div>
