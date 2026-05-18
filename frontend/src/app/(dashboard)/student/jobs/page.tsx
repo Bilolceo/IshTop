@@ -399,15 +399,15 @@ export default function JobsPage() {
   // =========================================================================
 
   return (
-    <div className="flex h-[calc(100vh-64px)] flex-col">
+    <div className="flex h-[calc(100vh-64px)] min-w-0 flex-col bg-surface-50/60 dark:bg-surface-950">
       {/* ------------------------------------------------------------------ */}
       {/* TOP HEADER: search + sort + filter pills                            */}
       {/* ------------------------------------------------------------------ */}
-      <header className="shrink-0 border-b border-surface-200 bg-white px-6 py-3 dark:border-surface-700 dark:bg-surface-900">
+      <header className="shrink-0 border-b border-surface-200/80 bg-white/95 px-4 py-3 backdrop-blur dark:border-surface-700 dark:bg-surface-900/95 lg:px-6">
         {/* Row 1: search + feed tabs + sort */}
-        <div className="flex items-center gap-3">
+        <div className="flex flex-wrap items-center gap-3 lg:flex-nowrap">
           {/* Search */}
-          <div className="relative flex-1">
+          <div className="relative min-w-[260px] flex-1">
             <Search className="absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-surface-400" />
             <Input
               type="text"
@@ -502,7 +502,7 @@ export default function JobsPage() {
 
           {/* Sort */}
           <Select value={sortBy} onValueChange={setSortBy}>
-            <SelectTrigger className="w-40 shrink-0">
+            <SelectTrigger className="w-44 shrink-0">
               <SelectValue placeholder={isRu ? "Сортировка" : "Saralash"} />
             </SelectTrigger>
             <SelectContent>
@@ -559,9 +559,9 @@ export default function JobsPage() {
       {/* ------------------------------------------------------------------ */}
       {/* BODY: 2-column                                                      */}
       {/* ------------------------------------------------------------------ */}
-      <div className="flex min-w-0 flex-1 overflow-hidden">
+      <div className="flex min-w-0 flex-1 gap-4 overflow-hidden p-3 lg:p-4">
         {/* LEFT: job list */}
-        <div className="w-full overflow-y-auto border-r border-surface-200 dark:border-surface-700 lg:w-[420px] lg:shrink-0 xl:w-[460px]">
+        <div className="w-full overflow-y-auto rounded-2xl border border-surface-200 bg-white shadow-sm dark:border-surface-700 dark:bg-surface-900 lg:w-[420px] lg:shrink-0 xl:w-[460px]">
           {isLoading ? (
             <div className="space-y-3 p-4">
               {[1, 2, 3, 4, 5].map((i) => (
@@ -631,7 +631,7 @@ export default function JobsPage() {
               )}
             </div>
           ) : (
-            <div className="space-y-2 p-3">
+            <div className="space-y-3 p-3">
               <AnimatePresence>
                 {sortedJobs.map((job) => (
                   <JobCard
@@ -660,7 +660,7 @@ export default function JobsPage() {
         </div>
 
         {/* RIGHT: detail panel — hidden below lg */}
-        <div className="hidden min-w-0 flex-1 overflow-hidden lg:block">
+        <div className="hidden min-w-0 flex-1 overflow-hidden rounded-2xl border border-surface-200 bg-white shadow-sm dark:border-surface-700 dark:bg-surface-900 lg:block">
           <AnimatePresence mode="wait">
             {selectedJob ? (
               <JobDetailPanel

@@ -75,7 +75,7 @@ export function FilterPillBar({ filters, onChange, isRu }: FilterPillBarProps) {
     : "Maosh";
 
   return (
-    <div className="flex flex-wrap items-center gap-2">
+    <div className="flex items-center gap-2 overflow-x-auto pb-1">
       {/* Location */}
       <Select
         value={filters.locations[0] || "all"}
@@ -88,7 +88,7 @@ export function FilterPillBar({ filters, onChange, isRu }: FilterPillBarProps) {
       >
         <SelectTrigger
           className={cn(
-            "h-9 rounded-xl border px-3 text-xs font-medium transition-colors focus:ring-0",
+            "h-9 w-[150px] shrink-0 rounded-xl border px-3 text-xs font-medium transition-colors focus:ring-0",
             locationActive ? pillActive : pillBase
           )}
         >
@@ -116,7 +116,7 @@ export function FilterPillBar({ filters, onChange, isRu }: FilterPillBarProps) {
       >
         <SelectTrigger
           className={cn(
-            "h-9 rounded-xl border px-3 text-xs font-medium transition-colors focus:ring-0",
+            "h-9 w-[150px] shrink-0 rounded-xl border px-3 text-xs font-medium transition-colors focus:ring-0",
             jobTypeActive ? pillActive : pillBase
           )}
         >
@@ -144,7 +144,7 @@ export function FilterPillBar({ filters, onChange, isRu }: FilterPillBarProps) {
       >
         <SelectTrigger
           className={cn(
-            "h-9 rounded-xl border px-3 text-xs font-medium transition-colors focus:ring-0",
+            "h-9 w-[150px] shrink-0 rounded-xl border px-3 text-xs font-medium transition-colors focus:ring-0",
             expActive ? pillActive : pillBase
           )}
         >
@@ -165,7 +165,7 @@ export function FilterPillBar({ filters, onChange, isRu }: FilterPillBarProps) {
         size="sm"
         onClick={() => setSalaryOpen(true)}
         className={cn(
-          "h-9 rounded-xl border px-3 text-xs font-medium transition-colors",
+          "h-9 shrink-0 rounded-xl border px-3 text-xs font-medium transition-colors",
           salaryActive ? pillActive : pillBase
         )}
       >
@@ -180,7 +180,7 @@ export function FilterPillBar({ filters, onChange, isRu }: FilterPillBarProps) {
       >
         <SelectTrigger
           className={cn(
-            "h-9 rounded-xl border px-3 text-xs font-medium transition-colors focus:ring-0",
+            "h-9 w-[150px] shrink-0 rounded-xl border px-3 text-xs font-medium transition-colors focus:ring-0",
             dateActive ? pillActive : pillBase
           )}
         >
@@ -200,7 +200,7 @@ export function FilterPillBar({ filters, onChange, isRu }: FilterPillBarProps) {
         size="sm"
         onClick={() => setMoreOpen(true)}
         className={cn(
-          "h-9 rounded-xl border px-3 text-xs font-medium transition-colors",
+          "h-9 shrink-0 rounded-xl border px-3 text-xs font-medium transition-colors",
           companiesActive ? pillActive : pillBase
         )}
       >
@@ -228,7 +228,7 @@ export function FilterPillBar({ filters, onChange, isRu }: FilterPillBarProps) {
               datePosted: "all",
             })
           }
-          className="h-9 rounded-xl px-3 text-xs text-surface-500 hover:text-surface-700 dark:text-surface-400"
+          className="h-9 shrink-0 rounded-xl px-3 text-xs text-surface-500 hover:text-surface-700 dark:text-surface-400"
         >
           <RotateCcw className="mr-1 h-3 w-3" />
           {isRu ? "Очистить" : "Tozalash"}

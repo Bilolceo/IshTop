@@ -45,35 +45,35 @@ export function JobDetailPanel({
       initial={{ opacity: 0, x: 20 }}
       animate={{ opacity: 1, x: 0 }}
       exit={{ opacity: 0, x: 20 }}
-      className="flex h-full flex-col"
+      className="flex h-full flex-col bg-white dark:bg-surface-900"
     >
       {/* Hero section */}
       <div className="border-b border-surface-200 px-6 py-6 dark:border-surface-700">
         <div className="flex items-start gap-4">
           {/* Logo */}
-          <div className="flex h-14 w-14 shrink-0 items-center justify-center rounded-xl bg-gradient-to-br from-purple-100 to-indigo-100 text-2xl font-bold text-purple-600 dark:from-purple-900/50 dark:to-indigo-900/50">
+          <div className="flex h-14 w-14 shrink-0 items-center justify-center rounded-2xl bg-gradient-to-br from-purple-100 to-indigo-100 text-2xl font-bold text-purple-700 dark:from-purple-900/50 dark:to-indigo-900/50 dark:text-purple-300">
             {job.company?.name?.charAt(0) || "C"}
           </div>
           {/* Title block */}
           <div className="min-w-0 flex-1">
-            <h2 className="text-2xl font-bold text-surface-900 dark:text-white leading-tight">
+            <h2 className="text-2xl font-bold leading-tight text-surface-900 dark:text-white">
               {job.title}
             </h2>
             <p className="mt-0.5 text-surface-600 dark:text-surface-400">
               {job.company?.name}
             </p>
-            <div className="mt-2 flex flex-wrap items-center gap-2">
+            <div className="mt-2.5 flex flex-wrap items-center gap-2">
               <span className="flex items-center gap-1 text-sm text-surface-500">
                 <MapPin className="h-3.5 w-3.5" />
                 {job.location}
               </span>
-              <Badge variant={job.job_type as any} className="capitalize">
+              <Badge variant={job.job_type as any} className="rounded-full capitalize">
                 {job.job_type.replace("_", " ")}
               </Badge>
               {job.matchScore ? (
                 <Badge
                   variant={job.matchScore >= 80 ? "success" : "warning"}
-                  className="gap-1"
+                  className="gap-1 rounded-full"
                 >
                   <Target className="h-3 w-3" />
                   {job.matchScore}% {isRu ? "совпадение" : "moslik"}
@@ -97,13 +97,13 @@ export function JobDetailPanel({
         {/* Big CTA buttons */}
         <div className="mt-5 flex gap-3">
           <Button
-            className="flex-1 bg-gradient-to-r from-purple-500 to-indigo-600 shadow-lg shadow-purple-500/25"
+            className="flex-1 rounded-xl bg-gradient-to-r from-purple-500 to-indigo-600 shadow-lg shadow-purple-500/25"
             onClick={onApply}
           >
             <Send className="mr-2 h-4 w-4" />
             {isRu ? "Откликнуться" : "Hozir ariza yuborish"}
           </Button>
-          <Button variant="outline" className="flex-1" onClick={onToggleSave}>
+          <Button variant="outline" className="flex-1 rounded-xl" onClick={onToggleSave}>
             {isSaved ? (
               <>
                 <BookmarkCheck className="mr-2 h-4 w-4" />
@@ -122,6 +122,7 @@ export function JobDetailPanel({
             onClick={onShare}
             aria-label={isRu ? "Поделиться вакансией" : "Ishni ulashish"}
             title={isRu ? "Поделиться" : "Ulashish"}
+            className="rounded-xl"
           >
             <Share2 className="h-4 w-4" />
           </Button>
@@ -134,7 +135,7 @@ export function JobDetailPanel({
         aria-label={isRu ? "Детали вакансии" : "Ish tafsilotlari"}
       >
         {/* Quick info grid */}
-        <div className="grid grid-cols-2 gap-4 rounded-xl bg-surface-50 p-4 dark:bg-surface-800/50">
+        <div className="grid grid-cols-2 gap-4 rounded-2xl border border-surface-200 bg-surface-50 p-4 dark:border-surface-700 dark:bg-surface-800/50">
           <div className="flex items-center gap-3">
             <div className="flex h-10 w-10 items-center justify-center rounded-lg bg-purple-100 dark:bg-purple-900/50">
               <MapPin className="h-5 w-5 text-purple-600" />
@@ -143,9 +144,9 @@ export function JobDetailPanel({
               <p className="text-xs text-surface-500">
                 {isRu ? "Локация" : "Joylashuv"}
               </p>
-              <p className="font-medium text-surface-900 dark:text-white">
-                {job.location}
-              </p>
+                <p className="font-medium leading-tight text-surface-900 dark:text-white">
+                  {job.location}
+                </p>
             </div>
           </div>
           <div className="flex items-center gap-3">
@@ -156,7 +157,7 @@ export function JobDetailPanel({
               <p className="text-xs text-surface-500">
                 {isRu ? "Зарплата" : "Maosh"}
               </p>
-              <p className="font-medium text-surface-900 dark:text-white">
+              <p className="font-medium leading-tight text-surface-900 dark:text-white">
                 {formatSalaryRange(job.salary_min, job.salary_max)}
               </p>
             </div>
@@ -191,17 +192,17 @@ export function JobDetailPanel({
 
         {/* Section: Description */}
         <div className="mt-6">
-          <h3 className="text-lg font-semibold text-surface-900 dark:text-white mb-3">
+          <h3 className="mb-3 text-lg font-semibold text-surface-900 dark:text-white">
             {isRu ? "Описание вакансии" : "Lavozim haqida"}
           </h3>
-          <div className="whitespace-pre-line text-sm text-surface-600 dark:text-surface-400 leading-relaxed">
+          <div className="whitespace-pre-line text-sm leading-relaxed text-surface-600 dark:text-surface-400">
             {job.description}
           </div>
         </div>
 
         {/* Section: Requirements */}
         <div className="mt-6">
-          <h3 className="text-lg font-semibold text-surface-900 dark:text-white mb-3">
+          <h3 className="mb-3 text-lg font-semibold text-surface-900 dark:text-white">
             {isRu ? "Требования" : "Talablar"}
           </h3>
           <div className="space-y-4">
@@ -213,7 +214,7 @@ export function JobDetailPanel({
                 </p>
                 <div className="flex flex-wrap gap-2">
                   {job.requirements.skills.map((skill) => (
-                    <Badge key={skill} variant="secondary">
+                    <Badge key={skill} variant="secondary" className="rounded-full">
                       {skill}
                     </Badge>
                   ))}
@@ -257,10 +258,10 @@ export function JobDetailPanel({
 
         {/* Section: Company */}
         <div className="mt-6">
-          <h3 className="text-lg font-semibold text-surface-900 dark:text-white mb-3">
+          <h3 className="mb-3 text-lg font-semibold text-surface-900 dark:text-white">
             {isRu ? "Компания" : "Kompaniya"}
           </h3>
-          <div className="rounded-xl border border-surface-200 p-4 dark:border-surface-700">
+          <div className="rounded-2xl border border-surface-200 p-4 dark:border-surface-700">
             <div className="flex items-center gap-4">
               <div className="flex h-12 w-12 items-center justify-center rounded-xl bg-gradient-to-br from-purple-100 to-indigo-100 text-xl font-bold text-purple-600 dark:from-purple-900/50 dark:to-indigo-900/50">
                 {job.company?.name?.charAt(0)}
