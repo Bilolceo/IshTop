@@ -158,7 +158,11 @@ export function JobDetailPanel({
                 {isRu ? "Зарплата" : "Maosh"}
               </p>
               <p className="font-medium leading-tight text-surface-900 dark:text-white">
-                {formatSalaryRange(job.salary_min, job.salary_max)}
+                {formatSalaryRange(
+                  job.salary_min,
+                  job.salary_max,
+                  isRu ? "ru" : "uz",
+                )}
               </p>
             </div>
           </div>

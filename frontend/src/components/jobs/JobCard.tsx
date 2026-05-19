@@ -110,7 +110,7 @@ export function JobCard({
         </span>
         <span className="flex items-center gap-1">
           <DollarSign className="h-3 w-3" />
-          {formatSalaryRange(job.salary_min, job.salary_max) ||
+          {formatSalaryRange(job.salary_min, job.salary_max, isRu ? "ru" : "uz") ||
             (isRu ? "Зарплата не указана" : "Maosh ko'rsatilmagan")}
         </span>
         <span className="flex items-center gap-1">

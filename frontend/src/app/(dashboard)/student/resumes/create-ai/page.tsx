@@ -1328,11 +1328,11 @@ export default function AIResumeBuilderPage() {
         {/* Preview Content */}
         <div className="flex-1 overflow-y-auto overflow-x-hidden p-4 xl:p-6">
           <div
-            className="mx-auto bg-white shadow-2xl transition-transform dark:bg-surface-800"
+            className="mx-auto w-full max-w-[840px] rounded-2xl bg-white shadow-2xl dark:bg-surface-800"
             style={{
-              transform: `scale(${previewZoom / 100})`,
+              zoom: previewZoom / 100,
               transformOrigin: "top center",
-              width: "min(210mm, 100%)",
+              width: "100%",
               minHeight: "297mm",
             }}
           >

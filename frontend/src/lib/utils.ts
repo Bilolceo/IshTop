@@ -21,22 +21,39 @@ export function formatRelativeTime(
   dateString: string,
   locale: "uz" | "ru" = "uz",
 ): string {
-  const shorthandMatch = dateString.trim().match(/^(-?\d+)\s*([smhdw])$/i);
+  const normalized = dateString.trim().toLowerCase();
+  const shorthandMatch = normalized.match(
+    /^(-?\d+)\s*(s|sec|second|seconds|m|min|minute|minutes|h|hr|hour|hours|d|day|days|w|week|weeks)(?:\s*(ago|oldin|назад))?$/i,
+  );
   if (shorthandMatch) {
     const rawValue = Number(shorthandMatch[1]);
     const unit = shorthandMatch[2].toLowerCase();
+    const explicitPast = Boolean(shorthandMatch[3]);
     const unitMap: Record<string, Intl.RelativeTimeFormatUnit> = {
       s: "second",
+      sec: "second",
+      second: "second",
+      seconds: "second",
       m: "minute",
+      min: "minute",
+      minute: "minute",
+      minutes: "minute",
       h: "hour",
+      hr: "hour",
+      hour: "hour",
+      hours: "hour",
       d: "day",
+      day: "day",
+      days: "day",
       w: "week",
+      week: "week",
+      weeks: "week",
     };
     const rtf = new Intl.RelativeTimeFormat(
       locale === "ru" ? "ru-RU" : "uz-UZ",
       { numeric: "auto" },
     );
-    const value = rawValue < 0 ? rawValue : -rawValue;
+    const value = explicitPast ? -Math.abs(rawValue) : rawValue < 0 ? rawValue : -rawValue;
     return rtf.format(value, unitMap[unit]);
   }
 
@@ -46,30 +63,32 @@ export function formatRelativeTime(
   }
   const now = new Date();
   const diffInSeconds = Math.floor((now.getTime() - date.getTime()) / 1000);
+  const absDiffInSeconds = Math.abs(diffInSeconds);
+  const direction = diffInSeconds >= 0 ? -1 : 1;
 
   const rtf = new Intl.RelativeTimeFormat(locale === "ru" ? "ru-RU" : "uz-UZ", {
     numeric: "auto",
   });
 
-  if (diffInSeconds < 60) return rtf.format(0, "second");
+  if (absDiffInSeconds < 60) return rtf.format(0, "second");
 
-  const diffInMinutes = Math.floor(diffInSeconds / 60);
-  if (diffInMinutes < 60) return rtf.format(-diffInMinutes, "minute");
+  const diffInMinutes = Math.floor(absDiffInSeconds / 60);
+  if (diffInMinutes < 60) return rtf.format(direction * diffInMinutes, "minute");
 
   const diffInHours = Math.floor(diffInMinutes / 60);
-  if (diffInHours < 24) return rtf.format(-diffInHours, "hour");
+  if (diffInHours < 24) return rtf.format(direction * diffInHours, "hour");
 
   const diffInDays = Math.floor(diffInHours / 24);
-  if (diffInDays < 7) return rtf.format(-diffInDays, "day");
+  if (diffInDays < 7) return rtf.format(direction * diffInDays, "day");
 
   const diffInWeeks = Math.floor(diffInDays / 7);
-  if (diffInWeeks < 4) return rtf.format(-diffInWeeks, "week");
+  if (diffInWeeks < 4) return rtf.format(direction * diffInWeeks, "week");
 
   const diffInMonths = Math.floor(diffInDays / 30);
-  if (diffInMonths < 12) return rtf.format(-diffInMonths, "month");
+  if (diffInMonths < 12) return rtf.format(direction * diffInMonths, "month");
 
   const diffInYears = Math.floor(diffInDays / 365);
-  return rtf.format(-diffInYears, "year");
+  return rtf.format(direction * diffInYears, "year");
 }
 
 /**

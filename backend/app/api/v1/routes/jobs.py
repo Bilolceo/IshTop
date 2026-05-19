@@ -158,6 +158,97 @@ class JobMatchResponse(BaseModel):
 # HELPER FUNCTIONS
 # =============================================================================
 
+_DUPLICATE_CANDIDATE_STATUSES = {
+    JobStatus.DRAFT.value,
+    JobStatus.ACTIVE.value,
+    JobStatus.PAUSED.value,
+}
+
+
+def _normalize_job_fingerprint_text(value: Optional[str]) -> str:
+    """Normalize strings so near-identical jobs are compared reliably."""
+    if not value:
+        return ""
+    normalized = re.sub(r"\s+", " ", value.strip().lower())
+    return re.sub(r"[^a-z0-9а-яё\u0400-\u04FF]+", "", normalized)
+
+
+def _is_duplicate_job_payload(
+    existing_job: Job,
+    *,
+    title: str,
+    location: str,
+    salary_min: Optional[int],
+    salary_max: Optional[int],
+    job_type: str,
+) -> bool:
+    """Compare fields that define practical uniqueness for company job postings."""
+    return (
+        _normalize_job_fingerprint_text(existing_job.title)
+        == _normalize_job_fingerprint_text(title)
+        and _normalize_job_fingerprint_text(existing_job.location)
+        == _normalize_job_fingerprint_text(location)
+        and int(existing_job.salary_min or 0) == int(salary_min or 0)
+        and int(existing_job.salary_max or 0) == int(salary_max or 0)
+        and str(existing_job.job_type or "").lower() == str(job_type or "").lower()
+    )
+
+
+def _find_duplicate_company_job(
+    db: Session,
+    *,
+    company_id: UUID,
+    title: str,
+    location: str,
+    salary_min: Optional[int],
+    salary_max: Optional[int],
+    job_type: str,
+    exclude_job_id: Optional[UUID] = None,
+) -> Optional[Job]:
+    """
+    Return a duplicate job candidate for a company if one exists.
+
+    We only compare non-deleted jobs that are still open to applicants.
+    """
+    query = db.query(Job).filter(
+        Job.company_id == company_id,
+        Job.is_deleted.is_(False),
+        Job.status.in_(_DUPLICATE_CANDIDATE_STATUSES),
+    )
+    if exclude_job_id:
+        query = query.filter(Job.id != exclude_job_id)
+
+    # Narrow down candidates by normalized title/location and exact salary/type match.
+    normalized_title = _normalize_job_fingerprint_text(title)
+    normalized_location = _normalize_job_fingerprint_text(location)
+    candidates = query.filter(
+        func.lower(Job.title).contains(re.sub(r"\s+", " ", title.strip().lower())),
+        func.lower(Job.location).contains(re.sub(r"\s+", " ", location.strip().lower())),
+    ).all()
+
+    for candidate in candidates:
+        if _is_duplicate_job_payload(
+            candidate,
+            title=title,
+            location=location,
+            salary_min=salary_min,
+            salary_max=salary_max,
+            job_type=job_type,
+        ):
+            return candidate
+
+        # Fallback check with stricter normalized keys for weird whitespace/punctuation.
+        if (
+            _normalize_job_fingerprint_text(candidate.title) == normalized_title
+            and _normalize_job_fingerprint_text(candidate.location)
+            == normalized_location
+            and int(candidate.salary_min or 0) == int(salary_min or 0)
+            and int(candidate.salary_max or 0) == int(salary_max or 0)
+            and str(candidate.job_type or "").lower() == str(job_type or "").lower()
+        ):
+            return candidate
+    return None
+
 def job_to_response(job: Job, include_company: bool = True) -> JobResponse:
     """Convert Job model to JobResponse."""
 
@@ -810,6 +901,30 @@ async def create_job(
     db: Session = Depends(get_db)
 ):
     """Create a new job posting (company only)."""
+    duplicate = _find_duplicate_company_job(
+        db,
+        company_id=company.id,
+        title=job_data.title,
+        location=job_data.location,
+        salary_min=job_data.salary_min,
+        salary_max=job_data.salary_max,
+        job_type=job_data.job_type.value,
+    )
+    if duplicate:
+        logger.warning(
+            "Duplicate job creation blocked: company=%s existing_job=%s title=%s",
+            company.id,
+            duplicate.id,
+            job_data.title,
+        )
+        raise HTTPException(
+            status_code=status.HTTP_409_CONFLICT,
+            detail={
+                "code": "DUPLICATE_JOB",
+                "message": "O'xshash vakansiya allaqachon mavjud. Mavjud ishni yangilang.",
+                "existing_job_id": str(duplicate.id),
+            },
+        )
     
     job = Job(
         company_id=company.id,
@@ -880,6 +995,34 @@ async def update_job(
     
     # Update fields
     update_dict = update_data.model_dump(exclude_unset=True)
+    next_title = update_dict.get("title", job.title)
+    next_location = update_dict.get("location", job.location)
+    next_salary_min = update_dict.get("salary_min", job.salary_min)
+    next_salary_max = update_dict.get("salary_max", job.salary_max)
+    next_job_type = update_dict.get("job_type", job.job_type)
+
+    if hasattr(next_job_type, "value"):
+        next_job_type = next_job_type.value
+
+    duplicate = _find_duplicate_company_job(
+        db,
+        company_id=job.company_id,
+        title=next_title,
+        location=next_location,
+        salary_min=next_salary_min,
+        salary_max=next_salary_max,
+        job_type=next_job_type,
+        exclude_job_id=job.id,
+    )
+    if duplicate:
+        raise HTTPException(
+            status_code=status.HTTP_409_CONFLICT,
+            detail={
+                "code": "DUPLICATE_JOB",
+                "message": "Yangilash natijasida dublikat vakansiya paydo bo'ladi.",
+                "existing_job_id": str(duplicate.id),
+            },
+        )
     
     for field, value in update_dict.items():
         if value is not None:
@@ -1297,5 +1440,4 @@ async def close_job(
     logger.info(f"Job closed: {job.id}")
     
     return job_to_response(job)
-
 

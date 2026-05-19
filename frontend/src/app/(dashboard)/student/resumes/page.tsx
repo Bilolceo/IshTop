@@ -501,6 +501,7 @@ export default function ResumesPage() {
                       <Button
                         variant="ghost"
                         size="sm"
+                        className="gap-1.5"
                         title={
                           isRu ? "Редактировать резюме" : "Rezyumeni tahrirlash"
                         }
@@ -509,6 +510,9 @@ export default function ResumesPage() {
                         }
                       >
                         <Edit className="h-4 w-4" />
+                        <span className="hidden text-xs sm:inline">
+                          {isRu ? "Изменить" : "Tahrirlash"}
+                        </span>
                         <span className="sr-only">
                           {isRu
                             ? "Редактировать резюме"
@@ -522,6 +526,7 @@ export default function ResumesPage() {
                       <Button
                         variant="ghost"
                         size="sm"
+                        className="gap-1.5"
                         onClick={() =>
                           setActiveMenu(
                             activeMenu === resume.id ? null : resume.id,
@@ -539,6 +544,9 @@ export default function ResumesPage() {
                         }
                       >
                         <MoreVertical className="h-4 w-4" />
+                        <span className="hidden text-xs sm:inline">
+                          {isRu ? "Действия" : "Amallar"}
+                        </span>
                         <span className="sr-only">
                           {isRu
                             ? "Дополнительные действия"
