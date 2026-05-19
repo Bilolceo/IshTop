@@ -236,6 +236,7 @@ async def help_assistant(
     """
     service = get_ai_service()
     locale = (request.locale or "uz").strip().lower()
+    # Keep assistant replies constrained to supported UI locales.
     if locale not in {"uz", "ru"}:
         locale = "uz"
 
