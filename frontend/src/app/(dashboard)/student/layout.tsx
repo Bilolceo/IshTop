@@ -376,7 +376,16 @@ export default function StudentDashboardLayout({
                 )}
               </Button>
               {helpAnswer && (
-                <div className="rounded-lg border border-purple-200 bg-white/90 p-2 text-xs leading-relaxed text-surface-700 dark:border-purple-700 dark:bg-surface-800/80 dark:text-surface-300">
+                <div className="relative rounded-lg border border-purple-200 bg-white/90 p-2 pr-9 text-xs leading-relaxed text-surface-700 dark:border-purple-700 dark:bg-surface-800/80 dark:text-surface-300">
+                  <button
+                    type="button"
+                    onClick={() => setHelpAnswer("")}
+                    className="absolute right-1.5 top-1.5 rounded p-1 text-surface-500 transition-colors hover:bg-surface-100 hover:text-surface-700 dark:hover:bg-surface-700 dark:hover:text-surface-200"
+                    aria-label={locale === "ru" ? "Закрыть ответ" : "Javobni yopish"}
+                    title={locale === "ru" ? "Закрыть" : "Yopish"}
+                  >
+                    <X className="h-3.5 w-3.5" />
+                  </button>
                   {helpAnswer}
                 </div>
               )}
