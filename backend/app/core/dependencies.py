@@ -58,7 +58,7 @@ import logging
 from typing import Callable, Generator, Optional
 from uuid import UUID
 
-from fastapi import Depends, HTTPException, status
+from fastapi import Depends, HTTPException, Request, status
 from fastapi.security import HTTPBearer, HTTPAuthorizationCredentials
 from sqlalchemy.orm import Session
 
@@ -73,6 +73,7 @@ from app.core.security import (
     TokenExpiredError,
     TokenBlacklistedError,
 )
+from app.config import settings
 
 # =============================================================================
 # LOGGING
@@ -123,6 +124,7 @@ def get_db() -> Generator[Session, None, None]:
 # =============================================================================
 
 def get_token_payload(
+    request: Request,
     credentials: Optional[HTTPAuthorizationCredentials] = Depends(oauth2_scheme)
 ) -> TokenPayload:
     """
@@ -131,14 +133,18 @@ def get_token_payload(
     Raises:
         HTTPException 401: If token is invalid, expired, or revoked
     """
-    if not credentials:
+    token: Optional[str] = credentials.credentials if credentials else None
+    if not token:
+        cookie_token = request.cookies.get(settings.AUTH_ACCESS_COOKIE_NAME)
+        if cookie_token:
+            token = cookie_token
+
+    if not token:
         raise HTTPException(
             status_code=status.HTTP_401_UNAUTHORIZED,
             detail="Not authenticated",
             headers={"WWW-Authenticate": "Bearer"},
         )
-
-    token = credentials.credentials
     
     try:
         payload = verify_token(token, expected_type=TokenType.ACCESS)
@@ -164,6 +170,7 @@ def get_token_payload(
 
 
 def get_optional_token_payload(
+    request: Request,
     credentials: Optional[HTTPAuthorizationCredentials] = Depends(oauth2_scheme_optional)
 ) -> Optional[TokenPayload]:
     """
@@ -175,11 +182,14 @@ def get_optional_token_payload(
     Returns:
         TokenPayload if valid token, None otherwise
     """
-    if not credentials:
+    token: Optional[str] = credentials.credentials if credentials else None
+    if not token:
+        token = request.cookies.get(settings.AUTH_ACCESS_COOKIE_NAME)
+    if not token:
         return None
     
     try:
-        return verify_token(credentials.credentials, expected_type=TokenType.ACCESS)
+        return verify_token(token, expected_type=TokenType.ACCESS)
     except TokenError:
         return None
 
@@ -572,8 +582,6 @@ def rate_limit(max_requests: int = 100, window_seconds: int = 60):
             )
     
     return rate_limit_dependency
-
-
 
 
 

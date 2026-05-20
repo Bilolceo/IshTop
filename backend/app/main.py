@@ -355,14 +355,24 @@ def create_application() -> FastAPI:
 
         response = await call_next(request)
         response.headers["X-Request-ID"] = incoming_request_id
-        
+
+        # Baseline security headers for all environments.
+        response.headers["X-Content-Type-Options"] = "nosniff"
+        response.headers["X-Frame-Options"] = "DENY"
+        response.headers["Referrer-Policy"] = "strict-origin-when-cross-origin"
+        response.headers["Permissions-Policy"] = "camera=(), microphone=(), geolocation=()"
+        response.headers["Cross-Origin-Opener-Policy"] = "same-origin"
+        response.headers["Cross-Origin-Resource-Policy"] = "same-origin"
+
+        if request.url.path.startswith("/api/v1/auth"):
+            response.headers["Cache-Control"] = "no-store, max-age=0"
+            response.headers["Pragma"] = "no-cache"
+
         if not settings.DEBUG:
-            response.headers["X-Content-Type-Options"] = "nosniff"
-            response.headers["X-Frame-Options"] = "DENY"
             response.headers["X-XSS-Protection"] = "1; mode=block"
-            response.headers["Strict-Transport-Security"] = "max-age=31536000; includeSubDomains"
-            response.headers["Referrer-Policy"] = "strict-origin-when-cross-origin"
             response.headers["Content-Security-Policy"] = "default-src 'self'"
+            if request.url.scheme == "https" or (request.headers.get("x-forwarded-proto") or "").lower() == "https":
+                response.headers["Strict-Transport-Security"] = "max-age=31536000; includeSubDomains"
         
         return response
     

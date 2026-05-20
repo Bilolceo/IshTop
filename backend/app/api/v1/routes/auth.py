@@ -31,11 +31,10 @@ from time import time
 from typing import Optional
 from uuid import UUID
 
-from fastapi import APIRouter, Depends, HTTPException, status, BackgroundTasks, Request, Query
+from fastapi import APIRouter, Depends, HTTPException, status, BackgroundTasks, Request, Query, Response
 from fastapi.responses import RedirectResponse
 from sqlalchemy.orm import Session
 from sqlalchemy.exc import IntegrityError
-from urllib.parse import urlencode
 
 # Local imports
 from app.core.dependencies import get_db, get_current_user, get_current_active_user
@@ -73,6 +72,70 @@ from app.config import settings
 logger = logging.getLogger(__name__)
 
 _LOCAL_OAUTH_STATES: dict[str, tuple[float, Optional[str]]] = {}
+
+
+def _resolve_cookie_secure(request: Request) -> bool:
+    """
+    Decide whether auth cookies should be marked Secure for this request.
+    """
+    if settings.AUTH_COOKIE_SECURE:
+        return True
+    forwarded_proto = (request.headers.get("x-forwarded-proto") or "").lower()
+    return request.url.scheme == "https" or forwarded_proto == "https"
+
+
+def _set_auth_cookies(response: Response, request: Request, token_response: TokenResponse) -> None:
+    """
+    Store access + refresh tokens in httpOnly cookies.
+    """
+    secure = _resolve_cookie_secure(request)
+    domain = settings.AUTH_COOKIE_DOMAIN or None
+    path = settings.AUTH_COOKIE_PATH or "/"
+    common = {
+        "domain": domain,
+        "path": path,
+        "secure": secure,
+        "httponly": settings.AUTH_COOKIE_HTTPONLY,
+        "samesite": settings.AUTH_COOKIE_SAMESITE,
+    }
+
+    response.set_cookie(
+        key=settings.AUTH_ACCESS_COOKIE_NAME,
+        value=token_response.access_token,
+        max_age=settings.ACCESS_TOKEN_EXPIRE_MINUTES * 60,
+        **common,
+    )
+    response.set_cookie(
+        key=settings.AUTH_REFRESH_COOKIE_NAME,
+        value=token_response.refresh_token,
+        max_age=settings.REFRESH_TOKEN_EXPIRE_DAYS * 24 * 60 * 60,
+        **common,
+    )
+
+
+def _clear_auth_cookies(response: Response, request: Request) -> None:
+    """
+    Clear auth cookies during logout.
+    """
+    secure = _resolve_cookie_secure(request)
+    domain = settings.AUTH_COOKIE_DOMAIN or None
+    path = settings.AUTH_COOKIE_PATH or "/"
+    response.delete_cookie(
+        key=settings.AUTH_ACCESS_COOKIE_NAME,
+        path=path,
+        domain=domain,
+        secure=secure,
+        httponly=settings.AUTH_COOKIE_HTTPONLY,
+        samesite=settings.AUTH_COOKIE_SAMESITE,
+    )
+    response.delete_cookie(
+        key=settings.AUTH_REFRESH_COOKIE_NAME,
+        path=path,
+        domain=domain,
+        secure=secure,
+        httponly=settings.AUTH_COOKIE_HTTPONLY,
+        samesite=settings.AUTH_COOKIE_SAMESITE,
+    )
 
 # =============================================================================
 # ROUTER
@@ -449,6 +512,8 @@ def _is_email_delivery_available() -> bool:
 )
 async def register(
     user_data: UserRegister,
+    request: Request,
+    response: Response,
     db: Session = Depends(get_db)
 ):
     """Register a new user."""
@@ -496,8 +561,10 @@ async def register(
         except Exception as e:
             logger.error(f"Failed to send welcome email: {e}")
         
-        # Return tokens
-        return create_token_response(user)
+        # Return tokens + set secure cookies for browser clients
+        token_response = create_token_response(user)
+        _set_auth_cookies(response, request, token_response)
+        return token_response
         
     except IntegrityError as e:
         db.rollback()
@@ -543,6 +610,7 @@ async def register(
 )
 async def login(
     request: Request,
+    response: Response,
     db: Session = Depends(get_db)
 ):
     """Authenticate user and return tokens with brute-force protection."""
@@ -672,7 +740,9 @@ async def login(
     except Exception as e:
         logger.error(f"Failed to send login notification: {e}")
     
-    return create_token_response(user)
+    token_response = create_token_response(user)
+    _set_auth_cookies(response, request, token_response)
+    return token_response
 
 
 @router.post(
@@ -695,15 +765,26 @@ async def login(
     """
 )
 async def refresh_token(
-    request: TokenRefreshRequest,
+    http_request: Request,
+    response: Response,
+    request: TokenRefreshRequest | None = None,
     db: Session = Depends(get_db)
 ):
     """Refresh access token."""
     
     try:
+        refresh_token_value = (
+            request.refresh_token if request and request.refresh_token else None
+        ) or http_request.cookies.get(settings.AUTH_REFRESH_COOKIE_NAME)
+        if not refresh_token_value:
+            raise HTTPException(
+                status_code=status.HTTP_401_UNAUTHORIZED,
+                detail="Refresh token missing"
+            )
+
         # Verify refresh token
         payload = verify_token(
-            request.refresh_token,
+            refresh_token_value,
             expected_type=TokenType.REFRESH
         )
         
@@ -724,7 +805,9 @@ async def refresh_token(
         
         logger.info(f"Token refresh for user: {user.id}")
         
-        return create_token_response(user)
+        token_response = create_token_response(user)
+        _set_auth_cookies(response, http_request, token_response)
+        return token_response
         
     except TokenError as e:
         logger.warning(f"Token refresh failed: {e}")
@@ -749,6 +832,7 @@ async def refresh_token(
 )
 async def logout(
     request: Request,
+    response: Response,
     body: LogoutRequest | None = None,
     current_user: User = Depends(get_current_user),
 ):
@@ -771,7 +855,15 @@ async def logout(
         except Exception as e:
             logger.warning(f"Failed to blacklist refresh token: {e}")
 
+    cookie_refresh = request.cookies.get(settings.AUTH_REFRESH_COOKIE_NAME)
+    if cookie_refresh:
+        try:
+            blacklist_token(cookie_refresh)
+        except Exception as e:
+            logger.warning(f"Failed to blacklist cookie refresh token: {e}")
+
     logger.info(f"Logout for user: {current_user.id}")
+    _clear_auth_cookies(response, request)
 
     return MessageResponse(message="Successfully logged out", success=True)
 
@@ -1038,6 +1130,7 @@ async def google_oauth_authorize(
     description="Handle Google OAuth callback and create/login user"
 )
 async def google_oauth_callback(
+    request: Request,
     code: str = Query(..., min_length=1),
     state: str = Query(..., min_length=1),
     db: Session = Depends(get_db)
@@ -1105,15 +1198,13 @@ async def google_oauth_callback(
         user.last_login = datetime.now(timezone.utc)
         db.commit()
 
-        # Redirect to frontend with tokens in fragment (not sent to server logs)
+        # Redirect to frontend after setting secure auth cookies.
         token_response = create_token_response(user)
-        fragment = urlencode(
-            {
-                "access_token": token_response.access_token,
-                "refresh_token": token_response.refresh_token,
-            }
+        redirect_response = RedirectResponse(
+            url=f"{settings.FRONTEND_URL}/oauth/callback?oauth=success"
         )
-        return RedirectResponse(url=f"{settings.FRONTEND_URL}/oauth/callback#{fragment}")
+        _set_auth_cookies(redirect_response, request, token_response)
+        return redirect_response
         
     except ValueError as e:
         logger.warning(f"Google OAuth callback validation error: {e}")
@@ -1179,6 +1270,7 @@ async def linkedin_oauth_authorize(
     description="Handle LinkedIn OAuth callback and create/login user"
 )
 async def linkedin_oauth_callback(
+    request: Request,
     code: str = Query(..., min_length=1),
     state: str = Query(..., min_length=1),
     db: Session = Depends(get_db)
@@ -1246,13 +1338,11 @@ async def linkedin_oauth_callback(
         db.commit()
 
         token_response = create_token_response(user)
-        fragment = urlencode(
-            {
-                "access_token": token_response.access_token,
-                "refresh_token": token_response.refresh_token,
-            }
+        redirect_response = RedirectResponse(
+            url=f"{settings.FRONTEND_URL}/oauth/callback?oauth=success"
         )
-        return RedirectResponse(url=f"{settings.FRONTEND_URL}/oauth/callback#{fragment}")
+        _set_auth_cookies(redirect_response, request, token_response)
+        return redirect_response
         
     except ValueError as e:
         logger.warning(f"LinkedIn OAuth callback validation error: {e}")
@@ -1270,10 +1360,6 @@ async def linkedin_oauth_callback(
             error_code="LINKEDIN_OAUTH_AUTHENTICATION_FAILED",
             message="OAuth authentication failed",
         )
-
-
-
-
 
 
 

@@ -100,9 +100,17 @@ export default function ResumesPage() {
   const [sortBy, setSortBy] = useState<string>("updated");
   const [activeMenu, setActiveMenu] = useState<string | null>(null);
   const [showCreateDialog, setShowCreateDialog] = useState(false);
+  const [hasLoadedOnce, setHasLoadedOnce] = useState(false);
 
   useEffect(() => {
-    fetchResumes();
+    const load = async () => {
+      try {
+        await fetchResumes();
+      } finally {
+        setHasLoadedOnce(true);
+      }
+    };
+    void load();
   }, [fetchResumes]);
 
   // Filter and sort resumes
@@ -174,7 +182,7 @@ export default function ResumesPage() {
   };
 
   const renderStatValue = (value: number) => {
-    if (isLoading) {
+    if (isLoading || !hasLoadedOnce) {
       return (
         <span className="inline-block h-8 w-10 animate-pulse rounded bg-surface-200 dark:bg-surface-700" />
       );

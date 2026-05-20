@@ -187,8 +187,8 @@ class UserLogin(BaseModel):
 class TokenRefreshRequest(BaseModel):
     """Schema for token refresh."""
     
-    refresh_token: str = Field(
-        ...,
+    refresh_token: Optional[str] = Field(
+        default=None,
         description="Refresh token from login response"
     )
 

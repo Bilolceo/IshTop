@@ -95,14 +95,16 @@ export function useAuth() {
 
   const changePassword = useCallback(async (oldPassword: string, newPassword: string) => {
     const token = useAuthStore.getState().accessToken;
-    if (!token) throw new Error("Not authenticated");
-
+    const headers: Record<string, string> = {
+      "Content-Type": "application/json",
+    };
+    if (token) {
+      headers.Authorization = `Bearer ${token}`;
+    }
     const res = await fetch(`${API_BASE_URL}/auth/change-password`, {
       method: "POST",
-      headers: {
-        "Content-Type": "application/json",
-        Authorization: `Bearer ${token}`,
-      },
+      headers,
+      credentials: "include",
       body: JSON.stringify({ current_password: oldPassword, new_password: newPassword }),
     });
 
@@ -115,6 +117,7 @@ export function useAuth() {
     const res = await fetch(`${API_BASE_URL}/auth/forgot-password`, {
       method: "POST",
       headers: { "Content-Type": "application/json" },
+      credentials: "include",
       body: JSON.stringify({ email }),
     });
 

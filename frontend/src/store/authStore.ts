@@ -81,6 +81,19 @@ function extractUser(payload: unknown): User | null {
   return null;
 }
 
+function sanitizeUserForClient(user: User | null): User | null {
+  if (!user) return null;
+  return {
+    id: user.id,
+    full_name: user.full_name,
+    role: user.role,
+    email: user.email,
+    avatar_url: user.avatar_url ?? null,
+    company_name: user.company_name ?? null,
+    is_verified: user.is_verified ?? false,
+  } as User;
+}
+
 function extractTokens(payload: unknown): { accessToken: string | null; refreshToken: string | null } {
   const root = unwrapPayload(payload);
   const nestedTokens = isRecord(root.tokens) ? root.tokens : null;
@@ -102,21 +115,21 @@ function applyAuthResponse(
 ) {
   const user = extractUser(payload);
   const { accessToken, refreshToken } = extractTokens(payload);
-  const requireTokens = options?.requireTokens ?? true;
+  const requireTokens = options?.requireTokens ?? false;
 
   if (requireTokens && (!accessToken || !refreshToken)) {
     throw new Error("Authentication response is missing access or refresh token");
   }
 
   set((state) => {
-    state.user = user;
+    state.user = sanitizeUserForClient(user);
     state.accessToken = accessToken;
     state.refreshToken = refreshToken;
-    state.isAuthenticated = !!user || (!!accessToken && !!refreshToken);
+    state.isAuthenticated = !!user || !!accessToken;
     state.isLoading = false;
   });
 
-  return { user, accessToken, refreshToken };
+  return { user: sanitizeUserForClient(user), accessToken, refreshToken };
 }
 
 function extractMeUser(payload: unknown): User | null {
@@ -147,6 +160,7 @@ interface AuthState {
   refreshAccessToken: () => Promise<string | null>;
   updateProfile: (data: Partial<User>) => Promise<void>;
   clearError: () => void;
+  bootstrapSession: () => Promise<void>;
 }
 
 interface RegisterData {
@@ -178,7 +192,7 @@ export const useAuthStore = create<AuthState>()(
       // Set user
       setUser: (user) =>
         set((state) => {
-          state.user = user;
+          state.user = sanitizeUserForClient(user);
           state.isAuthenticated = !!user;
         }),
 
@@ -207,6 +221,7 @@ export const useAuthStore = create<AuthState>()(
           const res = await fetch(`${API_BASE_URL}/auth/login`, {
             method: "POST",
             headers: { "Content-Type": "application/json" },
+            credentials: "include",
             body: JSON.stringify({ email, password }),
           });
 
@@ -237,6 +252,7 @@ export const useAuthStore = create<AuthState>()(
           const res = await fetch(`${API_BASE_URL}/auth/register`, {
             method: "POST",
             headers: { "Content-Type": "application/json" },
+            credentials: "include",
             body: JSON.stringify(data),
           });
 
@@ -267,16 +283,19 @@ export const useAuthStore = create<AuthState>()(
         try {
           // Best-effort server logout (token blacklist). Even if it fails,
           // we still clear local state.
+          const headers: Record<string, string> = {
+            "Content-Type": "application/json",
+          };
           if (accessToken) {
-            await fetch(`${API_BASE_URL}/auth/logout`, {
-              method: "POST",
-              headers: {
-                "Content-Type": "application/json",
-                Authorization: `Bearer ${accessToken}`,
-              },
-              body: JSON.stringify({ refresh_token: refreshToken }),
-            });
+            headers.Authorization = `Bearer ${accessToken}`;
           }
+
+          await fetch(`${API_BASE_URL}/auth/logout`, {
+            method: "POST",
+            headers,
+            credentials: "include",
+            body: JSON.stringify(refreshToken ? { refresh_token: refreshToken } : {}),
+          });
         } catch {
           // ignore
         } finally {
@@ -294,13 +313,13 @@ export const useAuthStore = create<AuthState>()(
       // Refresh access token
       refreshAccessToken: async () => {
         const { refreshToken } = get();
-        if (!refreshToken) return null;
 
         try {
           const res = await fetch(`${API_BASE_URL}/auth/refresh`, {
             method: "POST",
             headers: { "Content-Type": "application/json" },
-            body: JSON.stringify({ refresh_token: refreshToken }),
+            credentials: "include",
+            body: JSON.stringify(refreshToken ? { refresh_token: refreshToken } : {}),
           });
 
           if (!res.ok) {
@@ -328,14 +347,17 @@ export const useAuthStore = create<AuthState>()(
 
         try {
           const { accessToken } = get();
-          if (!accessToken) throw new Error("Not authenticated");
+          const headers: Record<string, string> = {
+            "Content-Type": "application/json",
+          };
+          if (accessToken) {
+            headers.Authorization = `Bearer ${accessToken}`;
+          }
 
           const res = await fetch(`${API_BASE_URL}/users/me`, {
             method: "PUT",
-            headers: {
-              "Content-Type": "application/json",
-              Authorization: `Bearer ${accessToken}`,
-            },
+            headers,
+            credentials: "include",
             body: JSON.stringify(data),
           });
 
@@ -345,7 +367,9 @@ export const useAuthStore = create<AuthState>()(
           }
 
           const updated = await res.json();
-          const user = extractMeUser(updated) ?? extractUser(updated) ?? updated;
+          const user = sanitizeUserForClient(
+            (extractMeUser(updated) ?? extractUser(updated) ?? updated) as User
+          );
 
           set((state) => {
             state.user = user;
@@ -365,19 +389,39 @@ export const useAuthStore = create<AuthState>()(
         set((state) => {
           state.error = null;
         }),
+
+      bootstrapSession: async () => {
+        const { isAuthenticated } = get();
+        if (isAuthenticated) return;
+        try {
+          const res = await fetch(`${API_BASE_URL}/auth/refresh`, {
+            method: "POST",
+            headers: { "Content-Type": "application/json" },
+            credentials: "include",
+            body: "{}",
+          });
+          if (!res.ok) return;
+          const data = await res.json();
+          applyAuthResponse(set, data, { requireTokens: false });
+        } catch {
+          // ignore bootstrap failures
+        }
+      },
     })),
     {
       name: "auth-storage",
       storage: createJSONStorage(() => localStorage),
       partialize: (state) => ({
-        user: state.user,
-        accessToken: state.accessToken,
-        refreshToken: state.refreshToken,
+        user: sanitizeUserForClient(state.user),
         isAuthenticated: state.isAuthenticated,
       }),
       onRehydrateStorage: () => (state) => {
-        // Mark store as hydrated once persisted state is loaded.
-        state?.setHasHydrated(true);
+        const finalizeHydration = async () => {
+          // Attempt silent cookie-based session restore before auth-gated redirects run.
+          await state?.bootstrapSession();
+          state?.setHasHydrated(true);
+        };
+        void finalizeHydration();
       },
     }
   )

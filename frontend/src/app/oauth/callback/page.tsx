@@ -9,23 +9,6 @@ import { useTranslation } from "@/hooks/useTranslation";
 
 const API_BASE_URL = getApiBaseUrl();
 
-function parseParams(input: string, prefix: "#" | "?" = "#"): Record<string, string> {
-  const clean = input.startsWith(prefix) ? input.slice(1) : input;
-  const params = new URLSearchParams(clean);
-  const out: Record<string, string> = {};
-  params.forEach((value, key) => {
-    out[key] = value;
-  });
-  return out;
-}
-
-function readOAuthParams(): Record<string, string> {
-  return {
-    ...parseParams(window.location.hash, "#"),
-    ...parseParams(window.location.search, "?"),
-  };
-}
-
 function isUserLike(value: unknown): value is User {
   if (!value || typeof value !== "object" || Array.isArray(value)) {
     return false;
@@ -75,10 +58,6 @@ export default function OAuthCallbackPage() {
   const router = useRouter();
   const [error, setError] = useState<string | null>(null);
   const processedRef = useRef(false);
-  const missingTokenError =
-    locale === "ru"
-      ? "В OAuth callback отсутствуют токены. Попробуйте снова."
-      : "OAuth callbackda tokenlar topilmadi. Qayta urinib ko'ring.";
   const loadProfileError =
     locale === "ru"
       ? "Не удалось загрузить профиль после OAuth"
@@ -95,22 +74,15 @@ export default function OAuthCallbackPage() {
 
     const run = async () => {
       try {
-        const { access_token, refresh_token } = readOAuthParams();
-
-        if (!access_token || !refresh_token) {
-          setError(missingTokenError);
-          return;
-        }
-
-        useAuthStore.getState().setTokens(access_token, refresh_token);
-
-        // Clear tokens from the URL no matter which transport was used.
+        // Clear transport artifacts from URL.
         window.history.replaceState({}, document.title, "/oauth/callback");
 
+        // Restore session from secure cookies first.
+        await useAuthStore.getState().bootstrapSession();
+
         const res = await fetch(`${API_BASE_URL}/auth/me`, {
-          headers: {
-            Authorization: `Bearer ${access_token}`,
-          },
+          method: "GET",
+          credentials: "include",
         });
 
         if (!res.ok) {

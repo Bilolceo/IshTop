@@ -51,6 +51,7 @@ const REQUEST_TIMEOUT = 30000; // 30 seconds
 export const api: AxiosInstance = axios.create({
   baseURL: API_BASE_URL,
   timeout: REQUEST_TIMEOUT,
+  withCredentials: true,
   headers: {
     "Content-Type": "application/json",
   },
@@ -208,8 +209,8 @@ export const authApi = {
   
   logout: () => api.post("/auth/logout"),
   
-  refreshToken: (refreshToken: string) =>
-    api.post("/auth/refresh", { refresh_token: refreshToken }),
+  refreshToken: (refreshToken?: string | null) =>
+    api.post("/auth/refresh", refreshToken ? { refresh_token: refreshToken } : {}),
   
   forgotPassword: (email: string) =>
     api.post("/auth/forgot-password", { email }),

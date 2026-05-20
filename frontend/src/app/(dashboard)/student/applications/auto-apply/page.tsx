@@ -43,6 +43,26 @@ function formatQuotaValue(value: number | "unlimited", isRu: boolean) {
   return value === "unlimited" ? (isRu ? "Без лимита" : "Cheksiz") : value.toLocaleString();
 }
 
+function formatTierLabel(tier: string | null | undefined, isRu: boolean): string {
+  const normalized = (tier || "free").toLowerCase();
+  if (isRu) {
+    return (
+      {
+        free: "Бесплатный",
+        premium: "Премиум",
+        enterprise: "Корпоративный",
+      }[normalized] || normalized
+    );
+  }
+  return (
+    {
+      free: "Bepul",
+      premium: "Premium",
+      enterprise: "Korporativ",
+    }[normalized] || normalized
+  );
+}
+
 function normalizeQuotaNumber(value: unknown) {
   return typeof value === "number" && Number.isFinite(value) ? value : null;
 }
@@ -276,7 +296,7 @@ export default function AutoApplyPage() {
               <Button variant="outline">{isRu ? "Улучшить тариф" : "Tarifni oshirish"}</Button>
             </Link>
             <Badge className="h-10 items-center rounded-md px-3">
-              {(user?.subscription_tier || "free")} {isRu ? "тариф" : "tarif"}
+              {formatTierLabel(user?.subscription_tier, isRu)} {isRu ? "тариф" : "tarif"}
             </Badge>
           </div>
         </CardContent>
@@ -612,7 +632,7 @@ export default function AutoApplyPage() {
           <Card className="border-dashed">
             <CardContent className="space-y-3 p-5">
               <p className="text-sm font-medium text-surface-900">
-                Before you start
+                {isRu ? "Перед началом" : "Boshlashdan oldin"}
               </p>
               <p className="text-sm text-surface-500">
                 {isRu

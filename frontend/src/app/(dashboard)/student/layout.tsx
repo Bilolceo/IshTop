@@ -68,7 +68,7 @@ const getNavigation = (t: (key: string) => string) => [
     name: t("dashboard.sidebar.findJobs"),
     href: "/student/jobs",
     icon: Briefcase,
-    badge: t("dashboard.sidebar.new"),
+    badge: undefined as string | undefined,
     badgeColor: "success",
   },
   {
@@ -125,6 +125,7 @@ export default function StudentDashboardLayout({
   const [unreadCount, setUnreadCount] = useState(0);
   const [resumeCount, setResumeCount] = useState<number>(0);
   const [applicationCount, setApplicationCount] = useState<number>(0);
+  const [showJobsNewBadge, setShowJobsNewBadge] = useState(false);
   const [shortcutHint, setShortcutHint] = useState("Ctrl+K");
   const [helpQuestion, setHelpQuestion] = useState("");
   const [helpAnswer, setHelpAnswer] = useState("");
@@ -134,7 +135,17 @@ export default function StudentDashboardLayout({
     if (typeof window === "undefined") return;
     const isApple = /Mac|iPhone|iPad|iPod/i.test(window.navigator.platform);
     setShortcutHint(isApple ? "⌘K" : "Ctrl+K");
+    const jobsBadgeSeen = window.localStorage.getItem("student_jobs_badge_seen");
+    setShowJobsNewBadge(!jobsBadgeSeen);
   }, []);
+
+  useEffect(() => {
+    setSidebarOpen(false);
+    if (pathname.startsWith("/student/jobs") && typeof window !== "undefined") {
+      window.localStorage.setItem("student_jobs_badge_seen", "1");
+      setShowJobsNewBadge(false);
+    }
+  }, [pathname]);
 
   useEffect(() => {
     const loadSidebarCounts = async () => {
@@ -199,6 +210,12 @@ export default function StudentDashboardLayout({
       return {
         ...item,
         badge: applicationCount > 0 ? String(applicationCount) : undefined,
+      };
+    }
+    if (item.href === "/student/jobs") {
+      return {
+        ...item,
+        badge: showJobsNewBadge ? t("dashboard.sidebar.new") : undefined,
       };
     }
     return item;

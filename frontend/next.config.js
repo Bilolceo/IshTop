@@ -7,6 +7,7 @@ const nextConfig = {
 
   // Enable React Strict Mode for better development experience
   reactStrictMode: true,
+  poweredByHeader: false,
 
 
   // Image optimization configuration
@@ -52,10 +53,18 @@ const nextConfig = {
       if (raw) apiOrigin = new URL(raw).origin;
     } catch {}
 
+    const isDev = process.env.NODE_ENV !== "production";
+    const scriptSrc = [
+      "'self'",
+      "'unsafe-inline'",
+      ...(isDev ? ["'unsafe-eval'"] : []),
+      "https://js.stripe.com",
+    ].join(" ");
+
     const csp = [
       "default-src 'self'",
       // Next.js inline scripts + Stripe.js
-      "script-src 'self' 'unsafe-inline' 'unsafe-eval' https://js.stripe.com",
+      `script-src ${scriptSrc}`,
       // Styles: inline (Next.js) + Google Fonts
       "style-src 'self' 'unsafe-inline' https://fonts.googleapis.com",
       // Fonts

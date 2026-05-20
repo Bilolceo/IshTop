@@ -171,6 +171,15 @@ class Settings(BaseSettings):
     
     # Refresh token lifetime in days (longer, for convenience)
     REFRESH_TOKEN_EXPIRE_DAYS: int = 7
+
+    # Cookie-based auth settings (recommended for browser clients).
+    AUTH_ACCESS_COOKIE_NAME: str = "access_token"
+    AUTH_REFRESH_COOKIE_NAME: str = "refresh_token"
+    AUTH_COOKIE_DOMAIN: str = ""
+    AUTH_COOKIE_PATH: str = "/"
+    AUTH_COOKIE_SECURE: bool = True
+    AUTH_COOKIE_HTTPONLY: bool = True
+    AUTH_COOKIE_SAMESITE: str = "lax"  # lax | strict | none
     
     # =========================================================================
     # 🌐 APPLICATION SETTINGS
@@ -347,6 +356,8 @@ class Settings(BaseSettings):
         "ADMIN_ENFORCE_SUBROLES",
         "AUTO_SEED_ENABLED",
         "PAYMENTS_REQUIRE_WEBHOOK_SECRET",
+        "AUTH_COOKIE_SECURE",
+        "AUTH_COOKIE_HTTPONLY",
         mode="before",
     )
     @classmethod
@@ -409,6 +420,24 @@ class Settings(BaseSettings):
                 raise ValueError(
                     "SECRET_KEY must be set to a strong unique value when DEBUG=False"
                 )
+
+        return self
+
+    @model_validator(mode="after")
+    def _validate_auth_cookie_settings(self) -> "Settings":
+        """Validate cookie security knobs and normalize samesite value."""
+        normalized_samesite = (self.AUTH_COOKIE_SAMESITE or "lax").strip().lower()
+        if normalized_samesite not in {"lax", "strict", "none"}:
+            normalized_samesite = "lax"
+        self.AUTH_COOKIE_SAMESITE = normalized_samesite
+
+        # Browsers reject SameSite=None without Secure.
+        if self.AUTH_COOKIE_SAMESITE == "none" and not self.AUTH_COOKIE_SECURE:
+            self.AUTH_COOKIE_SECURE = True
+
+        # In production, strongly enforce Secure cookies.
+        if not self.DEBUG:
+            self.AUTH_COOKIE_SECURE = True
 
         return self
 
