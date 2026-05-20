@@ -1,4 +1,5 @@
 /** @type {import('next').NextConfig} */
+// deploy-trigger: keep config in watched frontend path for CI/Railway sync.
 const path = require("path");
 
 const nextConfig = {
