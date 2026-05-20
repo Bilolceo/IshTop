@@ -129,7 +129,7 @@ export default function JobsPage() {
   const [sortBy, setSortBy] = useState("relevance");
   const [isLoadingMore, setIsLoadingMore] = useState(false);
   const [showMobileFilters, setShowMobileFilters] = useState(false);
-  const [isDesktop, setIsDesktop] = useState(false);
+  const [showSplitView, setShowSplitView] = useState(false);
 
   // Filters
   const [filters, setFilters] = useState({
@@ -214,7 +214,7 @@ export default function JobsPage() {
   }, [loadJobsForFeedMode]);
 
   useEffect(() => {
-    const updateViewport = () => setIsDesktop(window.innerWidth >= 1024);
+    const updateViewport = () => setShowSplitView(window.innerWidth >= 1500);
     updateViewport();
     window.addEventListener("resize", updateViewport);
     return () => window.removeEventListener("resize", updateViewport);
@@ -349,10 +349,16 @@ export default function JobsPage() {
     try {
       if (isSaved) {
         await jobApi.unsaveJob(jobId);
-        toast.success("Ish saqlanganlardan o'chirildi.");
+        toast.success(
+          isRu
+            ? "Вакансия удалена из сохранённых."
+            : "Ish saqlanganlardan olib tashlandi.",
+        );
       } else {
         await jobApi.saveJob(jobId);
-        toast.success("Ish saqlandi!");
+        toast.success(
+          isRu ? "Вакансия сохранена." : "Ish muvaffaqiyatli saqlandi.",
+        );
       }
     } catch {
       setSavedJobs((prev) => {
@@ -361,7 +367,11 @@ export default function JobsPage() {
         else next.delete(jobId);
         return next;
       });
-      toast.error("Xatolik yuz berdi.");
+      toast.error(
+        isRu
+          ? "Не удалось обновить сохранённые вакансии."
+          : "Saqlangan ishlar ro'yxatini yangilab bo'lmadi.",
+      );
     }
   };
 
@@ -389,10 +399,10 @@ export default function JobsPage() {
 
   // Auto-select first job on desktop
   useEffect(() => {
-    if (sortedJobs.length > 0 && !selectedJob && isDesktop) {
+    if (sortedJobs.length > 0 && !selectedJob && showSplitView) {
       setSelectedJob(sortedJobs[0]);
     }
-  }, [sortedJobs, isDesktop, selectedJob]);
+  }, [sortedJobs, showSplitView, selectedJob]);
 
   // =========================================================================
   // RENDER
@@ -561,7 +571,12 @@ export default function JobsPage() {
       {/* ------------------------------------------------------------------ */}
       <div className="flex min-w-0 flex-1 gap-4 overflow-hidden p-3 lg:p-4">
         {/* LEFT: job list */}
-        <div className="w-full overflow-y-auto rounded-2xl border border-surface-200 bg-white shadow-sm dark:border-surface-700 dark:bg-surface-900 lg:w-[420px] lg:shrink-0 xl:w-[460px]">
+        <div
+          className={cn(
+            "w-full overflow-y-auto rounded-2xl border border-surface-200 bg-white shadow-sm dark:border-surface-700 dark:bg-surface-900",
+            showSplitView && "lg:w-[420px] lg:shrink-0 xl:w-[460px]",
+          )}
+        >
           {isLoading ? (
             <div className="space-y-3 p-4">
               {[1, 2, 3, 4, 5].map((i) => (
@@ -660,7 +675,12 @@ export default function JobsPage() {
         </div>
 
         {/* RIGHT: detail panel — hidden below lg */}
-        <div className="hidden min-w-0 flex-1 overflow-hidden rounded-2xl border border-surface-200 bg-white shadow-sm dark:border-surface-700 dark:bg-surface-900 lg:block">
+        <div
+          className={cn(
+            "hidden min-w-0 flex-1 overflow-hidden rounded-2xl border border-surface-200 bg-white shadow-sm dark:border-surface-700 dark:bg-surface-900",
+            showSplitView && "block",
+          )}
+        >
           <AnimatePresence mode="wait">
             {selectedJob ? (
               <JobDetailPanel
@@ -673,6 +693,11 @@ export default function JobsPage() {
                 onShare={() => {
                   navigator.clipboard.writeText(
                     `${window.location.origin}/jobs/${selectedJob.id}`,
+                  );
+                  toast.success(
+                    isRu
+                      ? "Ссылка на вакансию скопирована."
+                      : "Vakansiya havolasi nusxalandi.",
                   );
                 }}
               />
@@ -687,7 +712,7 @@ export default function JobsPage() {
       {/* MOBILE: job detail dialog (< lg)                                   */}
       {/* ------------------------------------------------------------------ */}
       <Dialog
-        open={!!selectedJob && !isDesktop}
+        open={!!selectedJob && !showSplitView}
         onOpenChange={(open) => !open && setSelectedJob(null)}
       >
         <DialogContent className="max-h-[90vh] max-w-lg overflow-hidden p-0">
@@ -701,6 +726,11 @@ export default function JobsPage() {
               onShare={() => {
                 navigator.clipboard.writeText(
                   `${window.location.origin}/jobs/${selectedJob.id}`,
+                );
+                toast.success(
+                  isRu
+                    ? "Ссылка на вакансию скопирована."
+                    : "Vakansiya havolasi nusxalandi.",
                 );
               }}
             />

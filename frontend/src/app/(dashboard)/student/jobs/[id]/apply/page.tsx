@@ -786,7 +786,9 @@ function ReviewSection({
               {isRu ? "Добавлено" : "Qo'shilgan"}
             </Badge>
           ) : (
-            <Badge variant="secondary">{isRu ? "Ixtiyoriy" : "Ixtiyoriy"}</Badge>
+            <Badge variant="secondary">
+              {isRu ? "Необязательно" : "Ixtiyoriy"}
+            </Badge>
           )}
         </div>
         {coverLetter && (
@@ -1153,26 +1155,28 @@ export default function ApplyPage() {
       setCoverLetter(truncateText(generatedLetter, MAX_COVER_LETTER_LENGTH));
       toast.success(isRu ? "Сопроводительное письмо готово" : "Motivatsion xat yaratildi");
     } catch (error) {
-      const message = getErrorMessage(error);
-      const networkLikeError = /network error|failed to fetch|timeout|err_network/i.test(message);
+      const fallbackLetter = buildFallbackCoverLetter({
+        isRu,
+        companyName: job.company?.name || "",
+        jobTitle: job.title || "",
+        resume: selectedResume,
+      });
+      setCoverLetter(fallbackLetter);
 
-      if (networkLikeError) {
-        const fallbackLetter = buildFallbackCoverLetter({
-          isRu,
-          companyName: job.company?.name || "",
-          jobTitle: job.title || "",
-          resume: selectedResume,
-        });
-        setCoverLetter(fallbackLetter);
-        toast.warning(
-          isRu
+      const message = getErrorMessage(error);
+      const networkLikeError = /network error|failed to fetch|timeout|err_network/i.test(
+        message,
+      );
+
+      toast.warning(
+        networkLikeError
+          ? isRu
             ? "AI временно недоступен. Добавлен шаблон письма — можете отредактировать и отправить."
             : "AI vaqtincha ulanmayapti. Namunaviy xat qo'shildi — tahrirlab yuborishingiz mumkin."
-        );
-        return;
-      }
-
-      toast.error(message);
+          : isRu
+            ? "AI не смог сгенерировать письмо. Добавлен шаблон, его можно отредактировать."
+            : "AI xatni tayyorlay olmadi. Namunaviy xat qo'shildi, uni tahrirlashingiz mumkin.",
+      );
     } finally {
       setIsGeneratingCover(false);
     }
