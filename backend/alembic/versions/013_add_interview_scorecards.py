@@ -11,7 +11,7 @@ Create Date: 2026-05-12
 from alembic import op
 import sqlalchemy as sa
 from sqlalchemy import inspect
-from app.models.types import GUID
+from sqlalchemy.dialects import postgresql
 
 
 revision = "013_add_interview_scorecards"
@@ -20,17 +20,51 @@ branch_labels = None
 depends_on = None
 
 
+def _default_uuid_type():
+    # SQLite cannot compile PostgreSQL UUID type.
+    return sa.String(36) if op.get_bind().dialect.name == "sqlite" else postgresql.UUID(as_uuid=True)
+
+
+def _aligned_fk_type(inspector, table_name: str, column_name: str):
+    """
+    Align FK column type with referenced table column type.
+    This prevents PostgreSQL FK creation errors when legacy DBs store ids as VARCHAR(36).
+    """
+    if table_name not in inspector.get_table_names():
+        return _default_uuid_type()
+
+    columns = inspector.get_columns(table_name)
+    ref_col = next((col for col in columns if col["name"] == column_name), None)
+    if not ref_col:
+        return _default_uuid_type()
+
+    ref_type = ref_col.get("type")
+    type_name = ref_type.__class__.__name__.lower() if ref_type is not None else ""
+
+    # Native UUID column in PostgreSQL.
+    if "uuid" in type_name:
+        return postgresql.UUID(as_uuid=True)
+
+    # Legacy char/varchar UUID storage.
+    length = getattr(ref_type, "length", None) or 36
+    return sa.String(length)
+
+
 def upgrade() -> None:
     bind = op.get_bind()
     inspector = inspect(bind)
     if "interview_scorecards" in inspector.get_table_names():
         return
 
+    application_id_type = _aligned_fk_type(inspector, "applications", "id")
+    user_id_type = _aligned_fk_type(inspector, "users", "id")
+    scorecard_id_type = application_id_type
+
     op.create_table(
         "interview_scorecards",
-        sa.Column("id", GUID(), primary_key=True),
-        sa.Column("application_id", GUID(), sa.ForeignKey("applications.id", ondelete="CASCADE"), nullable=False, index=True),
-        sa.Column("evaluator_id", GUID(), sa.ForeignKey("users.id", ondelete="SET NULL"), nullable=True),
+        sa.Column("id", scorecard_id_type, primary_key=True),
+        sa.Column("application_id", application_id_type, sa.ForeignKey("applications.id", ondelete="CASCADE"), nullable=False),
+        sa.Column("evaluator_id", user_id_type, sa.ForeignKey("users.id", ondelete="SET NULL"), nullable=True),
 
         # 5 criteria, each scored 1-5
         sa.Column("technical_score", sa.Integer, nullable=True),
@@ -48,7 +82,14 @@ def upgrade() -> None:
         sa.Column("updated_at", sa.DateTime(timezone=True), server_default=sa.func.now(), onupdate=sa.func.now(), nullable=False),
     )
 
-    # `index=True` on the column already creates an index; no extra call needed.
+    existing_indexes = {index["name"] for index in inspector.get_indexes("interview_scorecards")}
+    if "ix_interview_scorecards_application_id" not in existing_indexes:
+        op.create_index(
+            "ix_interview_scorecards_application_id",
+            "interview_scorecards",
+            ["application_id"],
+            unique=False,
+        )
 
 
 def downgrade() -> None:
