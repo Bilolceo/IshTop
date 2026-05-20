@@ -20,6 +20,7 @@ from fastapi import APIRouter, HTTPException, status, Body, Depends
 from pydantic import BaseModel, Field
 from typing import List, Optional, Dict, Any
 import logging
+import re
 
 from app.config import settings
 from app.core.dependencies import get_current_active_user
@@ -219,6 +220,23 @@ class HelpAssistantRequest(BaseModel):
     locale: str = Field(default="uz", description="uz | ru")
     context_page: Optional[str] = Field(default=None, max_length=120)
 
+def _condense_help_answer(answer: str, locale: str) -> str:
+    """
+    Keep helper replies short and actionable for chat-like UX.
+    - Max 3 meaningful lines
+    - Max 420 chars
+    """
+    cleaned = re.sub(r"\n{3,}", "\n\n", (answer or "").strip())
+    lines = [line.strip() for line in cleaned.splitlines() if line.strip()]
+    short_lines = lines[:3]
+    short = "\n".join(short_lines).strip()
+
+    if len(short) <= 420:
+        return short
+
+    clipped = short[:417].rstrip(" ,.;:-")
+    return f"{clipped}..."
+
 
 @router.post(
     "/help-assistant",
@@ -258,10 +276,11 @@ async def help_assistant(
         f"{context}\n{lang_rule}\n{page_hint}\n\n"
         f"User question:\n{request.question}\n\n"
         "Rules:\n"
-        "1) Keep answer short and clear.\n"
-        "2) If needed, provide numbered steps.\n"
+        "1) Keep answer very short and clear.\n"
+        "2) Use at most 3 short lines.\n"
         "3) Mention relevant section names in the app (Resumes, Jobs, Applications, Settings).\n"
         "4) If problem may be network-related, suggest refresh + relogin + support contact.\n"
+        "5) Avoid long explanations and avoid repeating the question.\n"
     )
 
     try:
@@ -283,6 +302,8 @@ async def help_assistant(
         answer_text = (answer_text or "").strip()
         if not answer_text:
             raise Exception("Empty AI response")
+
+        answer_text = _condense_help_answer(answer_text, locale)
 
         return {
             "success": True,
