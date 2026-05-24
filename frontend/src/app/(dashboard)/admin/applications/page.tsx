@@ -56,6 +56,25 @@ const STATUS_TONE: Record<string, string> = {
 export default function AdminApplicationsPage() {
   const { locale } = useTranslation();
   const isRu = locale === "ru";
+  const statusLabel: Record<string, string> = isRu
+    ? {
+        pending: "Ожидание",
+        reviewing: "Проверка",
+        shortlisted: "Шорт-лист",
+        interview: "Интервью",
+        accepted: "Принят",
+        rejected: "Отклонен",
+        withdrawn: "Отозвано",
+      }
+    : {
+        pending: "Kutilmoqda",
+        reviewing: "Ko'rib chiqilmoqda",
+        shortlisted: "Saralangan",
+        interview: "Intervyu",
+        accepted: "Qabul qilindi",
+        rejected: "Rad etildi",
+        withdrawn: "Qaytarib olindi",
+      };
 
   const [apps, setApps] = useState<AdminApplication[]>([]);
   const [total, setTotal] = useState(0);
@@ -163,13 +182,13 @@ export default function AdminApplicationsPage() {
             </SelectTrigger>
             <SelectContent>
               <SelectItem value="all">{t.allStatuses}</SelectItem>
-              <SelectItem value="pending">pending</SelectItem>
-              <SelectItem value="reviewing">reviewing</SelectItem>
-              <SelectItem value="shortlisted">shortlisted</SelectItem>
-              <SelectItem value="interview">interview</SelectItem>
-              <SelectItem value="accepted">accepted</SelectItem>
-              <SelectItem value="rejected">rejected</SelectItem>
-              <SelectItem value="withdrawn">withdrawn</SelectItem>
+              <SelectItem value="pending">{statusLabel.pending}</SelectItem>
+              <SelectItem value="reviewing">{statusLabel.reviewing}</SelectItem>
+              <SelectItem value="shortlisted">{statusLabel.shortlisted}</SelectItem>
+              <SelectItem value="interview">{statusLabel.interview}</SelectItem>
+              <SelectItem value="accepted">{statusLabel.accepted}</SelectItem>
+              <SelectItem value="rejected">{statusLabel.rejected}</SelectItem>
+              <SelectItem value="withdrawn">{statusLabel.withdrawn}</SelectItem>
             </SelectContent>
           </Select>
           <Button onClick={() => setSearch(draft.trim())}>{t.refresh}</Button>
@@ -242,7 +261,7 @@ export default function AdminApplicationsPage() {
                       </div>
                       <div>
                         <span className={`inline-flex items-center rounded-full px-2 py-0.5 text-xs font-semibold ${tone}`}>
-                          {a.status}
+                          {statusLabel[a.status] || a.status}
                         </span>
                       </div>
                       <div>

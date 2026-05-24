@@ -72,6 +72,19 @@ const STATUS_TONE: Record<string, string> = {
 export default function AdminJobsPage() {
   const { locale } = useTranslation();
   const isRu = locale === "ru";
+  const statusLabel: Record<string, string> = isRu
+    ? {
+        active: "Активные",
+        draft: "Черновики",
+        paused: "Приостановленные",
+        closed: "Закрытые",
+      }
+    : {
+        active: "Faol",
+        draft: "Qoralama",
+        paused: "To'xtatilgan",
+        closed: "Yopilgan",
+      };
 
   const [jobs, setJobs] = useState<AdminJob[]>([]);
   const [total, setTotal] = useState(0);
@@ -347,7 +360,7 @@ export default function AdminJobsPage() {
                       <span
                         className={`inline-flex items-center rounded-full px-2.5 py-1 text-xs font-semibold ${tone}`}
                       >
-                        {job.status}
+                        {statusLabel[job.status] || job.status}
                       </span>
                     </div>
                     <div className="flex flex-wrap items-center justify-end gap-2">

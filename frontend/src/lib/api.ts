@@ -30,6 +30,7 @@ import type {
   AdminResolveErrorResponse,
   AdminSystemHealthResponse,
   AdminUserStatsResponse,
+  LandingContentResponse,
   CreatePaymentIntentRequest,
   PaymentHistoryResponse,
   PaymentIntentResponse,
@@ -386,6 +387,15 @@ export const adminApi = {
 
   listApplications: (params?: { status?: string; search?: string; offset?: number; limit?: number }) =>
     api.get("/admin/applications", { params }),
+
+  getLandingContent: (locale: "uz" | "ru") => api.get<LandingContentResponse>(`/landing/admin/content?locale=${locale}`),
+  upsertLandingContent: (data: { locale: "uz" | "ru"; payload: Record<string, unknown>; is_published: boolean }) =>
+    api.put<LandingContentResponse>("/landing/admin/content", data),
+  deleteLandingContent: (locale: "uz" | "ru") => api.delete(`/landing/admin/content?locale=${locale}`),
+};
+
+export const landingApi = {
+  getPublicContent: (locale: "uz" | "ru") => api.get<LandingContentResponse>(`/landing/content?locale=${locale}`),
 };
 
 // User endpoints

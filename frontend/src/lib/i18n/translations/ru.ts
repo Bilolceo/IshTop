@@ -418,6 +418,7 @@ export const ru = {
       users: "Пользователи",
       errors: "Ошибки",
       access: "Доступ",
+      landing: "Лендинг",
       savedJobs: "Сохранённые вакансии",
       notifications: "Уведомления",
       profileSettings: "Настройки профиля",

@@ -418,6 +418,7 @@ export const uz = {
       users: "Foydalanuvchilar",
       errors: "Xatolar",
       access: "Ruxsatlar",
+      landing: "Landing",
       savedJobs: "Saqlangan ishlar",
       notifications: "Bildirishnomalar",
       profileSettings: "Profil sozlamalari",

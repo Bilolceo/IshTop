@@ -642,6 +642,19 @@ export interface AdminUpdateAdminRoleResponse {
   };
 }
 
+export interface LandingContentData {
+  id?: string;
+  locale: "uz" | "ru";
+  payload: Record<string, unknown>;
+  is_published: boolean;
+  updated_at?: string;
+}
+
+export interface LandingContentResponse {
+  success: boolean;
+  data: LandingContentData;
+}
+
 // =============================================================================
 // API RESPONSE TYPES
 // =============================================================================
