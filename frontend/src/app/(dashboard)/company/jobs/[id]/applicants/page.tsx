@@ -58,6 +58,25 @@ export default function JobTopCandidatesPage() {
   const jobId = params!.id as string;
   const { locale } = useTranslation();
   const isRu = locale === "ru";
+  const statusLabel: Record<string, string> = isRu
+    ? {
+        pending: "Ожидание",
+        reviewing: "Проверка",
+        shortlisted: "Шорт-лист",
+        interview: "Интервью",
+        accepted: "Принят",
+        rejected: "Отклонен",
+        withdrawn: "Отозвано",
+      }
+    : {
+        pending: "Kutilmoqda",
+        reviewing: "Ko'rib chiqilmoqda",
+        shortlisted: "Saralangan",
+        interview: "Intervyu",
+        accepted: "Qabul qilindi",
+        rejected: "Rad etildi",
+        withdrawn: "Qaytarib olindi",
+      };
 
   const [data, setData] = useState<Response | null>(null);
   const [loading, setLoading] = useState(true);
@@ -240,7 +259,7 @@ export default function JobTopCandidatesPage() {
                         </span>
                         {statusBadge && (
                           <span className={`rounded-md px-2 py-0.5 text-[10px] font-bold uppercase tracking-wider ${statusBadge}`}>
-                            {c.status}
+                            {c.status ? (statusLabel[c.status] || c.status) : t.noStatus}
                           </span>
                         )}
                       </div>

@@ -124,6 +124,11 @@ const adminNavItems: NavItem[] = [
     href: "/admin/access",
     icon: KeyRound,
   },
+  {
+    labelKey: "dashboard.sidebar.landing",
+    href: "/admin/landing",
+    icon: Zap,
+  },
 ];
 
 function contextRoleLabel(params: {

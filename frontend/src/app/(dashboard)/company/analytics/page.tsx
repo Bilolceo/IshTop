@@ -76,6 +76,9 @@ const FUNNEL_STAGES: Array<{
 export default function CompanyAnalyticsPage() {
   const { locale } = useTranslation();
   const isRu = locale === "ru";
+  const jobStatusLabel: Record<string, string> = isRu
+    ? { active: "Активная", draft: "Черновик", paused: "Приостановлена", closed: "Закрыта" }
+    : { active: "Faol", draft: "Qoralama", paused: "To'xtatilgan", closed: "Yopilgan" };
   const [data, setData] = useState<Funnel | null>(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
@@ -334,7 +337,7 @@ export default function CompanyAnalyticsPage() {
                     <div className="min-w-0">
                       <p className="truncate font-medium text-surface-900 dark:text-white">{job.title}</p>
                       <Badge variant={job.status === "active" ? "success" : "secondary"} className="mt-0.5">
-                        {job.status}
+                        {jobStatusLabel[job.status] || job.status}
                       </Badge>
                     </div>
                     <span className="text-right text-surface-600 dark:text-surface-300">{job.views}</span>

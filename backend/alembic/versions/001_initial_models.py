@@ -43,6 +43,8 @@ from alembic import op
 import sqlalchemy as sa
 from sqlalchemy.dialects import postgresql
 
+import migration_utils as dh
+
 # Revision identifiers
 revision = '001_initial_models'
 down_revision = None
@@ -60,19 +62,16 @@ def upgrade() -> None:
     3. jobs (depends on users)
     4. applications (depends on users, jobs, resumes)
     """
-    
+    is_postgres = dh.is_postgresql()
+    uuid_type = dh.uuid_type()
+    json_type = dh.json_type()
+    datetime_type = dh.datetime_type()
+
     # =========================================================================
-    # CREATE ENUM TYPE
+    # CREATE ENUM TYPE (PostgreSQL only)
     # =========================================================================
-    
-    # User role enum
-    # WHY create_type=False? We create it manually for more control
-    user_role_enum = postgresql.ENUM(
-        'student', 'company', 'admin',
-        name='user_role_enum',
-        create_type=False
-    )
-    user_role_enum.create(op.get_bind(), checkfirst=True)
+    dh.create_user_role_enum()
+    user_role_enum = dh.user_role_type()
     
     # =========================================================================
     # USERS TABLE
@@ -82,7 +81,7 @@ def upgrade() -> None:
         'users',
         
         # Primary Key - UUID for security
-        sa.Column('id', postgresql.UUID(as_uuid=True), primary_key=True, nullable=False,
+        sa.Column('id', uuid_type, primary_key=True, nullable=False,
                   comment='Unique identifier (UUID v4)'),
         
         # Authentication
@@ -118,21 +117,21 @@ def upgrade() -> None:
                   comment='Email verified?'),
         
         # Tracking
-        sa.Column('last_login', sa.DateTime(timezone=True), nullable=True,
+        sa.Column('last_login', datetime_type, nullable=True,
                   comment='Last login timestamp'),
         
         # Timestamps (from TimestampMixin)
-        sa.Column('created_at', sa.DateTime(timezone=True), 
+        sa.Column('created_at', datetime_type,
                   server_default=sa.func.now(), nullable=False,
                   comment='When record was created'),
-        sa.Column('updated_at', sa.DateTime(timezone=True), 
+        sa.Column('updated_at', datetime_type,
                   server_default=sa.func.now(), nullable=False,
                   comment='When record was last modified'),
         
         # Soft delete (from SoftDeleteMixin)
         sa.Column('is_deleted', sa.Boolean(), nullable=False, server_default='false',
                   comment='Soft delete flag'),
-        sa.Column('deleted_at', sa.DateTime(timezone=True), nullable=True,
+        sa.Column('deleted_at', datetime_type, nullable=True,
                   comment='When record was soft-deleted'),
         
         comment='User accounts for IshTop'
@@ -145,11 +144,12 @@ def upgrade() -> None:
     op.create_index('idx_users_not_deleted', 'users', ['is_deleted'])
     op.create_index('idx_users_created_at', 'users', ['created_at'])
     
-    # Check constraint for email format
-    op.create_check_constraint(
-        'check_email_format', 'users',
-        "email ~* '^[A-Za-z0-9._%+-]+@[A-Za-z0-9.-]+\\.[A-Za-z]{2,}$'"
-    )
+    # Check constraint for email format (PostgreSQL regex; skipped on SQLite)
+    if is_postgres:
+        op.create_check_constraint(
+            'check_email_format', 'users',
+            "email ~* '^[A-Za-z0-9._%+-]+@[A-Za-z0-9.-]+\\.[A-Za-z]{2,}$'"
+        )
     
     # =========================================================================
     # RESUMES TABLE
@@ -159,11 +159,11 @@ def upgrade() -> None:
         'resumes',
         
         # Primary Key
-        sa.Column('id', postgresql.UUID(as_uuid=True), primary_key=True, nullable=False,
+        sa.Column('id', uuid_type, primary_key=True, nullable=False,
                   comment='Unique identifier (UUID v4)'),
         
         # Foreign Key
-        sa.Column('user_id', postgresql.UUID(as_uuid=True),
+        sa.Column('user_id', uuid_type,
                   sa.ForeignKey('users.id', ondelete='CASCADE'),
                   nullable=False,
                   comment='Owner (CASCADE: delete user → delete resumes)'),
@@ -171,7 +171,7 @@ def upgrade() -> None:
         # Content
         sa.Column('title', sa.String(255), nullable=False, server_default='My Resume',
                   comment='Display title'),
-        sa.Column('content', postgresql.JSONB(), nullable=False, server_default='{}',
+        sa.Column('content', json_type, nullable=False, server_default='{}',
                   comment='Resume content as JSONB'),
         sa.Column('raw_text', sa.Text(), nullable=True,
                   comment='Plain text for full-text search'),
@@ -195,14 +195,14 @@ def upgrade() -> None:
                   comment='ATS compatibility score (0-100)'),
         
         # Timestamps
-        sa.Column('created_at', sa.DateTime(timezone=True),
+        sa.Column('created_at', datetime_type,
                   server_default=sa.func.now(), nullable=False),
-        sa.Column('updated_at', sa.DateTime(timezone=True),
+        sa.Column('updated_at', datetime_type,
                   server_default=sa.func.now(), nullable=False),
         
         # Soft delete
         sa.Column('is_deleted', sa.Boolean(), nullable=False, server_default='false'),
-        sa.Column('deleted_at', sa.DateTime(timezone=True), nullable=True),
+        sa.Column('deleted_at', datetime_type, nullable=True),
         
         comment='User resumes with JSONB content'
     )
@@ -214,11 +214,12 @@ def upgrade() -> None:
     op.create_index('idx_resumes_not_deleted', 'resumes', ['is_deleted'])
     op.create_index('idx_resumes_created_at', 'resumes', ['created_at'])
     
-    # GIN index for JSONB content searching
-    op.create_index(
-        'idx_resumes_content', 'resumes', ['content'],
-        postgresql_using='gin'
-    )
+    # GIN index for JSONB content searching (PostgreSQL only)
+    if is_postgres:
+        op.create_index(
+            'idx_resumes_content', 'resumes', ['content'],
+            postgresql_using='gin'
+        )
     
     # =========================================================================
     # JOBS TABLE
@@ -228,11 +229,11 @@ def upgrade() -> None:
         'jobs',
         
         # Primary Key
-        sa.Column('id', postgresql.UUID(as_uuid=True), primary_key=True, nullable=False,
+        sa.Column('id', uuid_type, primary_key=True, nullable=False,
                   comment='Unique identifier'),
         
         # Foreign Key
-        sa.Column('company_id', postgresql.UUID(as_uuid=True),
+        sa.Column('company_id', uuid_type,
                   sa.ForeignKey('users.id', ondelete='CASCADE'),
                   nullable=False,
                   comment='Company that posted this job'),
@@ -242,11 +243,11 @@ def upgrade() -> None:
                   comment='Job title'),
         sa.Column('description', sa.Text(), nullable=False,
                   comment='Full job description'),
-        sa.Column('requirements', postgresql.JSONB(), nullable=True, server_default='[]',
+        sa.Column('requirements', json_type, nullable=True, server_default='[]',
                   comment='Requirements as JSON array'),
-        sa.Column('responsibilities', postgresql.JSONB(), nullable=True, server_default='[]',
+        sa.Column('responsibilities', json_type, nullable=True, server_default='[]',
                   comment='Responsibilities as JSON array'),
-        sa.Column('benefits', postgresql.JSONB(), nullable=True, server_default='[]',
+        sa.Column('benefits', json_type, nullable=True, server_default='[]',
                   comment='Benefits as JSON array'),
         
         # Salary (stored in cents)
@@ -284,18 +285,18 @@ def upgrade() -> None:
                   comment='External apply URL'),
         sa.Column('is_featured', sa.Boolean(), nullable=False, server_default='false',
                   comment='Featured?'),
-        sa.Column('expires_at', sa.DateTime(timezone=True), nullable=True,
+        sa.Column('expires_at', datetime_type, nullable=True,
                   comment='Expiration date'),
         
         # Timestamps
-        sa.Column('created_at', sa.DateTime(timezone=True),
+        sa.Column('created_at', datetime_type,
                   server_default=sa.func.now(), nullable=False),
-        sa.Column('updated_at', sa.DateTime(timezone=True),
+        sa.Column('updated_at', datetime_type,
                   server_default=sa.func.now(), nullable=False),
         
         # Soft delete
         sa.Column('is_deleted', sa.Boolean(), nullable=False, server_default='false'),
-        sa.Column('deleted_at', sa.DateTime(timezone=True), nullable=True),
+        sa.Column('deleted_at', datetime_type, nullable=True),
         
         comment='Job postings from companies'
     )
@@ -314,11 +315,12 @@ def upgrade() -> None:
     # Composite index for common search
     op.create_index('idx_jobs_search', 'jobs', ['status', 'job_type', 'location'])
     
-    # Check constraint for salary range
-    op.create_check_constraint(
-        'check_salary_range', 'jobs',
-        'salary_max >= salary_min OR salary_min IS NULL OR salary_max IS NULL'
-    )
+    # Check constraint for salary range (PostgreSQL only; SQLite lacks ALTER CONSTRAINT)
+    if is_postgres:
+        op.create_check_constraint(
+            'check_salary_range', 'jobs',
+            'salary_max >= salary_min OR salary_min IS NULL OR salary_max IS NULL'
+        )
     
     # =========================================================================
     # APPLICATIONS TABLE
@@ -328,19 +330,19 @@ def upgrade() -> None:
         'applications',
         
         # Primary Key
-        sa.Column('id', postgresql.UUID(as_uuid=True), primary_key=True, nullable=False,
+        sa.Column('id', uuid_type, primary_key=True, nullable=False,
                   comment='Unique identifier'),
         
         # Foreign Keys
-        sa.Column('job_id', postgresql.UUID(as_uuid=True),
+        sa.Column('job_id', uuid_type,
                   sa.ForeignKey('jobs.id', ondelete='CASCADE'),
                   nullable=False,
                   comment='Job applied to (CASCADE)'),
-        sa.Column('user_id', postgresql.UUID(as_uuid=True),
+        sa.Column('user_id', uuid_type,
                   sa.ForeignKey('users.id', ondelete='CASCADE'),
                   nullable=False,
                   comment='Applicant (CASCADE)'),
-        sa.Column('resume_id', postgresql.UUID(as_uuid=True),
+        sa.Column('resume_id', uuid_type,
                   sa.ForeignKey('resumes.id', ondelete='SET NULL'),
                   nullable=True,
                   comment='Resume used (SET NULL)'),
@@ -358,31 +360,29 @@ def upgrade() -> None:
                   comment='Application status'),
         
         # Timestamps
-        sa.Column('applied_at', sa.DateTime(timezone=True),
+        sa.Column('applied_at', datetime_type,
                   server_default=sa.func.now(), nullable=False,
                   comment='When applied'),
-        sa.Column('reviewed_at', sa.DateTime(timezone=True), nullable=True,
+        sa.Column('reviewed_at', datetime_type, nullable=True,
                   comment='When first reviewed'),
-        sa.Column('interview_at', sa.DateTime(timezone=True), nullable=True,
+        sa.Column('interview_at', datetime_type, nullable=True,
                   comment='Interview date'),
-        sa.Column('decided_at', sa.DateTime(timezone=True), nullable=True,
+        sa.Column('decided_at', datetime_type, nullable=True,
                   comment='When decided'),
-        sa.Column('created_at', sa.DateTime(timezone=True),
+        sa.Column('created_at', datetime_type,
                   server_default=sa.func.now(), nullable=False),
-        sa.Column('updated_at', sa.DateTime(timezone=True),
+        sa.Column('updated_at', datetime_type,
                   server_default=sa.func.now(), nullable=False),
         
         # Soft delete
         sa.Column('is_deleted', sa.Boolean(), nullable=False, server_default='false'),
-        sa.Column('deleted_at', sa.DateTime(timezone=True), nullable=True),
-        
+        sa.Column('deleted_at', datetime_type, nullable=True),
+        sa.UniqueConstraint(
+            'user_id',
+            'job_id',
+            name='unique_user_job_application',
+        ),
         comment='Job applications linking users to jobs'
-    )
-    
-    # UNIQUE CONSTRAINT: User can only apply once per job
-    op.create_unique_constraint(
-        'unique_user_job_application', 'applications',
-        ['user_id', 'job_id']
     )
     
     # Indexes for applications
@@ -409,5 +409,4 @@ def downgrade() -> None:
     op.drop_table('resumes')
     op.drop_table('users')
     
-    # Drop enum type
-    op.execute('DROP TYPE IF EXISTS user_role_enum')
+    dh.drop_user_role_enum()

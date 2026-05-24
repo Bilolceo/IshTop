@@ -9,7 +9,7 @@ All v1 API routes are registered here.
 from fastapi import APIRouter
 from app.api.v1.routes import (
     auth, users, resumes, jobs, applications, 
-    admin, payments,
+    admin, payments, landing,
     profile, notifications, saved_searches
 )
 from app.routers import ai  # Import AI router
@@ -88,6 +88,12 @@ api_router.include_router(
     saved_searches.router,
     prefix="/saved-searches",
     tags=["Saved Searches"]
+)
+
+api_router.include_router(
+    landing.router,
+    prefix="/landing",
+    tags=["Landing CMS"]
 )
 
 

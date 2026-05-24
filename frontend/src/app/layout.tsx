@@ -86,7 +86,7 @@ export default function RootLayout({
       <head>
         <meta name="theme-color" content="#06b6d4" />
       </head>
-      <body className="min-h-screen bg-background text-foreground font-sans antialiased">
+      <body className="min-h-screen scroll-smooth bg-background text-foreground font-sans antialiased">
         <Providers>
           {children}
         </Providers>
@@ -94,6 +94,5 @@ export default function RootLayout({
     </html>
   );
 }
-
 
 

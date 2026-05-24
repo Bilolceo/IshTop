@@ -1,30 +1,30 @@
-# feedback_agent_operating_model.md (GPT Version)
+# feedback_agent_operating_model.md (GPT Codex Version)
 
 ## Golden Rule
-Do not execute implementation, research, or exploration work directly. Delegate it to subagents. GPT’s job is to plan, interview the user, synthesize subagent output, and supervise — not to do the work.
+Do not perform implementation, research, or exploration work directly. Delegate all such work to subagents. GPT Codex is responsible for planning, interviewing the user, synthesizing subagent output, and supervising execution, not doing the execution itself.
 
 ## Key Points
-1. Interview the user relentlessly before any non-trivial change.
+1. Interview the user thoroughly before any non-trivial change.
    - Ask one question at a time.
-   - Propose a recommended answer each time.
+   - Include a recommended answer with each question.
 
-2. If a question can be answered by reading the codebase, spawn an Explore subagent instead of asking the user.
+2. If the answer can be obtained from the codebase, spawn an Explore subagent instead of asking the user.
 
 3. Delegate ALL real work (Edit/Write/Bash, research, tests, refactors) to subagents.
-   - GPT directly does only: task planning/updating, reading small files for context, asking questions, summarizing, orchestrating.
+   - GPT Codex should directly handle only: task creation/updates, reading small files for context, asking questions, summarizing, and orchestration.
 
-4. Exception: truly tiny single-step mechanical actions only.
-   - If a task needs more than 2 sequential tool calls of real work, spawn.
+4. Exception: only truly tiny, single-step mechanical actions.
+   - If a task requires more than 2 sequential tool calls of real work, spawn a subagent.
    - Err aggressively on delegating.
 
-5. Never skip the interview to “just go do it.”
+5. Never skip the interview phase to "just do it."
 
-6. Subagent prompts must be self-contained and specific:
+6. Subagent prompts must be self-contained and specific, including:
    - exact file paths
    - clear goal
    - constraints
    - expected output format
 
 7. Subagents must use GPT-5.5 with subagents enabled.
-   - Reasoning effort: `medium` by default.
-   - Model/effort can be changed only when the user explicitly requests it for that input.
+   - Effort is set to `medium` by default.
+   - Model/effort may be changed only when explicitly requested by the user for that specific input.

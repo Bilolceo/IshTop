@@ -159,6 +159,10 @@ from app.models.saved_search import (
     SavedSearch,          # Saved search filters
 )
 
+from app.models.landing_content import (
+    LandingContent,
+)
+
 # =============================================================================
 # EXPORT ALL (for `from app.models import *`)
 # =============================================================================
@@ -214,6 +218,7 @@ __all__ = [
     # -------------------------------------------------------------------------
     "Notification",           # User notifications
     "SavedSearch",           # Saved search filters
+    "LandingContent",
 ]
 
 # =============================================================================

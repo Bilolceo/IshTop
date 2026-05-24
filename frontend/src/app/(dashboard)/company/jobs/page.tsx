@@ -31,6 +31,10 @@ import type { Job } from "@/types/api";
 
 export default function CompanyJobsPage() {
   const { t, locale } = useTranslation();
+  const isRu = locale === "ru";
+  const statusLabel: Record<string, string> = isRu
+    ? { active: "Активная", draft: "Черновик", paused: "Приостановлена", closed: "Закрыта" }
+    : { active: "Faol", draft: "Qoralama", paused: "To'xtatilgan", closed: "Yopilgan" };
   const {
     jobs,
     isLoading,
@@ -195,7 +199,7 @@ export default function CompanyJobsPage() {
                             : "outline"
                         }
                       >
-                        {job.status}
+                        {statusLabel[job.status] || job.status}
                       </Badge>
                     </div>
 

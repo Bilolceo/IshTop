@@ -9,48 +9,48 @@
 
 @layer base {
   :root {
-    --background: 0 0% 100%;
-    --foreground: 222.2 84% 4.9%;
+    --background: 228 33% 99%;
+    --foreground: 225 26% 12%;
     --card: 0 0% 100%;
-    --card-foreground: 222.2 84% 4.9%;
+    --card-foreground: 225 26% 12%;
     --popover: 0 0% 100%;
     --popover-foreground: 222.2 84% 4.9%;
-    --primary: 187 94% 43%;
+    --primary: 247 86% 63%;
     --primary-foreground: 0 0% 100%;
     --secondary: 210 40% 96.1%;
     --secondary-foreground: 222.2 47.4% 11.2%;
-    --muted: 210 40% 96.1%;
-    --muted-foreground: 215.4 16.3% 46.9%;
+    --muted: 224 24% 95%;
+    --muted-foreground: 224 13% 37%;
     --accent: 210 40% 96.1%;
     --accent-foreground: 222.2 47.4% 11.2%;
     --destructive: 0 84.2% 60.2%;
     --destructive-foreground: 210 40% 98%;
-    --border: 214.3 31.8% 91.4%;
-    --input: 214.3 31.8% 91.4%;
-    --ring: 187 94% 43%;
-    --radius: 0.75rem;
+    --border: 224 20% 88%;
+    --input: 224 20% 88%;
+    --ring: 247 86% 63%;
+    --radius: 0.9rem;
   }
 
   .dark {
-    --background: 222.2 84% 4.9%;
-    --foreground: 210 40% 98%;
-    --card: 222.2 84% 4.9%;
-    --card-foreground: 210 40% 98%;
+    --background: 231 41% 8%;
+    --foreground: 220 28% 96%;
+    --card: 231 38% 11%;
+    --card-foreground: 220 28% 96%;
     --popover: 222.2 84% 4.9%;
     --popover-foreground: 210 40% 98%;
     --primary: 187 94% 43%;
     --primary-foreground: 0 0% 100%;
-    --secondary: 217.2 32.6% 17.5%;
+    --secondary: 231 27% 18%;
     --secondary-foreground: 210 40% 98%;
-    --muted: 217.2 32.6% 17.5%;
-    --muted-foreground: 215 20.2% 65.1%;
+    --muted: 230 26% 16%;
+    --muted-foreground: 225 17% 74%;
     --accent: 217.2 32.6% 17.5%;
     --accent-foreground: 210 40% 98%;
     --destructive: 0 62.8% 30.6%;
     --destructive-foreground: 210 40% 98%;
-    --border: 217.2 32.6% 17.5%;
-    --input: 217.2 32.6% 17.5%;
-    --ring: 187 94% 43%;
+    --border: 230 24% 22%;
+    --input: 230 24% 22%;
+    --ring: 251 91% 72%;
   }
 }
 
@@ -94,11 +94,19 @@
 @layer components {
   /* Glass effect */
   .glass {
-    @apply bg-white/80 backdrop-blur-lg border border-white/20;
+    @apply border border-white/30 bg-white/70 backdrop-blur-xl;
   }
 
   .glass-dark {
-    @apply bg-surface-900/80 backdrop-blur-lg border border-surface-700/50;
+    @apply border border-surface-700/70 bg-surface-900/70 backdrop-blur-xl;
+  }
+
+  .surface-panel {
+    @apply rounded-3xl border border-surface-200/80 bg-white/90 shadow-xl shadow-surface-900/5 backdrop-blur-sm dark:border-surface-700 dark:bg-surface-900/70;
+  }
+
+  .surface-panel-strong {
+    @apply rounded-3xl border border-surface-200 bg-white shadow-2xl shadow-surface-900/10 dark:border-surface-700 dark:bg-surface-900;
   }
 
   /* Gradient text */

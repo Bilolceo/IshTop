@@ -31,8 +31,11 @@ import os
 import sys
 from typing import Any, Callable
 
-# Add parent directory to path for imports
-sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
+# Add backend + alembic dirs for app models and migration_utils imports
+_backend_dir = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
+_alembic_dir = os.path.dirname(os.path.abspath(__file__))
+sys.path.insert(0, _backend_dir)
+sys.path.insert(0, _alembic_dir)
 
 # Import your models' Base for autogenerate
 from app.models.base import Base
