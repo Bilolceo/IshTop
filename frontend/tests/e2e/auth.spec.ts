@@ -245,28 +245,26 @@ test.describe('Authentication Flow', () => {
 
   test('should switch between languages', async ({ page }) => {
     await page.goto('/');
-    
-    // Find language switcher
-    const languageSwitcher = page.getByRole('button', { name: /uz|ru|language/i }).first();
-    
-    if (await languageSwitcher.isVisible()) {
-      await languageSwitcher.click();
-      
-      // Click Russian option
-      await page.getByRole('menuitem', { name: /russian|ru|русский/i }).click();
-      
-      // Check if content changed to Russian
-      await expect(page.getByText(/войти|регистрация/i)).toBeVisible();
-      
-      // Switch back to Uzbek
-      await languageSwitcher.click();
-      await page.getByRole('menuitem', { name: /uzbek|uz|o'zbek/i }).click();
-      
-      await expect(page.getByText(/kirish|ro'yxatdan/i)).toBeVisible();
-    }
+
+    // Use the dropdown-style switcher (has chevron icon in the button) to avoid matching
+    // inline/minimal language buttons that do not open a menu.
+    const switcherRoot = page.locator("div.relative").filter({
+      has: page.locator("button svg.lucide-chevron-down"),
+    }).first();
+    const languageSwitcher = switcherRoot.locator("button").first();
+
+    await expect(languageSwitcher).toBeVisible();
+    await languageSwitcher.click();
+
+    // Language options are buttons (not menuitems) in this UI.
+    await switcherRoot.getByRole('button', { name: /русский|russian|ru/i }).click();
+    await expect(page.getByText(/войти|регистрация/i)).toBeVisible();
+
+    await languageSwitcher.click();
+    await switcherRoot.getByRole('button', { name: /o'zbekcha|uzbek|uz/i }).click();
+    await expect(page.getByText(/kirish|ro'yxatdan/i)).toBeVisible();
   });
 });
-
 
 
 
