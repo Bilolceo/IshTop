@@ -19,7 +19,6 @@ async function fetchLanding(locale: "uz" | "ru") {
   try {
     const res = await fetch(`${apiBase}/landing/content?locale=${locale}`, {
       cache: "no-store",
-      next: { revalidate: 0 },
     });
     if (!res.ok) return null;
     const json = (await res.json()) as LandingResponse;
