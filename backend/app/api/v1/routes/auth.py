@@ -1201,7 +1201,7 @@ async def google_oauth_callback(
         # Redirect to frontend after setting secure auth cookies.
         token_response = create_token_response(user)
         redirect_response = RedirectResponse(
-            url=f"{settings.FRONTEND_URL}/oauth/callback?oauth=success"
+            url=f"{settings.FRONTEND_URL}/oauth/callback#oauth=success"
         )
         _set_auth_cookies(redirect_response, request, token_response)
         return redirect_response
@@ -1339,7 +1339,7 @@ async def linkedin_oauth_callback(
 
         token_response = create_token_response(user)
         redirect_response = RedirectResponse(
-            url=f"{settings.FRONTEND_URL}/oauth/callback?oauth=success"
+            url=f"{settings.FRONTEND_URL}/oauth/callback#oauth=success"
         )
         _set_auth_cookies(redirect_response, request, token_response)
         return redirect_response
@@ -1360,6 +1360,5 @@ async def linkedin_oauth_callback(
             error_code="LINKEDIN_OAUTH_AUTHENTICATION_FAILED",
             message="OAuth authentication failed",
         )
-
 
 
