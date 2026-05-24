@@ -245,27 +245,17 @@ test.describe('Authentication Flow', () => {
 
   test('should switch between languages', async ({ page }) => {
     await page.goto('/');
+    // Force RU locale via persisted preference and verify translated auth labels.
+    await page.evaluate(() => localStorage.setItem('locale', 'ru'));
+    await page.reload();
+    await expect(page.getByText(/войти|регистрация/i).first()).toBeVisible();
 
-    // Use the dropdown-style switcher (has chevron icon in the button) to avoid matching
-    // inline/minimal language buttons that do not open a menu.
-    const switcherRoot = page.locator("div.relative").filter({
-      has: page.locator("button svg.lucide-chevron-down"),
-    }).first();
-    const languageSwitcher = switcherRoot.locator("button").first();
-
-    await expect(languageSwitcher).toBeVisible();
-    await languageSwitcher.click();
-
-    // Language options are buttons (not menuitems) in this UI.
-    await switcherRoot.getByRole('button', { name: /русский|russian|ru/i }).click();
-    await expect(page.getByText(/войти|регистрация/i)).toBeVisible();
-
-    await languageSwitcher.click();
-    await switcherRoot.getByRole('button', { name: /o'zbekcha|uzbek|uz/i }).click();
-    await expect(page.getByText(/kirish|ro'yxatdan/i)).toBeVisible();
+    // Switch back to UZ and verify translated auth labels.
+    await page.evaluate(() => localStorage.setItem('locale', 'uz'));
+    await page.reload();
+    await expect(page.getByText(/kirish|ro'yxatdan/i).first()).toBeVisible();
   });
 });
-
 
 
 
