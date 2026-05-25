@@ -109,7 +109,7 @@ test.describe("Smoke Expansion", () => {
     const descriptionText =
       "We are looking for a QA engineer who can write reliable automated tests, collaborate with product teams, and improve release quality.";
     const legacyDescriptionField = page.getByPlaceholder(/Lavozim haqida batafsil ma'lumot/i);
-    const hasLegacyDescriptionField = await legacyDescriptionField.isVisible().catch(() => false);
+    const hasLegacyDescriptionField = (await legacyDescriptionField.count()) > 0;
     if (hasLegacyDescriptionField) {
       await legacyDescriptionField.fill(descriptionText);
     } else {

@@ -1,98 +1,122 @@
 "use client";
 
-import { useEffect, useState } from "react";
-import Link from "next/link";
+import { useEffect, useMemo, useState } from "react";
 import {
-  Eye,
-  Send,
-  ClipboardCheck,
-  Star,
-  Calendar,
-  Trophy,
-  TrendingUp,
-  Users,
   Briefcase,
+  Users,
+  Clock,
+  TrendingUp,
   RefreshCw,
+  BarChart3,
+  Activity,
 } from "lucide-react";
-import { useTranslation } from "@/hooks/useTranslation";
 import { applicationApi, getErrorMessage } from "@/lib/api";
+import { useTranslation } from "@/hooks/useTranslation";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
-import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
+import { Input } from "@/components/ui/input";
 import { Skeleton } from "@/components/ui/skeleton";
+import {
+  ResponsiveContainer,
+  LineChart,
+  Line,
+  CartesianGrid,
+  XAxis,
+  YAxis,
+  Tooltip,
+  BarChart,
+  Bar,
+} from "recharts";
 
-type Funnel = {
-  totals: {
-    total_jobs: number;
-    active_jobs: number;
-    total_applications: number;
-    total_views: number;
-    avg_match_score: number | null;
+type DashboardAnalytics = {
+  window: { days: number; start_date: string; end_date: string };
+  overview: {
+    total_active_jobs: number;
+    applications_this_month: number;
+    avg_time_to_hire_hours: number;
+    response_rate_pct: number;
+    avg_first_response_hours: number;
   };
   funnel: {
     views: number;
     applications: number;
-    reviewing: number;
-    shortlisted: number;
+    screened: number;
     interview: number;
-    accepted: number;
-    rejected: number;
+    hired: number;
   };
-  conversion_rates: {
-    view_to_apply: number;
-    apply_to_review: number;
-    review_to_interview: number;
-    interview_to_hire: number;
-  };
-  by_status: Array<{ status: string; count: number }>;
-  top_jobs: Array<{
+  top_vacancies: Array<{
     id: string;
     title: string;
     status: string;
     views: number;
     applications: number;
+    conversion_pct: number;
     interview_count: number;
-    accepted_count: number;
+    hired_count: number;
   }>;
-  recent_activity: {
-    applications_in_window: number;
-    hires_in_window: number;
-    window_days: number;
-  };
+  pipeline_summary: Record<string, number>;
+  response_time_tracker: { avg_hours: number; sample_size: number };
+  source_breakdown: Array<{ source: string; count: number; share_pct: number }>;
+  daily_views: Array<{ date: string; count: number }>;
+  daily_applications: Array<{ date: string; count: number }>;
 };
 
-const FUNNEL_STAGES: Array<{
-  key: keyof Funnel["funnel"];
-  icon: typeof Eye;
-  color: string;
-}> = [
-  { key: "views", icon: Eye, color: "from-cyan-500 to-blue-500" },
-  { key: "applications", icon: Send, color: "from-blue-500 to-indigo-500" },
-  { key: "reviewing", icon: ClipboardCheck, color: "from-indigo-500 to-purple-500" },
-  { key: "interview", icon: Calendar, color: "from-purple-500 to-pink-500" },
-  { key: "accepted", icon: Trophy, color: "from-emerald-500 to-teal-500" },
-];
+type RangePreset = "7d" | "30d" | "90d" | "custom";
 
 export default function CompanyAnalyticsPage() {
   const { locale } = useTranslation();
   const isRu = locale === "ru";
-  const jobStatusLabel: Record<string, string> = isRu
-    ? { active: "Активная", draft: "Черновик", paused: "Приостановлена", closed: "Закрыта" }
-    : { active: "Faol", draft: "Qoralama", paused: "To'xtatilgan", closed: "Yopilgan" };
-  const [data, setData] = useState<Funnel | null>(null);
+
   const [loading, setLoading] = useState(true);
-  const [error, setError] = useState<string | null>(null);
   const [refreshing, setRefreshing] = useState(false);
-  const [days, setDays] = useState<7 | 30 | 90>(30);
+  const [error, setError] = useState<string | null>(null);
+  const [data, setData] = useState<DashboardAnalytics | null>(null);
+
+  const [rangePreset, setRangePreset] = useState<RangePreset>("30d");
+  const [customStartDate, setCustomStartDate] = useState("");
+  const [customEndDate, setCustomEndDate] = useState("");
+
+  const statusLabels: Record<string, string> = isRu
+    ? {
+        pending: "Новая заявка",
+        reviewing: "На проверке",
+        shortlisted: "Шорт-лист",
+        interview: "Интервью",
+        accepted: "Оффер",
+        hired: "Нанят",
+        rejected: "Отклонен",
+        withdrawn: "Отозвано",
+      }
+    : {
+        pending: "Yangi ariza",
+        reviewing: "Ko'rib chiqilmoqda",
+        shortlisted: "Saralangan",
+        interview: "Intervyu",
+        accepted: "Taklif",
+        hired: "Yollandi",
+        rejected: "Rad etildi",
+        withdrawn: "Qaytarib olindi",
+      };
 
   const load = async (silent = false) => {
     if (silent) setRefreshing(true);
     else setLoading(true);
     setError(null);
     try {
-      const res = await applicationApi.hiringFunnel({ days });
-      const payload = (res.data as { data?: Funnel })?.data ?? (res.data as Funnel);
-      setData(payload);
+      const params: { days?: number; start_date?: string; end_date?: string } = {};
+      if (rangePreset === "custom") {
+        if (!customStartDate || !customEndDate) {
+          throw new Error(isRu ? "Укажите начальную и конечную даты" : "Boshlanish va tugash sanasini kiriting");
+        }
+        params.start_date = customStartDate;
+        params.end_date = customEndDate;
+      } else {
+        params.days = rangePreset === "7d" ? 7 : rangePreset === "90d" ? 90 : 30;
+      }
+
+      const response = await applicationApi.companyDashboardAnalytics(params);
+      const payload = response.data as { data?: DashboardAnalytics };
+      setData(payload.data || null);
     } catch (e) {
       setError(getErrorMessage(e));
     } finally {
@@ -102,266 +126,263 @@ export default function CompanyAnalyticsPage() {
   };
 
   useEffect(() => {
+    if (rangePreset === "custom") return;
     void load();
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [days]);
+  }, [rangePreset]);
 
-  const t = {
-    title: isRu ? "Аналитика найма" : "Yollash tahlili",
-    subtitle: isRu
-      ? "Воронка кандидатов, конверсия и эффективность вакансий."
-      : "Nomzodlar voronkasi, konversiya va vakansiya samaradorligi.",
-    refresh: isRu ? "Обновить" : "Yangilash",
-    last7: isRu ? "7 дней" : "7 kun",
-    last30: isRu ? "30 дней" : "30 kun",
-    last90: isRu ? "90 дней" : "90 kun",
-    totalJobs: isRu ? "Всего вакансий" : "Jami vakansiyalar",
-    activeJobs: isRu ? "активны" : "faol",
-    totalApps: isRu ? "Всего откликов" : "Jami arizalar",
-    totalViews: isRu ? "Просмотры" : "Ko'rishlar",
-    avgMatch: isRu ? "Средний % совпадения" : "O'rtacha moslik %",
-    funnelTitle: isRu ? "Воронка найма" : "Yollash voronkasi",
-    funnelSubtitle: isRu
-      ? "Каждый этап показывает совокупное число кандидатов, дошедших до него."
-      : "Har bir bosqich shu bosqichga yetib kelgan nomzodlar sonini ko'rsatadi.",
-    stages: {
-      views: isRu ? "Просмотры" : "Ko'rishlar",
-      applications: isRu ? "Отклики" : "Arizalar",
-      reviewing: isRu ? "На рассмотрении" : "Ko'rib chiqilmoqda",
-      shortlisted: isRu ? "Шорт-лист" : "Saralangan",
-      interview: isRu ? "Интервью" : "Intervyu",
-      accepted: isRu ? "Принято" : "Qabul qilindi",
-      rejected: isRu ? "Отклонено" : "Rad etildi",
-    } as Record<keyof Funnel["funnel"], string>,
-    conversion: isRu ? "Конверсии" : "Konversiyalar",
-    viewToApply: isRu ? "Просмотр → отклик" : "Ko'rish → ariza",
-    applyToReview: isRu ? "Отклик → рассмотрение" : "Ariza → ko'rib chiqish",
-    reviewToInterview: isRu ? "Рассмотрение → интервью" : "Ko'rib chiqish → intervyu",
-    interviewToHire: isRu ? "Интервью → найм" : "Intervyu → yollash",
-    topJobs: isRu ? "Топ вакансий" : "Eng yaxshi vakansiyalar",
-    topJobsSubtitle: isRu ? "Сортировка по числу откликов" : "Arizalar soni bo'yicha saralangan",
-    job: isRu ? "Вакансия" : "Vakansiya",
-    apps: isRu ? "Отклики" : "Arizalar",
-    interviews: isRu ? "Интервью" : "Intervyu",
-    hires: isRu ? "Наймы" : "Yollangan",
-    activity: isRu ? "Активность за период" : "Davr ichida faollik",
-    appsInWindow: isRu ? "Откликов" : "Arizalar",
-    hiresInWindow: isRu ? "Наймов" : "Yollanganlar",
-    noData: isRu ? "Пока нет данных. Опубликуйте вакансию." : "Ma'lumot yo'q. Vakansiya joylang.",
-    error: isRu ? "Ошибка загрузки" : "Yuklashda xato",
-  };
+  useEffect(() => {
+    void load();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
 
-  if (error) {
-    return (
-      <main className="space-y-4">
-        <h1 className="font-display text-2xl font-bold text-surface-900 dark:text-white">{t.title}</h1>
-        <Card className="border-red-200 bg-red-50 dark:border-red-500/30 dark:bg-red-500/10">
-          <CardContent className="p-4 text-sm text-red-800 dark:text-red-100">{t.error}: {error}</CardContent>
-        </Card>
-        <Button variant="outline" onClick={() => void load()}>
-          <RefreshCw className="mr-2 h-4 w-4" />
-          {t.refresh}
-        </Button>
-      </main>
-    );
-  }
+  const dailyChart = useMemo(() => {
+    if (!data) return [];
+    const appMap = new Map(data.daily_applications.map((item) => [item.date, item.count]));
+    return data.daily_views.map((item) => ({
+      date: item.date.slice(5),
+      views: item.count,
+      applications: appMap.get(item.date) || 0,
+    }));
+  }, [data]);
 
-  const maxFunnelValue = data
-    ? Math.max(data.funnel.views, data.funnel.applications, 1)
-    : 1;
+  const funnelRows = data
+    ? [
+        { name: isRu ? "Просмотры" : "Ko'rishlar", value: data.funnel.views },
+        { name: isRu ? "Отклики" : "Arizalar", value: data.funnel.applications },
+        { name: isRu ? "Скрининг" : "Screened", value: data.funnel.screened },
+        { name: isRu ? "Интервью" : "Intervyu", value: data.funnel.interview },
+        { name: isRu ? "Найм" : "Yollash", value: data.funnel.hired },
+      ]
+    : [];
 
   return (
     <main className="space-y-6">
-      {/* Header */}
-      <section className="relative overflow-hidden rounded-3xl border border-surface-200 bg-white p-6 shadow-sm dark:border-surface-700 dark:bg-surface-900 sm:p-8">
-        <div className="pointer-events-none absolute -right-16 -top-16 h-72 w-72 rounded-full bg-gradient-to-br from-brand-500/15 via-cyan-500/10 to-transparent blur-3xl" aria-hidden />
-        <div className="relative flex flex-col gap-4 lg:flex-row lg:items-end lg:justify-between">
-          <div className="max-w-2xl">
-            <div className="inline-flex items-center gap-2 rounded-full border border-brand-200 bg-brand-50 px-3 py-1 text-xs font-semibold text-brand-700 dark:border-brand-500/30 dark:bg-brand-500/10 dark:text-brand-300">
-              <TrendingUp className="h-3.5 w-3.5" />
-              {t.title}
-            </div>
-            <h1 className="mt-3 font-display text-3xl font-bold tracking-tight text-surface-900 dark:text-white sm:text-4xl">
-              {t.title}
+      <section className="rounded-2xl border border-surface-200 bg-white p-5 shadow-sm dark:border-surface-700 dark:bg-surface-900">
+        <div className="flex flex-wrap items-end justify-between gap-4">
+          <div>
+            <h1 className="font-display text-2xl font-bold text-surface-900 dark:text-white">
+              {isRu ? "Аналитика компании" : "Kompaniya analitikasi"}
             </h1>
-            <p className="mt-2 text-sm text-surface-600 dark:text-surface-400">{t.subtitle}</p>
+            <p className="mt-1 text-sm text-surface-500">
+              {isRu
+                ? "Вакансии, воронка и скорость найма в одном месте"
+                : "Vakansiyalar, funnel va yollash tezligi bitta joyda"}
+            </p>
           </div>
+
           <div className="flex flex-wrap items-center gap-2">
-            <div className="inline-flex rounded-lg border border-surface-200 p-1 dark:border-surface-700">
-              {([7, 30, 90] as const).map((d) => (
-                <button
-                  key={d}
-                  onClick={() => setDays(d)}
-                  className={`rounded-md px-3 py-1.5 text-xs font-semibold transition-colors ${
-                    days === d
-                      ? "bg-brand-600 text-white"
-                      : "text-surface-600 hover:bg-surface-100 dark:text-surface-400 dark:hover:bg-surface-800"
-                  }`}
-                >
-                  {d === 7 ? t.last7 : d === 30 ? t.last30 : t.last90}
-                </button>
-              ))}
-            </div>
+            {(["7d", "30d", "90d", "custom"] as const).map((preset) => (
+              <button
+                key={preset}
+                onClick={() => setRangePreset(preset)}
+                className={`rounded-lg px-3 py-1.5 text-xs font-semibold ${
+                  rangePreset === preset
+                    ? "bg-brand-600 text-white"
+                    : "border border-surface-200 text-surface-600 hover:bg-surface-100 dark:border-surface-700 dark:text-surface-300 dark:hover:bg-surface-800"
+                }`}
+              >
+                {preset === "7d"
+                  ? isRu
+                    ? "7 дней"
+                    : "7 kun"
+                  : preset === "30d"
+                    ? isRu
+                      ? "30 дней"
+                      : "30 kun"
+                    : preset === "90d"
+                      ? isRu
+                        ? "90 дней"
+                        : "90 kun"
+                      : isRu
+                        ? "Кастом"
+                        : "Custom"}
+              </button>
+            ))}
             <Button variant="outline" onClick={() => void load(true)} disabled={refreshing}>
               <RefreshCw className={`mr-2 h-4 w-4 ${refreshing ? "animate-spin" : ""}`} />
-              {t.refresh}
+              {isRu ? "Обновить" : "Yangilash"}
             </Button>
           </div>
         </div>
+
+        {rangePreset === "custom" && (
+          <div className="mt-4 flex flex-wrap items-end gap-3">
+            <div>
+              <label className="mb-1 block text-xs text-surface-500">{isRu ? "С" : "Dan"}</label>
+              <Input type="date" value={customStartDate} onChange={(event) => setCustomStartDate(event.target.value)} />
+            </div>
+            <div>
+              <label className="mb-1 block text-xs text-surface-500">{isRu ? "По" : "Gacha"}</label>
+              <Input type="date" value={customEndDate} onChange={(event) => setCustomEndDate(event.target.value)} />
+            </div>
+            <Button onClick={() => void load()}>{isRu ? "Применить" : "Qo'llash"}</Button>
+          </div>
+        )}
       </section>
 
-      {/* KPI Grid */}
-      <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
-        {loading ? (
-          Array.from({ length: 4 }).map((_, i) => (
-            <Skeleton key={i} className="h-32 rounded-2xl" />
-          ))
-        ) : data ? (
-          <>
-            <KPICard
-              icon={Briefcase}
-              label={t.totalJobs}
-              value={data.totals.total_jobs}
-              note={`${data.totals.active_jobs} ${t.activeJobs}`}
-              color="from-blue-500 to-cyan-500"
-            />
-            <KPICard
-              icon={Send}
-              label={t.totalApps}
-              value={data.totals.total_applications}
-              note={`${data.recent_activity.applications_in_window} / ${data.recent_activity.window_days}d`}
-              color="from-indigo-500 to-purple-500"
-            />
-            <KPICard
-              icon={Eye}
-              label={t.totalViews}
-              value={data.totals.total_views}
-              color="from-emerald-500 to-teal-500"
-            />
-            <KPICard
-              icon={Star}
-              label={t.avgMatch}
-              value={data.totals.avg_match_score !== null ? `${data.totals.avg_match_score}%` : "—"}
-              color="from-amber-500 to-orange-500"
-            />
-          </>
-        ) : null}
+      {error && (
+        <Card className="border-red-200 bg-red-50 dark:border-red-500/30 dark:bg-red-500/10">
+          <CardContent className="p-4 text-sm text-red-700">{error}</CardContent>
+        </Card>
+      )}
+
+      <section className="grid gap-4 sm:grid-cols-2 xl:grid-cols-4">
+        {loading
+          ? Array.from({ length: 4 }).map((_, idx) => <Skeleton key={idx} className="h-28 rounded-xl" />)
+          : (
+            <>
+              <MetricCard icon={Briefcase} label={isRu ? "Активные вакансии" : "Faol vakansiyalar"} value={data?.overview.total_active_jobs ?? 0} />
+              <MetricCard icon={Users} label={isRu ? "Заявки за месяц" : "Bu oydagi arizalar"} value={data?.overview.applications_this_month ?? 0} />
+              <MetricCard icon={Clock} label={isRu ? "Среднее время найма (ч)" : "O'rtacha yollash vaqti (soat)"} value={data?.overview.avg_time_to_hire_hours ?? 0} />
+              <MetricCard icon={TrendingUp} label={isRu ? "Response rate %" : "Javob berish ulushi %"} value={data?.overview.response_rate_pct ?? 0} />
+            </>
+          )}
+      </section>
+
+      <div className="grid gap-6 xl:grid-cols-3">
+        <Card className="xl:col-span-2">
+          <CardHeader>
+            <CardTitle className="flex items-center gap-2 text-lg">
+              <Activity className="h-5 w-5 text-brand-500" />
+              {isRu ? "Funnel: просмотры → отклики → скрининг → интервью → найм" : "Funnel: ko'rish → ariza → screened → intervyu → yollash"}
+            </CardTitle>
+          </CardHeader>
+          <CardContent>
+            {loading ? (
+              <Skeleton className="h-64 rounded-xl" />
+            ) : (
+              <div className="h-72">
+                <ResponsiveContainer width="100%" height="100%">
+                  <BarChart data={funnelRows}>
+                    <CartesianGrid strokeDasharray="3 3" />
+                    <XAxis dataKey="name" />
+                    <YAxis />
+                    <Tooltip />
+                    <Bar dataKey="value" fill="#4f46e5" radius={[6, 6, 0, 0]} />
+                  </BarChart>
+                </ResponsiveContainer>
+              </div>
+            )}
+          </CardContent>
+        </Card>
+
+        <Card>
+          <CardHeader>
+            <CardTitle className="text-lg">{isRu ? "Response time tracker" : "Response time tracker"}</CardTitle>
+          </CardHeader>
+          <CardContent className="space-y-3">
+            {loading ? (
+              <>
+                <Skeleton className="h-16 rounded-lg" />
+                <Skeleton className="h-16 rounded-lg" />
+              </>
+            ) : (
+              <>
+                <div className="rounded-lg border border-surface-200 p-3 dark:border-surface-700">
+                  <p className="text-xs text-surface-500">{isRu ? "Среднее до первого действия (ч)" : "Birinchi harakatgacha o'rtacha (soat)"}</p>
+                  <p className="mt-1 text-2xl font-bold">{data?.response_time_tracker.avg_hours ?? 0}</p>
+                </div>
+                <div className="rounded-lg border border-surface-200 p-3 dark:border-surface-700">
+                  <p className="text-xs text-surface-500">{isRu ? "Размер выборки" : "Sample size"}</p>
+                  <p className="mt-1 text-2xl font-bold">{data?.response_time_tracker.sample_size ?? 0}</p>
+                </div>
+              </>
+            )}
+          </CardContent>
+        </Card>
       </div>
 
-      {/* Funnel */}
       <Card>
         <CardHeader>
           <CardTitle className="flex items-center gap-2 text-lg">
-            <TrendingUp className="h-5 w-5 text-brand-500" />
-            {t.funnelTitle}
+            <BarChart3 className="h-5 w-5 text-brand-500" />
+            {isRu ? "Динамика по дням" : "Kunlik dinamika"}
           </CardTitle>
-          <p className="text-sm text-surface-500 dark:text-surface-400">{t.funnelSubtitle}</p>
         </CardHeader>
         <CardContent>
           {loading ? (
-            <div className="space-y-3">
-              {[1, 2, 3, 4, 5].map((i) => (
-                <Skeleton key={i} className="h-12 rounded-lg" />
-              ))}
-            </div>
-          ) : data ? (
-            <div className="space-y-2">
-              {FUNNEL_STAGES.map((stage) => {
-                const value = data.funnel[stage.key];
-                const widthPct = Math.max((value / maxFunnelValue) * 100, 4);
-                const Icon = stage.icon;
-                return (
-                  <div key={stage.key} className="flex items-center gap-3">
-                    <div className="flex w-36 flex-shrink-0 items-center gap-2 text-sm font-medium text-surface-700 dark:text-surface-300">
-                      <Icon className="h-4 w-4 text-surface-500" />
-                      {t.stages[stage.key]}
-                    </div>
-                    <div className="relative flex-1">
-                      <div
-                        className={`h-9 rounded-lg bg-gradient-to-r ${stage.color} shadow-sm transition-all`}
-                        style={{ width: `${widthPct}%` }}
-                      />
-                      <div className="absolute inset-y-0 left-3 flex items-center text-sm font-semibold text-white">
-                        {value.toLocaleString()}
-                      </div>
-                    </div>
-                  </div>
-                );
-              })}
-            </div>
-          ) : null}
-
-          {data && (
-            <div className="mt-6 grid gap-3 border-t border-surface-200 pt-4 dark:border-surface-700 sm:grid-cols-2 lg:grid-cols-4">
-              <ConversionStat label={t.viewToApply} value={data.conversion_rates.view_to_apply} />
-              <ConversionStat label={t.applyToReview} value={data.conversion_rates.apply_to_review} />
-              <ConversionStat label={t.reviewToInterview} value={data.conversion_rates.review_to_interview} />
-              <ConversionStat label={t.interviewToHire} value={data.conversion_rates.interview_to_hire} tone="emerald" />
+            <Skeleton className="h-64 rounded-xl" />
+          ) : (
+            <div className="h-72">
+              <ResponsiveContainer width="100%" height="100%">
+                <LineChart data={dailyChart}>
+                  <CartesianGrid strokeDasharray="3 3" />
+                  <XAxis dataKey="date" />
+                  <YAxis />
+                  <Tooltip />
+                  <Line type="monotone" dataKey="views" stroke="#06b6d4" strokeWidth={2} dot={false} />
+                  <Line type="monotone" dataKey="applications" stroke="#6366f1" strokeWidth={2} dot={false} />
+                </LineChart>
+              </ResponsiveContainer>
             </div>
           )}
         </CardContent>
       </Card>
 
-      {/* Top Jobs */}
+      <div className="grid gap-6 xl:grid-cols-2">
+        <Card>
+          <CardHeader>
+            <CardTitle className="text-lg">{isRu ? "Топ вакансий" : "Top vakansiyalar"}</CardTitle>
+          </CardHeader>
+          <CardContent className="space-y-2">
+            {loading ? (
+              Array.from({ length: 5 }).map((_, idx) => <Skeleton key={idx} className="h-14 rounded-lg" />)
+            ) : data?.top_vacancies?.length ? (
+              data.top_vacancies.slice(0, 8).map((job) => (
+                <div key={job.id} className="flex items-center justify-between rounded-lg border border-surface-200 px-3 py-2 dark:border-surface-700">
+                  <div>
+                    <p className="font-medium text-surface-900 dark:text-white">{job.title}</p>
+                    <p className="text-xs text-surface-500">
+                      {job.applications} {isRu ? "заявок" : "ariza"} • {job.views} {isRu ? "просмотров" : "ko'rish"} • {job.conversion_pct}%
+                    </p>
+                  </div>
+                  <span className="text-xs text-surface-500">{job.hired_count} {isRu ? "найм" : "yollash"}</span>
+                </div>
+              ))
+            ) : (
+              <p className="text-sm text-surface-500">{isRu ? "Данных пока нет" : "Hozircha ma'lumot yo'q"}</p>
+            )}
+          </CardContent>
+        </Card>
+
+        <Card>
+          <CardHeader>
+            <CardTitle className="text-lg">{isRu ? "Pipeline summary" : "Pipeline summary"}</CardTitle>
+          </CardHeader>
+          <CardContent className="space-y-2">
+            {loading ? (
+              Array.from({ length: 6 }).map((_, idx) => <Skeleton key={idx} className="h-12 rounded-lg" />)
+            ) : (
+              Object.entries(data?.pipeline_summary || {}).map(([status, count]) => (
+                <div key={status} className="flex items-center justify-between rounded-lg border border-surface-200 px-3 py-2 dark:border-surface-700">
+                  <span className="text-sm text-surface-700 dark:text-surface-200">
+                    {statusLabels[status] || status}
+                  </span>
+                  <span className="font-semibold">{count}</span>
+                </div>
+              ))
+            )}
+          </CardContent>
+        </Card>
+      </div>
+
       <Card>
         <CardHeader>
-          <CardTitle className="flex items-center gap-2 text-lg">
-            <Trophy className="h-5 w-5 text-amber-500" />
-            {t.topJobs}
-          </CardTitle>
-          <p className="text-sm text-surface-500 dark:text-surface-400">{t.topJobsSubtitle}</p>
+          <CardTitle className="text-lg">{isRu ? "Source breakdown" : "Source breakdown"}</CardTitle>
         </CardHeader>
-        <CardContent>
+        <CardContent className="space-y-2">
           {loading ? (
-            <div className="space-y-2">
-              {[1, 2, 3].map((i) => (
-                <Skeleton key={i} className="h-14 rounded-lg" />
-              ))}
-            </div>
-          ) : data && data.top_jobs.length > 0 ? (
-            <div className="overflow-hidden rounded-xl border border-surface-200 dark:border-surface-700">
-              <div className="grid grid-cols-[1fr_auto_auto_auto_auto] gap-3 border-b border-surface-200 bg-surface-50/80 px-4 py-2.5 text-[11px] font-bold uppercase tracking-wider text-surface-500 dark:border-surface-700 dark:bg-surface-900/60 dark:text-surface-400">
-                <span>{t.job}</span>
-                <span className="text-right">{t.totalViews}</span>
-                <span className="text-right">{t.apps}</span>
-                <span className="text-right">{t.interviews}</span>
-                <span className="text-right">{t.hires}</span>
+            Array.from({ length: 4 }).map((_, idx) => <Skeleton key={idx} className="h-12 rounded-lg" />)
+          ) : data?.source_breakdown?.length ? (
+            data.source_breakdown.map((item) => (
+              <div key={item.source} className="flex items-center justify-between rounded-lg border border-surface-200 px-3 py-2 dark:border-surface-700">
+                <span className="text-sm">{item.source}</span>
+                <span className="text-sm font-semibold">{item.count} ({item.share_pct}%)</span>
               </div>
-              <div className="divide-y divide-surface-200 dark:divide-surface-700">
-                {data.top_jobs.map((job) => (
-                  <Link
-                    key={job.id}
-                    href={`/company/jobs/${job.id}/edit`}
-                    className="grid grid-cols-[1fr_auto_auto_auto_auto] items-center gap-3 px-4 py-3 text-sm transition-colors hover:bg-surface-50 dark:hover:bg-surface-900/40"
-                  >
-                    <div className="min-w-0">
-                      <p className="truncate font-medium text-surface-900 dark:text-white">{job.title}</p>
-                      <Badge variant={job.status === "active" ? "success" : "secondary"} className="mt-0.5">
-                        {jobStatusLabel[job.status] || job.status}
-                      </Badge>
-                    </div>
-                    <span className="text-right text-surface-600 dark:text-surface-300">{job.views}</span>
-                    <span className="text-right font-semibold text-surface-900 dark:text-white">
-                      {job.applications}
-                    </span>
-                    <span className="text-right text-purple-600 dark:text-purple-400">
-                      {job.interview_count}
-                    </span>
-                    <span className="text-right font-semibold text-emerald-600 dark:text-emerald-400">
-                      {job.accepted_count}
-                    </span>
-                  </Link>
-                ))}
-              </div>
-            </div>
+            ))
           ) : (
-            <div className="flex flex-col items-center gap-3 rounded-xl border border-dashed border-surface-200 py-10 text-center dark:border-surface-700">
-              <Users className="h-8 w-8 text-surface-400" />
-              <p className="text-sm text-surface-500">{t.noData}</p>
-              <Link href="/company/jobs/new">
-                <Button size="sm">{isRu ? "Создать вакансию" : "Vakansiya yaratish"}</Button>
-              </Link>
-            </div>
+            <p className="text-sm text-surface-500">{isRu ? "Источник не отслеживался в этом периоде" : "Bu davrda source tracking ma'lumoti yo'q"}</p>
           )}
         </CardContent>
       </Card>
@@ -369,55 +390,28 @@ export default function CompanyAnalyticsPage() {
   );
 }
 
-function KPICard({
+function MetricCard({
   icon: Icon,
   label,
   value,
-  note,
-  color,
 }: {
-  icon: typeof Eye;
+  icon: React.ElementType;
   label: string;
-  value: number | string;
-  note?: string;
-  color: string;
+  value: string | number;
 }) {
   return (
-    <Card className="group relative overflow-hidden transition-all hover:-translate-y-0.5 hover:shadow-lg">
-      <div className={`absolute inset-x-0 top-0 h-1 bg-gradient-to-r ${color}`} />
-      <CardContent className="p-5">
-        <div className="flex items-start justify-between gap-3">
-          <div className="min-w-0 flex-1">
-            <p className="text-xs font-semibold uppercase tracking-wider text-surface-500">{label}</p>
-            <p className="mt-2 font-display text-3xl font-bold text-surface-900 dark:text-white">{value}</p>
-            {note && <p className="mt-1 text-xs text-surface-500">{note}</p>}
-          </div>
-          <div className={`flex h-10 w-10 flex-shrink-0 items-center justify-center rounded-xl bg-gradient-to-br ${color} text-white`}>
+    <Card>
+      <CardContent className="pt-5">
+        <div className="flex items-center gap-3">
+          <div className="rounded-xl bg-brand-50 p-2 text-brand-600 dark:bg-brand-500/20 dark:text-brand-300">
             <Icon className="h-5 w-5" />
+          </div>
+          <div>
+            <p className="text-xs text-surface-500">{label}</p>
+            <p className="text-xl font-bold text-surface-900 dark:text-white">{value}</p>
           </div>
         </div>
       </CardContent>
     </Card>
-  );
-}
-
-function ConversionStat({
-  label,
-  value,
-  tone,
-}: {
-  label: string;
-  value: number;
-  tone?: "emerald";
-}) {
-  const valueColor =
-    tone === "emerald"
-      ? "text-emerald-600 dark:text-emerald-400"
-      : "text-surface-900 dark:text-white";
-  return (
-    <div className="rounded-lg bg-surface-50 p-3 dark:bg-surface-900/40">
-      <p className="text-[11px] font-semibold uppercase tracking-wider text-surface-500">{label}</p>
-      <p className={`mt-1 font-display text-2xl font-bold ${valueColor}`}>{value}%</p>
-    </div>
   );
 }

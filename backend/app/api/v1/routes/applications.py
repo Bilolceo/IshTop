@@ -59,7 +59,7 @@ from app.core.dependencies import (
 from app.core.premium import get_premium_user, get_feature_limit
 from app.models import (
     User, Job, Resume, Application,
-    ApplicationStatus, JobStatus, UserRole, ResumeStatus
+    ApplicationStatus, JobStatus, UserRole, ResumeStatus, FunnelEvent
 )
 from app.services import job_matching
 from app.services.telegram_service import send_company_telegram_notification
@@ -93,6 +93,75 @@ logger = logging.getLogger(__name__)
 # =============================================================================
 
 router = APIRouter()
+
+VIEW_EVENT_NAMES = {"view_job", "view_explainability"}
+
+
+def _safe_pct(numerator: int, denominator: int) -> float:
+    if denominator <= 0:
+        return 0.0
+    return round((numerator / denominator) * 100, 1)
+
+
+def _parse_analytics_window(
+    *,
+    days: int,
+    start_date: Optional[str],
+    end_date: Optional[str],
+) -> tuple[datetime, datetime, int, str, str]:
+    """Resolve analytics window in UTC [start_at, end_at_exclusive)."""
+    now = datetime.now(timezone.utc)
+    today = now.date()
+
+    if start_date or end_date:
+        if not start_date or not end_date:
+            raise HTTPException(
+                status_code=status.HTTP_400_BAD_REQUEST,
+                detail="Both start_date and end_date are required for custom range",
+            )
+        try:
+            start_day = datetime.strptime(start_date, "%Y-%m-%d").date()
+            end_day = datetime.strptime(end_date, "%Y-%m-%d").date()
+        except ValueError:
+            raise HTTPException(
+                status_code=status.HTTP_400_BAD_REQUEST,
+                detail="Dates must be in YYYY-MM-DD format",
+            )
+        if end_day < start_day:
+            raise HTTPException(
+                status_code=status.HTTP_400_BAD_REQUEST,
+                detail="end_date must be greater than or equal to start_date",
+            )
+        window_days = (end_day - start_day).days + 1
+        if window_days > 366:
+            raise HTTPException(
+                status_code=status.HTTP_400_BAD_REQUEST,
+                detail="Custom range cannot exceed 366 days",
+            )
+    else:
+        window_days = max(1, min(days, 365))
+        end_day = today
+        start_day = today - timedelta(days=window_days - 1)
+
+    start_at = datetime.combine(start_day, datetime.min.time(), tzinfo=timezone.utc)
+    end_at = datetime.combine(end_day + timedelta(days=1), datetime.min.time(), tzinfo=timezone.utc)
+    return start_at, end_at, window_days, start_day.isoformat(), end_day.isoformat()
+
+
+def _build_date_bucket_series(
+    *,
+    start_day: str,
+    end_day: str,
+    counts_map: Dict[str, int],
+) -> List[Dict[str, Any]]:
+    start = datetime.strptime(start_day, "%Y-%m-%d").date()
+    end = datetime.strptime(end_day, "%Y-%m-%d").date()
+    span = (end - start).days + 1
+    output: List[Dict[str, Any]] = []
+    for offset in range(span):
+        day = (start + timedelta(days=offset)).isoformat()
+        output.append({"date": day, "count": int(counts_map.get(day, 0))})
+    return output
 
 
 # =============================================================================
@@ -1404,6 +1473,376 @@ async def hiring_funnel_analytics(
         data=data,
         start_time=start_time,
     )
+
+
+@router.get(
+    "/analytics/job/{job_id}",
+    response_model=StandardResponse,
+    summary="Per-vacancy analytics",
+    description="Detailed analytics for a single company vacancy including daily trends and funnel.",
+)
+async def vacancy_analytics(
+    job_id: UUID,
+    days: int = Query(30, ge=1, le=365),
+    start_date: Optional[str] = Query(None, description="YYYY-MM-DD"),
+    end_date: Optional[str] = Query(None, description="YYYY-MM-DD"),
+    company: User = Depends(get_current_company),
+    db: Session = Depends(get_db),
+):
+    start_time = time.time()
+    start_at, end_at, window_days, start_day, end_day = _parse_analytics_window(
+        days=days,
+        start_date=start_date,
+        end_date=end_date,
+    )
+
+    job = db.query(Job).filter(
+        Job.id == job_id,
+        Job.is_deleted == False,
+    ).first()
+    if not job:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Job not found")
+    if job.company_id != company.id and company.role != UserRole.ADMIN:
+        raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail="Forbidden")
+
+    applications_all = db.query(Application).filter(
+        Application.job_id == job.id,
+        Application.is_deleted == False,
+    ).all()
+
+    applications_in_window = [
+        app for app in applications_all
+        if app.applied_at and start_at <= app.applied_at < end_at
+    ]
+
+    daily_app_map: Dict[str, int] = {}
+    for app in applications_in_window:
+        key = app.applied_at.astimezone(timezone.utc).date().isoformat()
+        daily_app_map[key] = daily_app_map.get(key, 0) + 1
+
+    view_rows = (
+        db.query(FunnelEvent)
+        .filter(
+            FunnelEvent.job_id == job.id,
+            FunnelEvent.event_name.in_(list(VIEW_EVENT_NAMES)),
+            FunnelEvent.created_at >= start_at,
+            FunnelEvent.created_at < end_at,
+        )
+        .all()
+    )
+    daily_view_map: Dict[str, int] = {}
+    for row in view_rows:
+        created = row.created_at
+        if created is None:
+            continue
+        if created.tzinfo is None:
+            created = created.replace(tzinfo=timezone.utc)
+        key = created.astimezone(timezone.utc).date().isoformat()
+        daily_view_map[key] = daily_view_map.get(key, 0) + 1
+
+    total_views = int(job.views_count or 0)
+    total_applications = len(applications_all)
+    conversion_pct = _safe_pct(total_applications, total_views)
+
+    screened = sum(1 for app in applications_all if app.status != ApplicationStatus.PENDING.value)
+    interview = sum(
+        1 for app in applications_all
+        if app.status in {
+            ApplicationStatus.INTERVIEW.value,
+            ApplicationStatus.ACCEPTED.value,
+            ApplicationStatus.HIRED.value,
+        }
+    )
+    hired = sum(
+        1 for app in applications_all
+        if app.status in {ApplicationStatus.HIRED.value, ApplicationStatus.ACCEPTED.value}
+    )
+
+    source_rows = (
+        db.query(FunnelEvent.source, func.count(FunnelEvent.id))
+        .filter(
+            FunnelEvent.job_id == job.id,
+            FunnelEvent.created_at >= start_at,
+            FunnelEvent.created_at < end_at,
+            FunnelEvent.source.isnot(None),
+        )
+        .group_by(FunnelEvent.source)
+        .all()
+    )
+    source_total = sum(int(count) for _, count in source_rows) or 0
+    source_breakdown = [
+        {
+            "source": source_value or "unknown",
+            "count": int(count),
+            "share_pct": _safe_pct(int(count), source_total),
+        }
+        for source_value, count in source_rows
+    ]
+    source_breakdown.sort(key=lambda item: item["count"], reverse=True)
+
+    data = {
+        "job": {
+            "id": str(job.id),
+            "title": job.title,
+            "status": job.status,
+        },
+        "window": {
+            "days": window_days,
+            "start_date": start_day,
+            "end_date": end_day,
+        },
+        "summary": {
+            "views": total_views,
+            "applications": total_applications,
+            "conversion_pct": conversion_pct,
+            "applications_in_window": len(applications_in_window),
+            "views_events_in_window": sum(daily_view_map.values()),
+        },
+        "daily_views": _build_date_bucket_series(
+            start_day=start_day,
+            end_day=end_day,
+            counts_map=daily_view_map,
+        ),
+        "daily_applications": _build_date_bucket_series(
+            start_day=start_day,
+            end_day=end_day,
+            counts_map=daily_app_map,
+        ),
+        "funnel": {
+            "views": total_views,
+            "applications": total_applications,
+            "screened": screened,
+            "interview": interview,
+            "hired": hired,
+        },
+        "source_breakdown": source_breakdown,
+    }
+    return create_response(True, "Vacancy analytics", data, start_time)
+
+
+@router.get(
+    "/analytics/company-dashboard",
+    response_model=StandardResponse,
+    summary="Company-level analytics dashboard",
+    description="Aggregated analytics across all company vacancies with custom date range support.",
+)
+async def company_dashboard_analytics(
+    days: int = Query(30, ge=1, le=365),
+    start_date: Optional[str] = Query(None, description="YYYY-MM-DD"),
+    end_date: Optional[str] = Query(None, description="YYYY-MM-DD"),
+    company: User = Depends(get_current_company),
+    db: Session = Depends(get_db),
+):
+    start_time = time.time()
+    start_at, end_at, window_days, start_day, end_day = _parse_analytics_window(
+        days=days,
+        start_date=start_date,
+        end_date=end_date,
+    )
+
+    jobs = db.query(Job).filter(
+        Job.company_id == company.id,
+        Job.is_deleted == False,
+    ).all()
+    job_ids = [job.id for job in jobs]
+    if not job_ids:
+        empty = {
+            "window": {
+                "days": window_days,
+                "start_date": start_day,
+                "end_date": end_day,
+            },
+            "overview": {
+                "total_active_jobs": 0,
+                "applications_this_month": 0,
+                "avg_time_to_hire_hours": 0.0,
+                "response_rate_pct": 0.0,
+                "avg_first_response_hours": 0.0,
+            },
+            "funnel": {"views": 0, "applications": 0, "screened": 0, "interview": 0, "hired": 0},
+            "top_vacancies": [],
+            "pipeline_summary": {},
+            "response_time_tracker": {"avg_hours": 0.0, "sample_size": 0},
+            "source_breakdown": [],
+            "daily_views": [],
+            "daily_applications": [],
+        }
+        return create_response(True, "Company analytics", empty, start_time)
+
+    applications_all = db.query(Application).filter(
+        Application.job_id.in_(job_ids),
+        Application.is_deleted == False,
+    ).all()
+    applications_in_window = [
+        app for app in applications_all
+        if app.applied_at and start_at <= app.applied_at < end_at
+    ]
+
+    today = datetime.now(timezone.utc).date()
+    month_start = datetime.combine(today.replace(day=1), datetime.min.time(), tzinfo=timezone.utc)
+    applications_this_month = sum(1 for app in applications_all if app.applied_at and app.applied_at >= month_start)
+
+    responded = [app for app in applications_in_window if app.status != ApplicationStatus.PENDING.value]
+    response_rate_pct = _safe_pct(len(responded), len(applications_in_window))
+
+    first_response_hours: List[float] = []
+    for app in applications_in_window:
+        if app.status == ApplicationStatus.PENDING.value or not app.applied_at:
+            continue
+        first_action_at = app.reviewed_at or app.interview_at or app.decided_at or app.updated_at
+        if not first_action_at:
+            continue
+        delta = first_action_at - app.applied_at
+        hours = delta.total_seconds() / 3600
+        if hours >= 0:
+            first_response_hours.append(hours)
+    avg_first_response_hours = round(sum(first_response_hours) / len(first_response_hours), 2) if first_response_hours else 0.0
+
+    hired_apps = [
+        app for app in applications_in_window
+        if app.status in {ApplicationStatus.HIRED.value, ApplicationStatus.ACCEPTED.value}
+        and app.decided_at
+        and app.applied_at
+    ]
+    time_to_hire_hours = [
+        (app.decided_at - app.applied_at).total_seconds() / 3600
+        for app in hired_apps
+        if (app.decided_at - app.applied_at).total_seconds() >= 0
+    ]
+    avg_time_to_hire_hours = round(sum(time_to_hire_hours) / len(time_to_hire_hours), 2) if time_to_hire_hours else 0.0
+
+    pipeline_summary: Dict[str, int] = {}
+    for app in applications_all:
+        pipeline_summary[app.status] = pipeline_summary.get(app.status, 0) + 1
+
+    per_job_apps: Dict[Any, int] = {}
+    per_job_status: Dict[Any, Dict[str, int]] = {}
+    for app in applications_in_window:
+        per_job_apps[app.job_id] = per_job_apps.get(app.job_id, 0) + 1
+        status_bucket = per_job_status.setdefault(app.job_id, {})
+        status_bucket[app.status] = status_bucket.get(app.status, 0) + 1
+
+    top_vacancies: List[Dict[str, Any]] = []
+    for job in jobs:
+        apps_count = per_job_apps.get(job.id, 0)
+        if apps_count == 0 and (job.views_count or 0) == 0:
+            continue
+        conversion = _safe_pct(apps_count, int(job.views_count or 0))
+        status_bucket = per_job_status.get(job.id, {})
+        top_vacancies.append(
+            {
+                "id": str(job.id),
+                "title": job.title,
+                "status": job.status,
+                "views": int(job.views_count or 0),
+                "applications": apps_count,
+                "conversion_pct": conversion,
+                "interview_count": status_bucket.get(ApplicationStatus.INTERVIEW.value, 0),
+                "hired_count": status_bucket.get(ApplicationStatus.HIRED.value, 0)
+                + status_bucket.get(ApplicationStatus.ACCEPTED.value, 0),
+            }
+        )
+    top_vacancies.sort(key=lambda item: (item["applications"], item["conversion_pct"]), reverse=True)
+    top_vacancies = top_vacancies[:10]
+
+    view_event_rows = (
+        db.query(FunnelEvent)
+        .filter(
+            FunnelEvent.job_id.in_(job_ids),
+            FunnelEvent.event_name.in_(list(VIEW_EVENT_NAMES)),
+            FunnelEvent.created_at >= start_at,
+            FunnelEvent.created_at < end_at,
+        )
+        .all()
+    )
+    views_daily_map: Dict[str, int] = {}
+    for row in view_event_rows:
+        created = row.created_at
+        if not created:
+            continue
+        if created.tzinfo is None:
+            created = created.replace(tzinfo=timezone.utc)
+        key = created.astimezone(timezone.utc).date().isoformat()
+        views_daily_map[key] = views_daily_map.get(key, 0) + 1
+
+    apps_daily_map: Dict[str, int] = {}
+    for app in applications_in_window:
+        key = app.applied_at.astimezone(timezone.utc).date().isoformat()
+        apps_daily_map[key] = apps_daily_map.get(key, 0) + 1
+
+    source_rows = (
+        db.query(FunnelEvent.source, func.count(FunnelEvent.id))
+        .filter(
+            FunnelEvent.job_id.in_(job_ids),
+            FunnelEvent.created_at >= start_at,
+            FunnelEvent.created_at < end_at,
+            FunnelEvent.source.isnot(None),
+        )
+        .group_by(FunnelEvent.source)
+        .all()
+    )
+    source_total = sum(int(count) for _, count in source_rows) or 0
+    source_breakdown = [
+        {
+            "source": source_value or "unknown",
+            "count": int(count),
+            "share_pct": _safe_pct(int(count), source_total),
+        }
+        for source_value, count in source_rows
+    ]
+    source_breakdown.sort(key=lambda item: item["count"], reverse=True)
+
+    funnel = {
+        "views": sum(views_daily_map.values()),
+        "applications": len(applications_in_window),
+        "screened": sum(1 for app in applications_in_window if app.status != ApplicationStatus.PENDING.value),
+        "interview": sum(
+            1 for app in applications_in_window
+            if app.status in {
+                ApplicationStatus.INTERVIEW.value,
+                ApplicationStatus.ACCEPTED.value,
+                ApplicationStatus.HIRED.value,
+            }
+        ),
+        "hired": sum(
+            1 for app in applications_in_window
+            if app.status in {ApplicationStatus.HIRED.value, ApplicationStatus.ACCEPTED.value}
+        ),
+    }
+
+    data = {
+        "window": {
+            "days": window_days,
+            "start_date": start_day,
+            "end_date": end_day,
+        },
+        "overview": {
+            "total_active_jobs": sum(1 for job in jobs if job.status == JobStatus.ACTIVE.value),
+            "applications_this_month": applications_this_month,
+            "avg_time_to_hire_hours": avg_time_to_hire_hours,
+            "response_rate_pct": response_rate_pct,
+            "avg_first_response_hours": avg_first_response_hours,
+        },
+        "funnel": funnel,
+        "top_vacancies": top_vacancies,
+        "pipeline_summary": pipeline_summary,
+        "response_time_tracker": {
+            "avg_hours": avg_first_response_hours,
+            "sample_size": len(first_response_hours),
+        },
+        "source_breakdown": source_breakdown,
+        "daily_views": _build_date_bucket_series(
+            start_day=start_day,
+            end_day=end_day,
+            counts_map=views_daily_map,
+        ),
+        "daily_applications": _build_date_bucket_series(
+            start_day=start_day,
+            end_day=end_day,
+            counts_map=apps_daily_map,
+        ),
+    }
+    return create_response(True, "Company analytics dashboard", data, start_time)
 
 
 @router.post(

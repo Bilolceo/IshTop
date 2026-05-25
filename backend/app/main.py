@@ -32,6 +32,7 @@ VERSION: 1.0.0
 # =============================================================================
 
 import logging
+import asyncio
 from contextlib import asynccontextmanager
 from datetime import datetime
 from typing import Any, Dict
@@ -57,6 +58,7 @@ from app.database import (
 )
 from app.models import User, UserRole, AdminSubRole
 from app.services.startup_seed import run_startup_auto_seed
+from app.services.company_weekly_digest import send_due_company_weekly_digests
 
 # =============================================================================
 # LOGGING CONFIGURATION
@@ -246,12 +248,42 @@ async def lifespan(app: FastAPI):
     if settings.DEBUG:
         print_config_summary()
     
+    digest_task: asyncio.Task | None = None
+
+    async def _weekly_digest_loop() -> None:
+        """Periodic loop that sends due Monday digests."""
+        interval = max(300, int(settings.COMPANY_WEEKLY_DIGEST_POLL_SECONDS))
+        while True:
+            db: Session | None = None
+            try:
+                db = SessionLocal()
+                result = await send_due_company_weekly_digests(db=db)
+                if result.get("sent", 0) > 0:
+                    logger.info(
+                        "Weekly digest sent=%s skipped=%s failed=%s",
+                        result.get("sent", 0),
+                        result.get("skipped", 0),
+                        result.get("failed", 0),
+                    )
+            except asyncio.CancelledError:
+                raise
+            except Exception as exc:
+                logger.exception("Weekly digest scheduler iteration failed: %s", exc)
+            finally:
+                if db is not None:
+                    db.close()
+
+            await asyncio.sleep(interval)
+
     # Check database connection
     if check_database_connection():
         logger.info("✅ Database connection successful")
         normalize_legacy_user_role_values()
         _bootstrap_admin_user()
         run_startup_auto_seed()
+        if settings.COMPANY_WEEKLY_DIGEST_ENABLED:
+            digest_task = asyncio.create_task(_weekly_digest_loop())
+            logger.info("📬 Company weekly digest scheduler started")
     else:
         logger.error("❌ Database connection failed!")
 
@@ -266,6 +298,13 @@ async def lifespan(app: FastAPI):
     # SHUTDOWN
     # =========================================================================
     
+    if digest_task:
+        digest_task.cancel()
+        try:
+            await digest_task
+        except asyncio.CancelledError:
+            pass
+
     logger.info("=" * 60)
     logger.info(f"👋 Shutting down {settings.APP_NAME}...")
     logger.info("=" * 60)

@@ -442,7 +442,18 @@ export default function JobApplicantsPage() {
       ) : viewMode === "list" ? (
         <Card>
           <CardContent className="p-0">
-            <div className="grid grid-cols-[44px_1fr_auto_auto] items-center border-b border-surface-200 px-4 py-3 text-xs font-semibold uppercase tracking-wider text-surface-500 dark:border-surface-700">
+            <div className="flex items-center justify-between border-b border-surface-200 px-4 py-3 text-xs font-semibold uppercase tracking-wider text-surface-500 md:hidden dark:border-surface-700">
+              <span>{isRu ? "Кандидаты" : "Nomzodlar"}</span>
+              <button
+                type="button"
+                onClick={toggleSelectAllFiltered}
+                className="inline-flex items-center gap-1 rounded border border-surface-300 px-2 py-1 text-[11px] text-surface-700 dark:border-surface-600 dark:text-surface-200"
+              >
+                {allFilteredSelected ? <CheckSquare className="h-3.5 w-3.5" /> : <Square className="h-3.5 w-3.5" />}
+                {isRu ? "Выбрать все" : "Hammasini tanlash"}
+              </button>
+            </div>
+            <div className="hidden md:grid md:grid-cols-[44px_1fr_auto_auto] items-center border-b border-surface-200 px-4 py-3 text-xs font-semibold uppercase tracking-wider text-surface-500 dark:border-surface-700">
               <button
                 type="button"
                 onClick={toggleSelectAllFiltered}
@@ -458,11 +469,11 @@ export default function JobApplicantsPage() {
 
             <div className="divide-y divide-surface-200 dark:divide-surface-700">
               {filteredApplications.map((application) => (
-                <div key={application.id} className="grid grid-cols-[44px_1fr_auto_auto] items-start gap-3 p-4">
+                <div key={application.id} className="grid grid-cols-1 items-start gap-3 p-4 md:grid-cols-[44px_1fr_auto_auto]">
                   <button
                     type="button"
                     onClick={() => toggleRow(application.id)}
-                    className="mt-1 inline-flex h-6 w-6 items-center justify-center rounded border border-surface-300 text-surface-600 transition-colors hover:bg-surface-100 dark:border-surface-600 dark:text-surface-300 dark:hover:bg-surface-800"
+                    className="mt-1 inline-flex h-6 w-6 items-center justify-center rounded border border-surface-300 text-surface-600 transition-colors hover:bg-surface-100 dark:border-surface-600 dark:text-surface-300 dark:hover:bg-surface-800 md:justify-self-start"
                     aria-label={isRu ? "Выбрать кандидата" : "Nomzodni tanlash"}
                   >
                     {selectedSet.has(application.id) ? (
@@ -509,15 +520,15 @@ export default function JobApplicantsPage() {
                     )}
                   </div>
 
-                  <div className="space-y-2">
-                    <p className="text-center text-lg font-bold text-brand-600">{parseMatchScore(application.match_score).toFixed(0)}%</p>
+                  <div className="space-y-2 md:min-w-[150px]">
+                    <p className="text-left text-lg font-bold text-brand-600 md:text-center">{parseMatchScore(application.match_score).toFixed(0)}%</p>
                     <Select
                       value={(application.status as KnownApplicationStatus) || "pending"}
                       onValueChange={(value) =>
                         void moveApplicationToStatus(application.id, value as KnownApplicationStatus)
                       }
                     >
-                      <SelectTrigger className="w-40">
+                      <SelectTrigger className="w-full md:w-40">
                         <SelectValue />
                       </SelectTrigger>
                       <SelectContent>
@@ -530,7 +541,7 @@ export default function JobApplicantsPage() {
                     </Select>
                   </div>
 
-                  <div className="flex items-center gap-2">
+                  <div className="flex items-center gap-2 md:justify-end">
                     <Link href={`/company/applicants/${application.id}`}>
                       <Button variant="outline" size="sm">
                         <FileText className="mr-1 h-3.5 w-3.5" />
@@ -544,7 +555,7 @@ export default function JobApplicantsPage() {
           </CardContent>
         </Card>
       ) : (
-        <div className="grid gap-4 xl:grid-cols-4 2xl:grid-cols-7">
+        <div className="flex gap-4 overflow-x-auto pb-2">
           {STATUS_FLOW.map((column) => {
             const items = grouped.get(column.key) || [];
             return (
@@ -552,7 +563,7 @@ export default function JobApplicantsPage() {
                 key={column.key}
                 onDragOver={(event) => event.preventDefault()}
                 onDrop={() => void onDropToColumn(column.key)}
-                className={`min-h-[320px] rounded-2xl border p-3 ${column.tone}`}
+                className={`min-h-[320px] min-w-[260px] flex-1 rounded-2xl border p-3 sm:min-w-[280px] ${column.tone}`}
               >
                 <div className="mb-3 flex items-center justify-between">
                   <p className="text-xs font-bold uppercase tracking-wider text-surface-700 dark:text-surface-200">
@@ -623,7 +634,7 @@ export default function JobApplicantsPage() {
       )}
 
       <Dialog open={emailDialogOpen} onOpenChange={setEmailDialogOpen}>
-        <DialogContent>
+        <DialogContent className="max-sm:h-[100dvh] max-sm:w-screen max-sm:max-w-none max-sm:rounded-none max-sm:border-0">
           <DialogHeader>
             <DialogTitle>{isRu ? "Массовая отправка писем" : "Ommaviy xat yuborish"}</DialogTitle>
             <DialogDescription>

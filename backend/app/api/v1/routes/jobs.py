@@ -30,6 +30,7 @@ VERSION: 1.0.0
 import logging
 import time
 import re
+from copy import deepcopy
 from datetime import datetime, timezone
 from typing import Optional, List, Dict, Any
 from uuid import UUID
@@ -2037,3 +2038,69 @@ async def reopen_job(
 
     logger.info(f"Job reopened: {job.id}")
     return job_to_response(job)
+
+
+@router.post(
+    "/{job_id}/clone",
+    response_model=JobResponse,
+    summary="Clone job as draft",
+    description="""
+    Clone an existing company job into a new draft posting.
+
+    **Access:** Only the owner company can clone.
+    """,
+)
+async def clone_job(
+    job_id: UUID,
+    current_user: User = Depends(get_current_company),
+    db: Session = Depends(get_db),
+):
+    source_job = db.query(Job).filter(
+        Job.id == job_id,
+        Job.company_id == current_user.id,
+        Job.is_deleted == False,
+    ).first()
+
+    if not source_job:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail="Job not found",
+        )
+
+    cloned_job = Job(
+        company_id=current_user.id,
+        title=source_job.title,
+        description=source_job.description,
+        requirements=deepcopy(source_job.requirements),
+        responsibilities=deepcopy(source_job.responsibilities),
+        benefits=deepcopy(source_job.benefits),
+        salary_min=source_job.salary_min,
+        salary_max=source_job.salary_max,
+        salary_currency=source_job.salary_currency or "UZS",
+        is_salary_visible=source_job.is_salary_visible,
+        location=source_job.location,
+        city_slug=source_job.city_slug,
+        is_remote_allowed=source_job.is_remote_allowed,
+        job_type=source_job.job_type,
+        experience_level=source_job.experience_level,
+        profession_slug=source_job.profession_slug,
+        company_slug=source_job.company_slug,
+        status=JobStatus.DRAFT.value,
+        close_reason_code=None,
+        close_reason_note=None,
+        views_count=0,
+        applications_count=0,
+        trust_score=0.0,
+        trust_factors=[],
+        trust_badges=[],
+        external_apply_url=source_job.external_apply_url,
+        is_featured=False,
+        expires_at=source_job.expires_at,
+    )
+
+    db.add(cloned_job)
+    db.commit()
+    db.refresh(cloned_job)
+
+    logger.info(f"Job cloned: source={source_job.id}, clone={cloned_job.id}")
+    return job_to_response(cloned_job)

@@ -462,7 +462,18 @@ export default function CompanyApplicantsPage() {
             </div>
           ) : (
             <>
-              <div className="grid grid-cols-[44px_1fr_auto_auto] items-center border-b border-surface-200 px-4 py-3 text-xs font-semibold uppercase tracking-wider text-surface-500 dark:border-surface-700">
+              <div className="flex items-center justify-between border-b border-surface-200 px-4 py-3 text-xs font-semibold uppercase tracking-wider text-surface-500 md:hidden dark:border-surface-700">
+                <span>{isRu ? "Кандидаты" : "Nomzodlar"}</span>
+                <button
+                  type="button"
+                  onClick={toggleSelectAllFiltered}
+                  className="inline-flex items-center gap-1 rounded border border-surface-300 px-2 py-1 text-[11px] text-surface-700 dark:border-surface-600 dark:text-surface-200"
+                >
+                  {allFilteredSelected ? <CheckSquare className="h-3.5 w-3.5" /> : <Square className="h-3.5 w-3.5" />}
+                  {isRu ? "Выбрать все" : "Hammasini tanlash"}
+                </button>
+              </div>
+              <div className="hidden md:grid md:grid-cols-[44px_1fr_auto_auto] items-center border-b border-surface-200 px-4 py-3 text-xs font-semibold uppercase tracking-wider text-surface-500 dark:border-surface-700">
                 <button
                   type="button"
                   onClick={toggleSelectAllFiltered}
@@ -478,7 +489,7 @@ export default function CompanyApplicantsPage() {
 
               <div className="divide-y divide-surface-200 dark:divide-surface-700">
                 {filteredApplications.map((application) => (
-                  <div key={application.id} className="grid grid-cols-[44px_1fr_auto_auto] items-start gap-3 p-4">
+                  <div key={application.id} className="grid grid-cols-1 items-start gap-3 p-4 md:grid-cols-[44px_1fr_auto_auto]">
                     <button
                       type="button"
                       onClick={() => toggleRow(application.id)}
@@ -536,9 +547,9 @@ export default function CompanyApplicantsPage() {
                       )}
                     </div>
 
-                    <div className="space-y-2">
+                    <div className="space-y-2 md:min-w-[170px]">
                       {application.match_score && (
-                        <p className="text-center text-xl font-bold text-brand-600">
+                        <p className="text-left text-xl font-bold text-brand-600 md:text-center">
                           {application.match_score}
                         </p>
                       )}
@@ -548,7 +559,7 @@ export default function CompanyApplicantsPage() {
                           void handleStatusChange(application.id, value as KnownApplicationStatus)
                         }
                       >
-                        <SelectTrigger className="w-44">
+                        <SelectTrigger className="w-full md:w-44">
                           <SelectValue />
                         </SelectTrigger>
                         <SelectContent>
@@ -561,7 +572,7 @@ export default function CompanyApplicantsPage() {
                       </Select>
                     </div>
 
-                    <div className="flex justify-end">
+                    <div className="flex justify-start md:justify-end">
                       <Link href={`/company/applicants/${application.id}`}>
                         <Button variant="outline" size="sm">
                           <FileText className="mr-2 h-4 w-4" />
@@ -578,7 +589,7 @@ export default function CompanyApplicantsPage() {
       </Card>
 
       <Dialog open={emailDialogOpen} onOpenChange={setEmailDialogOpen}>
-        <DialogContent>
+        <DialogContent className="max-sm:h-[100dvh] max-sm:w-screen max-sm:max-w-none max-sm:rounded-none max-sm:border-0">
           <DialogHeader>
             <DialogTitle>{isRu ? "Массовая отправка писем" : "Ommaviy xat yuborish"}</DialogTitle>
             <DialogDescription>

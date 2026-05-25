@@ -7,6 +7,7 @@
 
 import { useEffect, useState } from "react";
 import Link from "next/link";
+import { useRouter } from "next/navigation";
 import {
   PlusCircle,
   Briefcase,
@@ -21,6 +22,7 @@ import {
   Clock,
   PauseCircle,
   PlayCircle,
+  Copy,
 } from "lucide-react";
 import { useJobs } from "@/hooks/useJobs";
 import { useTranslation } from "@/hooks/useTranslation";
@@ -42,6 +44,7 @@ import { formatRelativeTime, formatSalaryRange } from "@/lib/utils";
 import type { Job } from "@/types/api";
 
 export default function CompanyJobsPage() {
+  const router = useRouter();
   const { t, locale } = useTranslation();
   const isRu = locale === "ru";
   const statusLabel: Record<string, string> = isRu
@@ -55,6 +58,7 @@ export default function CompanyJobsPage() {
     pauseJob,
     reopenJob,
     closeJob,
+    cloneJob,
     deleteJob,
   } = useJobs();
   const [activeMenu, setActiveMenu] = useState<string | null>(null);
@@ -63,10 +67,9 @@ export default function CompanyJobsPage() {
   const [closeReasonNote, setCloseReasonNote] = useState("");
   const [actionJobId, setActionJobId] = useState<string | null>(null);
 
-  // eslint-disable-next-line react-hooks/exhaustive-deps
   useEffect(() => {
-    fetchMyJobs();
-  }, []);
+    void fetchMyJobs();
+  }, [fetchMyJobs]);
 
   const handleAction = async (action: string, job: Job) => {
     setActiveMenu(null);
@@ -75,6 +78,12 @@ export default function CompanyJobsPage() {
       if (action === "publish") await publishJob(job.id);
       if (action === "pause") await pauseJob(job.id);
       if (action === "reopen") await reopenJob(job.id);
+      if (action === "clone") {
+        const cloned = await cloneJob(job.id);
+        if (cloned?.id) {
+          router.push(`/company/jobs/${cloned.id}/edit`);
+        }
+      }
       if (action === "close") {
         setCloseReasonCode("hired");
         setCloseReasonNote("");
@@ -108,7 +117,6 @@ export default function CompanyJobsPage() {
 
   const activeJobs = jobs.filter((j) => j.status === "active");
   const draftJobs = jobs.filter((j) => j.status === "draft");
-  const closedJobs = jobs.filter((j) => j.status === "closed");
   const totalApplications = jobs.reduce((sum, j) => sum + (j.applications_count ?? 0), 0);
   const totalViews = jobs.reduce((sum, j) => sum + (j.views_count ?? 0), 0);
 
@@ -228,6 +236,11 @@ export default function CompanyJobsPage() {
           {jobs.map((job) => (
             <Card key={job.id}>
               <CardContent className="p-5">
+                {(() => {
+                  const views = Number(job.views_count || 0);
+                  const apps = Number(job.applications_count || 0);
+                  const conversion = views > 0 ? ((apps / views) * 100).toFixed(1) : "0.0";
+                  return (
                 <div className="flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
                   <div className="flex-1">
                     {/* Header */}
@@ -275,6 +288,13 @@ export default function CompanyJobsPage() {
                           {job.views_count}
                         </span>
                         <span className="text-surface-500">{t("companyJobsPage.views")}</span>
+                      </div>
+                      <div className="flex items-center gap-2 text-sm">
+                        <TrendingUp className="h-4 w-4 text-surface-400" />
+                        <span className="font-medium text-surface-900 dark:text-white">
+                          {conversion}%
+                        </span>
+                        <span className="text-surface-500">{isRu ? "Конверсия" : "Konversiya"}</span>
                       </div>
                       <div className="flex items-center gap-2 text-sm text-surface-500">
                         <Clock className="h-4 w-4" />
@@ -361,6 +381,13 @@ export default function CompanyJobsPage() {
                               </button>
                             )}
                             <button
+                              onClick={() => handleAction("clone", job)}
+                              className="flex w-full items-center gap-2 rounded-lg px-3 py-2 text-sm text-surface-600 hover:bg-surface-100 dark:text-surface-400 dark:hover:bg-surface-700"
+                            >
+                              <Copy className="h-4 w-4" />
+                              {isRu ? "Клонировать" : "Nusxa ko'chirish"}
+                            </button>
+                            <button
                               onClick={() => handleAction("delete", job)}
                               className="flex w-full items-center gap-2 rounded-lg px-3 py-2 text-sm text-red-600 hover:bg-red-50 dark:hover:bg-red-500/10"
                             >
@@ -373,6 +400,8 @@ export default function CompanyJobsPage() {
                     </div>
                   </div>
                 </div>
+                  );
+                })()}
               </CardContent>
             </Card>
           ))}
@@ -380,7 +409,7 @@ export default function CompanyJobsPage() {
       )}
 
       <Dialog open={!!closeDialogJob} onOpenChange={(open) => !open && setCloseDialogJob(null)}>
-        <DialogContent>
+        <DialogContent className="max-sm:h-[100dvh] max-sm:w-screen max-sm:max-w-none max-sm:rounded-none max-sm:border-0">
           <DialogHeader>
             <DialogTitle>{isRu ? "Закрыть вакансию" : "Vakansiyani yopish"}</DialogTitle>
             <DialogDescription>

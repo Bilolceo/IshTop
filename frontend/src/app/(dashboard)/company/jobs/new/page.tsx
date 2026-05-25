@@ -133,6 +133,9 @@ export default function NewJobPage() {
   const isRu = locale === "ru";
   const [currentStep, setCurrentStep] = useState(1);
   const [isGenerating, setIsGenerating] = useState(false);
+  const [aiProgress, setAiProgress] = useState(0);
+  const [aiTone, setAiTone] = useState<"professional" | "friendly" | "startup">("professional");
+  const [aiLocale, setAiLocale] = useState<"uz" | "ru" | "en">(locale === "ru" ? "ru" : "uz");
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [skillInput, setSkillInput] = useState("");
 
@@ -224,13 +227,18 @@ export default function NewJobPage() {
     }
 
     setIsGenerating(true);
+    setAiProgress(8);
+    const progressTimer = window.setInterval(() => {
+      setAiProgress((prev) => (prev >= 90 ? prev : prev + 9));
+    }, 300);
     try {
       const res = await aiApi.hrJobDescription({
         title: formData.title,
         seniority: formData.experienceLevel || "mid",
+        tone: aiTone,
         location: formData.location,
         must_have: (formData.skills || []).slice(0, 10),
-        locale,
+        locale: aiLocale,
       });
       const data = (res.data as { data: { description: string; summary?: string; requirements: string[]; responsibilities: string[]; benefits: string[]; nice_to_have: string[]; ai_generated: boolean } }).data;
 
@@ -257,6 +265,7 @@ export default function NewJobPage() {
       const benefitsBlock = (data.benefits || []).map((b) => `• ${b}`).join("\n");
       setValue("benefits", plainTextToRichHtml(benefitsBlock), { shouldDirty: true, shouldValidate: true });
       setValue("requirements", requirementsBlock);
+      setAiProgress(100);
       toast.success(
         data.ai_generated
           ? (isRu ? "AI описание сгенерировано!" : "AI tavsif yaratildi!")
@@ -265,6 +274,8 @@ export default function NewJobPage() {
     } catch (error) {
       toast.error(getErrorMessage(error));
     } finally {
+      window.clearInterval(progressTimer);
+      window.setTimeout(() => setAiProgress(0), 500);
       setIsGenerating(false);
     }
   };
@@ -570,9 +581,53 @@ export default function NewJobPage() {
                       ) : (
                         <Wand2 className="mr-2 h-4 w-4" />
                       )}
-                      AI bilan yaratish
+                      {formData.description ? "Qayta yaratish" : "AI bilan yaratish"}
                     </Button>
                   </div>
+
+                  <div className="grid gap-3 sm:grid-cols-2">
+                    <div className="space-y-1.5">
+                      <Label>AI uslubi</Label>
+                      <Select
+                        value={aiTone}
+                        onValueChange={(value) => setAiTone(value as "professional" | "friendly" | "startup")}
+                      >
+                        <SelectTrigger>
+                          <SelectValue />
+                        </SelectTrigger>
+                        <SelectContent>
+                          <SelectItem value="professional">Professional</SelectItem>
+                          <SelectItem value="friendly">Friendly</SelectItem>
+                          <SelectItem value="startup">Startup</SelectItem>
+                        </SelectContent>
+                      </Select>
+                    </div>
+                    <div className="space-y-1.5">
+                      <Label>AI tili</Label>
+                      <Select value={aiLocale} onValueChange={(value) => setAiLocale(value as "uz" | "ru" | "en")}>
+                        <SelectTrigger>
+                          <SelectValue />
+                        </SelectTrigger>
+                        <SelectContent>
+                          <SelectItem value="uz">O&apos;zbekcha</SelectItem>
+                          <SelectItem value="ru">Ruscha</SelectItem>
+                          <SelectItem value="en">English</SelectItem>
+                        </SelectContent>
+                      </Select>
+                    </div>
+                  </div>
+
+                  {isGenerating && (
+                    <div className="rounded-xl border border-brand-200 bg-brand-50 p-3 dark:border-brand-500/30 dark:bg-brand-500/10">
+                      <div className="mb-2 flex items-center justify-between text-sm">
+                        <span className="font-medium text-brand-800 dark:text-brand-200">
+                          AI tavsif tayyorlanmoqda...
+                        </span>
+                        <span className="text-brand-700 dark:text-brand-300">{aiProgress}%</span>
+                      </div>
+                      <Progress value={aiProgress} className="h-2" />
+                    </div>
+                  )}
 
                   <RichTextEditor
                     value={formData.description || ""}

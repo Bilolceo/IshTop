@@ -298,6 +298,23 @@ export function useJobs() {
     }
   }, []);
 
+  const cloneJob = useCallback(async (jobId: string) => {
+    try {
+      const response = await jobApi.clone(jobId);
+      const clonedJob = response.data as Job;
+      setState((prev) => ({
+        ...prev,
+        jobs: [clonedJob, ...prev.jobs],
+        totalCount: prev.totalCount + 1,
+      }));
+      toast.success("Vakansiya nusxasi qoralama holatda yaratildi");
+      return clonedJob;
+    } catch (error) {
+      toast.error(getErrorMessage(error));
+      throw error;
+    }
+  }, []);
+
   // Save job
   const saveJob = useCallback(async (jobId: string) => {
     console.log("Job saved:", jobId);
@@ -322,6 +339,7 @@ export function useJobs() {
     pauseJob,
     reopenJob,
     closeJob,
+    cloneJob,
     deleteJob,
     saveJob,
     unsaveJob,

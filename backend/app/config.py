@@ -258,6 +258,15 @@ class Settings(BaseSettings):
 
     TELEGRAM_BOT_TOKEN: str = ""
     TELEGRAM_API_BASE_URL: str = "https://api.telegram.org"
+
+    # =========================================================================
+    # 📬 COMPANY WEEKLY DIGEST
+    # =========================================================================
+
+    COMPANY_WEEKLY_DIGEST_ENABLED: bool = True
+    COMPANY_WEEKLY_DIGEST_TIMEZONE: str = "Asia/Tashkent"
+    COMPANY_WEEKLY_DIGEST_SEND_HOUR_LOCAL: int = 9
+    COMPANY_WEEKLY_DIGEST_POLL_SECONDS: int = 900
     
     # =========================================================================
     # 🔐 OAUTH2 SETTINGS (Google, LinkedIn)

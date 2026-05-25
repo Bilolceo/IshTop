@@ -21,6 +21,7 @@ import {
   Users,
   PlusCircle,
   LayoutDashboard,
+  BarChart3,
   Zap,
   AlertTriangle,
   Server,
@@ -83,6 +84,11 @@ const companyNavItems: NavItem[] = [
     labelKey: "dashboard.sidebar.applicants",
     href: "/company/applicants",
     icon: Users,
+  },
+  {
+    labelKey: "dashboard.sidebar.analytics",
+    href: "/company/analytics",
+    icon: BarChart3,
   },
   {
     labelKey: "dashboard.sidebar.settings",
@@ -438,8 +444,34 @@ export function DashboardLayout({ children }: DashboardLayoutProps) {
         </header>
 
         {/* Page content */}
-        <main className="p-4 sm:p-6 lg:p-8">{children}</main>
+        <main className={cn("p-4 sm:p-6 lg:p-8", isCompany ? "pb-24 lg:pb-8" : "")}>{children}</main>
       </div>
+
+      {isCompany && (
+        <nav className="fixed inset-x-0 bottom-0 z-30 border-t border-surface-200 bg-white/95 px-2 py-2 backdrop-blur lg:hidden dark:border-surface-700 dark:bg-surface-900/95">
+          <div className="grid grid-cols-4 gap-1">
+            {companyNavItems.map((item) => {
+              const isActive = isNavItemActive(item);
+              return (
+                <Link
+                  key={item.href}
+                  href={item.href}
+                  className={cn(
+                    "inline-flex items-center justify-center rounded-xl p-3 transition-colors",
+                    isActive
+                      ? "bg-brand-50 text-brand-700 dark:bg-brand-500/20 dark:text-brand-300"
+                      : "text-surface-600 hover:bg-surface-100 dark:text-surface-300 dark:hover:bg-surface-800"
+                  )}
+                  aria-label={t(item.labelKey)}
+                >
+                  <item.icon className="h-5 w-5" />
+                  <span className="sr-only">{t(item.labelKey)}</span>
+                </Link>
+              );
+            })}
+          </div>
+        </nav>
+      )}
     </div>
   );
 }

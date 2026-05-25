@@ -33,6 +33,8 @@ import {
   Tag,
   X,
   Send,
+  CalendarPlus,
+  ExternalLink,
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
@@ -106,6 +108,79 @@ function toDatetimeLocalValue(value?: string) {
   const minutes = `${date.getMinutes()}`.padStart(2, "0");
 
   return `${year}-${month}-${day}T${hours}:${minutes}`;
+}
+
+type InterviewCalendarPayload = {
+  title: string;
+  description: string;
+  location: string;
+  startIso: string;
+  endIso: string;
+  candidateEmail?: string;
+};
+
+function toGoogleUtcDate(value: string): string {
+  const date = new Date(value);
+  const year = date.getUTCFullYear();
+  const month = `${date.getUTCMonth() + 1}`.padStart(2, "0");
+  const day = `${date.getUTCDate()}`.padStart(2, "0");
+  const hours = `${date.getUTCHours()}`.padStart(2, "0");
+  const minutes = `${date.getUTCMinutes()}`.padStart(2, "0");
+  const seconds = `${date.getUTCSeconds()}`.padStart(2, "0");
+  return `${year}${month}${day}T${hours}${minutes}${seconds}Z`;
+}
+
+function buildGoogleCalendarUrl(payload: InterviewCalendarPayload): string {
+  const url = new URL("https://calendar.google.com/calendar/render");
+  url.searchParams.set("action", "TEMPLATE");
+  url.searchParams.set("text", payload.title);
+  url.searchParams.set(
+    "dates",
+    `${toGoogleUtcDate(payload.startIso)}/${toGoogleUtcDate(payload.endIso)}`
+  );
+  url.searchParams.set("details", payload.description);
+  url.searchParams.set("location", payload.location);
+  if (payload.candidateEmail) {
+    url.searchParams.set("add", payload.candidateEmail);
+  }
+  return url.toString();
+}
+
+function escapeIcs(value: string): string {
+  return value
+    .replace(/\\/g, "\\\\")
+    .replace(/\n/g, "\\n")
+    .replace(/,/g, "\\,")
+    .replace(/;/g, "\\;");
+}
+
+function buildIcsContent(payload: InterviewCalendarPayload): string {
+  const uid = `ishtop-${Date.now()}@calendar`;
+  const now = toGoogleUtcDate(new Date().toISOString());
+  const start = toGoogleUtcDate(payload.startIso);
+  const end = toGoogleUtcDate(payload.endIso);
+  const attendees = payload.candidateEmail
+    ? `\nATTENDEE;CN=Candidate:mailto:${payload.candidateEmail}`
+    : "";
+  return [
+    "BEGIN:VCALENDAR",
+    "VERSION:2.0",
+    "PRODID:-//IshTop//Interview Calendar//EN",
+    "CALSCALE:GREGORIAN",
+    "METHOD:REQUEST",
+    "BEGIN:VEVENT",
+    `UID:${uid}`,
+    `DTSTAMP:${now}`,
+    `DTSTART:${start}`,
+    `DTEND:${end}`,
+    `SUMMARY:${escapeIcs(payload.title)}`,
+    `DESCRIPTION:${escapeIcs(payload.description)}`,
+    `LOCATION:${escapeIcs(payload.location)}`,
+    `ORGANIZER;CN=IshTop:mailto:no-reply@ishtop.uz${attendees}`,
+    "END:VEVENT",
+    "END:VCALENDAR",
+    "",
+  ].join("\n");
 }
 
 function sanitizeInterviewNotes(value?: string | null): string {
@@ -238,6 +313,7 @@ export default function ApplicantDetailPage() {
   const [privateTags, setPrivateTags] = useState<string[]>([]);
   const [tagInput, setTagInput] = useState("");
   const [notesSaving, setNotesSaving] = useState(false);
+  const [inviteSending, setInviteSending] = useState(false);
 
   const [messageDialogOpen, setMessageDialogOpen] = useState(false);
   const [messageTemplate, setMessageTemplate] = useState<
@@ -595,6 +671,76 @@ export default function ApplicantDetailPage() {
   const status = statusConfig[application.status as KnownApplicationStatus] || statusConfig.pending;
   const StatusIcon = status.icon;
   const isVideoInterview = interviewFormat === "video";
+  const interviewIso =
+    application.interview_at ||
+    (interviewDateTime ? new Date(interviewDateTime).toISOString() : "");
+  const calendarPayload: InterviewCalendarPayload | null = interviewIso
+    ? {
+        title: `${job?.title || "Vakansiya"} — ${isRu ? "Собеседование" : "Intervyu"}`,
+        description: isRu
+          ? `Кандидат: ${applicant?.full_name || "—"}\nПозиция: ${job?.title || "—"}\n${
+              interviewNotes?.trim() ? `Комментарий: ${interviewNotes.trim()}` : ""
+            }`
+          : `Nomzod: ${applicant?.full_name || "—"}\nLavozim: ${job?.title || "—"}\n${
+              interviewNotes?.trim() ? `Izoh: ${interviewNotes.trim()}` : ""
+            }`,
+        location:
+          interviewFormat === "video"
+            ? meetingLink.trim() || (isRu ? "Онлайн" : "Onlayn")
+            : interviewFormat === "phone"
+              ? isRu
+                ? "Телефон"
+                : "Telefon"
+              : isRu
+                ? "Офлайн встреча"
+                : "Ofis uchrashuvi",
+        startIso: interviewIso,
+        endIso: new Date(new Date(interviewIso).getTime() + 60 * 60 * 1000).toISOString(),
+        candidateEmail: applicant?.email || undefined,
+      }
+    : null;
+  const googleCalendarUrl = calendarPayload ? buildGoogleCalendarUrl(calendarPayload) : "";
+
+  const downloadOutlookIcs = () => {
+    if (!calendarPayload) return;
+    const ics = buildIcsContent(calendarPayload);
+    const blob = new Blob([ics], { type: "text/calendar;charset=utf-8" });
+    const link = document.createElement("a");
+    link.href = URL.createObjectURL(blob);
+    link.download = `interview-${job?.title || "job"}.ics`;
+    document.body.appendChild(link);
+    link.click();
+    document.body.removeChild(link);
+    URL.revokeObjectURL(link.href);
+  };
+
+  const sendCalendarInviteToCandidate = async () => {
+    if (!calendarPayload || !applicant?.email) return;
+    setInviteSending(true);
+    try {
+      const subject = isRu
+        ? `Приглашение на собеседование — ${job?.title || "вакансия"}`
+        : `Intervyu taklifi — ${job?.title || "vakansiya"}`;
+      const body = isRu
+        ? `Здравствуйте, ${applicant.full_name || "кандидат"}!\n\nПриглашаем вас на собеседование.\nДата и время: ${formatDate(
+            calendarPayload.startIso
+          )}\nGoogle Calendar: ${googleCalendarUrl}\n\nС уважением,\nIshTop`
+        : `Assalomu alaykum, ${applicant.full_name || "nomzod"}!\n\nSizni intervyuga taklif qilamiz.\nSana va vaqt: ${formatDate(
+            calendarPayload.startIso
+          )}\nGoogle Calendar: ${googleCalendarUrl}\n\nHurmat bilan,\nIshTop`;
+      await applicationApi.sendMessage(appId, {
+        subject,
+        body,
+        template_key: "interview_calendar",
+      });
+      toast.success(isRu ? "Календарное приглашение отправлено" : "Calendar taklif yuborildi");
+      await loadMessageHistory();
+    } catch (error) {
+      toast.error(error instanceof Error ? error.message : getErrorMessage(error));
+    } finally {
+      setInviteSending(false);
+    }
+  };
 
   return (
     <div className="mx-auto max-w-4xl space-y-6 p-4 md:p-6">
@@ -829,6 +975,35 @@ export default function ApplicantDetailPage() {
                   Bu forma statusni avtomatik ravishda <span className="font-medium text-surface-700">interview</span> ga o'tkazadi va formatni saqlaydi.
                 </p>
               </div>
+
+              {calendarPayload && (
+                <div className="rounded-xl border border-surface-200 p-3 dark:border-surface-700">
+                  <p className="mb-2 text-sm font-medium text-surface-800 dark:text-surface-100">
+                    {isRu ? "Экспорт в календарь" : "Calendar integratsiyasi"}
+                  </p>
+                  <div className="flex flex-wrap gap-2">
+                    <a href={googleCalendarUrl} target="_blank" rel="noopener noreferrer">
+                      <Button type="button" variant="outline">
+                        <CalendarPlus className="mr-2 h-4 w-4" />
+                        Google Calendar&apos;ga qo&apos;shish
+                      </Button>
+                    </a>
+                    <Button type="button" variant="outline" onClick={downloadOutlookIcs}>
+                      <Download className="mr-2 h-4 w-4" />
+                      Outlook (.ics)
+                    </Button>
+                    <Button
+                      type="button"
+                      variant="outline"
+                      onClick={() => void sendCalendarInviteToCandidate()}
+                      disabled={inviteSending || !applicant?.email}
+                    >
+                      {inviteSending ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : <Send className="mr-2 h-4 w-4" />}
+                      {isRu ? "Отправить invite" : "Nomzodga invite yuborish"}
+                    </Button>
+                  </div>
+                </div>
+              )}
             </form>
           </motion.div>
 
@@ -1592,18 +1767,35 @@ export default function ApplicantDetailPage() {
               )}
 
               {resume.pdf_url && (
-                <a href={resume.pdf_url} target="_blank" rel="noopener noreferrer">
-                  <Button variant="outline" className="mt-4 w-full">
-                    <Download className="mr-2 h-4 w-4" />
-                    PDF ko'chirish
-                  </Button>
-                </a>
+                <div className="mt-4 space-y-3">
+                  <div className="flex flex-wrap gap-2">
+                    <a href={resume.pdf_url} target="_blank" rel="noopener noreferrer">
+                      <Button type="button" variant="outline">
+                        <ExternalLink className="mr-2 h-4 w-4" />
+                        Yangi tabda ochish
+                      </Button>
+                    </a>
+                    <a href={resume.pdf_url} download target="_blank" rel="noopener noreferrer">
+                      <Button type="button" variant="outline">
+                        <Download className="mr-2 h-4 w-4" />
+                        Yuklab olish
+                      </Button>
+                    </a>
+                  </div>
+                  <div className="overflow-hidden rounded-xl border border-surface-200 dark:border-surface-700">
+                    <iframe
+                      src={`${resume.pdf_url}#view=FitH`}
+                      title="Resume PDF preview"
+                      className="h-[560px] w-full bg-white"
+                    />
+                  </div>
+                </div>
               )}
             </motion.div>
           )}
 
           <Dialog open={messageDialogOpen} onOpenChange={setMessageDialogOpen}>
-            <DialogContent className="sm:max-w-xl">
+            <DialogContent className="sm:max-w-xl max-sm:h-[100dvh] max-sm:w-screen max-sm:max-w-none max-sm:rounded-none max-sm:border-0">
               <DialogHeader>
                 <DialogTitle>{isRu ? "Отправить сообщение кандидату" : "Nomzodga xabar yuborish"}</DialogTitle>
                 <DialogDescription>

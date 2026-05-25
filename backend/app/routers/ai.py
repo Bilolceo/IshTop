@@ -670,10 +670,11 @@ from uuid import UUID
 class JobDescriptionRequest(BaseModel):
     title: str = Field(..., min_length=2, max_length=120)
     seniority: str = Field("mid", description="intern | junior | mid | senior | lead")
+    tone: str = Field("professional", description="professional | friendly | startup")
     industry: Optional[str] = None
     location: Optional[str] = None
     must_have: List[str] = Field(default_factory=list)
-    locale: str = Field("uz", description="uz | ru")
+    locale: str = Field("uz", description="uz | ru | en")
 
 
 @router.post(
@@ -688,6 +689,7 @@ async def ai_hr_job_description(
     data = await ai_hr_service.generate_job_description(
         title=request.title,
         seniority=request.seniority,
+        tone=request.tone,
         industry=request.industry,
         location=request.location,
         must_have=request.must_have,

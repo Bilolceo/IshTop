@@ -288,6 +288,8 @@ export const jobApi = {
   close: (id: string, data?: { reason_code?: "hired" | "other"; reason_note?: string }) =>
     api.post(`/jobs/${id}/close`, data || {}),
 
+  clone: (id: string) => api.post(`/jobs/${id}/clone`),
+
   match: (resumeId: string) =>
     api.post("/jobs/match", { resume_id: resumeId }),
 
@@ -342,6 +344,12 @@ export const applicationApi = {
 
   hiringFunnel: (params?: { days?: number }) =>
     api.get("/applications/analytics/funnel", { params }),
+
+  companyDashboardAnalytics: (params?: { days?: number; start_date?: string; end_date?: string }) =>
+    api.get("/applications/analytics/company-dashboard", { params }),
+
+  jobAnalytics: (jobId: string, params?: { days?: number; start_date?: string; end_date?: string }) =>
+    api.get(`/applications/analytics/job/${jobId}`, { params }),
 
   dashboardActions: () =>
     api.get("/applications/analytics/dashboard-actions"),
@@ -493,10 +501,11 @@ export const aiApi = {
   hrJobDescription: (data: {
     title: string;
     seniority: string;
+    tone?: "professional" | "friendly" | "startup";
     industry?: string;
     location?: string;
     must_have?: string[];
-    locale?: string;
+    locale?: "uz" | "ru" | "en" | string;
   }) => api.post("/ai/hr/job-description", data),
 
   hrCandidateSummary: (applicationId: string, locale = "uz") =>
