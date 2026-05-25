@@ -106,9 +106,16 @@ test.describe("Smoke Expansion", () => {
     await page.locator("#location").fill("Tashkent, Uzbekistan");
     await page.getByRole("button", { name: /Keyingi|Next/i }).first().click({ force: true });
 
-    await page.getByPlaceholder(/Lavozim haqida batafsil ma'lumot/i).fill(
-      "We are looking for a QA engineer who can write reliable automated tests, collaborate with product teams, and improve release quality."
-    );
+    const descriptionText =
+      "We are looking for a QA engineer who can write reliable automated tests, collaborate with product teams, and improve release quality.";
+    const legacyDescriptionField = page.getByPlaceholder(/Lavozim haqida batafsil ma'lumot/i);
+    const hasLegacyDescriptionField = await legacyDescriptionField.isVisible().catch(() => false);
+    if (hasLegacyDescriptionField) {
+      await legacyDescriptionField.fill(descriptionText);
+    } else {
+      // Rich-text editor path (React Quill contenteditable area).
+      await page.locator(".ql-editor[contenteditable='true']").first().fill(descriptionText);
+    }
     await page.getByRole("button", { name: /Keyingi|Next/i }).first().click({ force: true });
 
     await page.getByPlaceholder(/Nomzodga qo'yiladigan talablar/i).fill(
