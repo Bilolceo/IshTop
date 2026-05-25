@@ -281,7 +281,12 @@ export const jobApi = {
 
   publish: (id: string) => api.post(`/jobs/${id}/publish`),
 
-  close: (id: string) => api.post(`/jobs/${id}/close`),
+  pause: (id: string) => api.post(`/jobs/${id}/pause`),
+
+  reopen: (id: string) => api.post(`/jobs/${id}/reopen`),
+
+  close: (id: string, data?: { reason_code?: "hired" | "other"; reason_note?: string }) =>
+    api.post(`/jobs/${id}/close`, data || {}),
 
   match: (resumeId: string) =>
     api.post("/jobs/match", { resume_id: resumeId }),
@@ -297,6 +302,21 @@ export const jobApi = {
 
   savedJobs: (params?: { page?: number; limit?: number }) =>
     api.get("/jobs/saved", { params }),
+
+  submitCompanyVerification: (data: { notes?: string; requested_badges?: string[] }) =>
+    api.post("/jobs/company/verification/submit", data),
+
+  discoveryCity: (slug: string, params?: { page?: number; limit?: number }) =>
+    api.get(`/jobs/discovery/cities/${slug}`, { params }),
+
+  discoveryProfession: (slug: string, params?: { page?: number; limit?: number }) =>
+    api.get(`/jobs/discovery/professions/${slug}`, { params }),
+
+  discoveryCompany: (slug: string, params?: { page?: number; limit?: number }) =>
+    api.get(`/jobs/discovery/companies/${slug}`, { params }),
+
+  trackEvent: (data: { event_name: string; job_id?: string; source?: string; metadata?: Record<string, unknown> }) =>
+    api.post("/jobs/events", data),
 };
 
 // Application endpoints
@@ -328,6 +348,24 @@ export const applicationApi = {
 
   upcomingInterviews: (params?: { days?: number }) =>
     api.get("/applications/interviews/upcoming", { params }),
+
+  companyList: (params?: { job_id?: string; status?: string; search?: string; tag?: string; page?: number; page_size?: number }) =>
+    api.get("/applications/company/list", { params }),
+
+  bulkStatusUpdate: (data: { application_ids: string[]; status: string; notes?: string }) =>
+    api.post("/applications/company/bulk-status", data),
+
+  bulkSendEmail: (data: { application_ids: string[]; subject: string; body: string; template_key?: string }) =>
+    api.post("/applications/company/bulk-email", data),
+
+  updateNotesTags: (applicationId: string, data: { notes?: string; tags: string[] }) =>
+    api.put(`/applications/${applicationId}/notes-tags`, data),
+
+  getMessages: (applicationId: string) =>
+    api.get(`/applications/${applicationId}/messages`),
+
+  sendMessage: (applicationId: string, data: { subject: string; body: string; template_key?: string }) =>
+    api.post(`/applications/${applicationId}/messages/send`, data),
 
   topCandidatesForJob: (jobId: string, params?: { limit?: number; pool?: "applicants" | "all" }) =>
     api.get(`/applications/jobs/${jobId}/top-candidates`, { params }),
@@ -378,6 +416,14 @@ export const adminApi = {
     api.get("/admin/jobs", { params }),
   updateJobStatus: (jobId: string, status: string) =>
     api.patch(`/admin/jobs/${jobId}/status`, { status }),
+
+  listCompanyVerification: (params?: { state?: string; limit?: number; offset?: number }) =>
+    api.get("/admin/companies/verification", { params }),
+
+  reviewCompanyVerification: (
+    companyId: string,
+    data: { action: "approve" | "reject"; notes?: string; badges?: string[] },
+  ) => api.post(`/admin/companies/${companyId}/verification/review`, data),
   deleteJob: (jobId: string) => api.delete(`/admin/jobs/${jobId}`),
 
   listCompanies: (params?: { search?: string; is_verified?: boolean; offset?: number; limit?: number }) =>

@@ -190,6 +190,14 @@ class Settings(BaseSettings):
     
     # Version number
     APP_VERSION: str = "1.0.0"
+
+    # Progressive rollout flags (Trust / Explainability / Discovery)
+    FEATURE_TRUST_ENGINE_ENABLED: bool = True
+    FEATURE_EXPLAINABLE_MATCH_ENABLED: bool = True
+    FEATURE_DISCOVERY_SEO_ENABLED: bool = True
+    FEATURE_TRUST_ROLLOUT_PERCENT: int = 100
+    FEATURE_EXPLAINABILITY_ROLLOUT_PERCENT: int = 100
+    FEATURE_DISCOVERY_ROLLOUT_PERCENT: int = 100
     
     # Debug mode
     # True: Shows detailed errors, enables /docs endpoint
@@ -243,6 +251,13 @@ class Settings(BaseSettings):
     
     # Support email
     SUPPORT_EMAIL: str = "support@ishtop.uz"
+
+    # =========================================================================
+    # 📲 TELEGRAM NOTIFICATIONS
+    # =========================================================================
+
+    TELEGRAM_BOT_TOKEN: str = ""
+    TELEGRAM_API_BASE_URL: str = "https://api.telegram.org"
     
     # =========================================================================
     # 🔐 OAUTH2 SETTINGS (Google, LinkedIn)
@@ -358,6 +373,9 @@ class Settings(BaseSettings):
         "PAYMENTS_REQUIRE_WEBHOOK_SECRET",
         "AUTH_COOKIE_SECURE",
         "AUTH_COOKIE_HTTPONLY",
+        "FEATURE_TRUST_ENGINE_ENABLED",
+        "FEATURE_EXPLAINABLE_MATCH_ENABLED",
+        "FEATURE_DISCOVERY_SEO_ENABLED",
         mode="before",
     )
     @classmethod
@@ -377,6 +395,9 @@ class Settings(BaseSettings):
         """
         if self.DEBUG and "RATE_LIMIT_ENABLED" not in os.environ:
             self.RATE_LIMIT_ENABLED = False
+        self.FEATURE_TRUST_ROLLOUT_PERCENT = max(0, min(100, int(self.FEATURE_TRUST_ROLLOUT_PERCENT)))
+        self.FEATURE_EXPLAINABILITY_ROLLOUT_PERCENT = max(0, min(100, int(self.FEATURE_EXPLAINABILITY_ROLLOUT_PERCENT)))
+        self.FEATURE_DISCOVERY_ROLLOUT_PERCENT = max(0, min(100, int(self.FEATURE_DISCOVERY_ROLLOUT_PERCENT)))
         return self
 
     @model_validator(mode="after")

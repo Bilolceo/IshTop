@@ -64,7 +64,7 @@ from typing import Optional, List, Dict, Any, TYPE_CHECKING
 
 # SQLAlchemy imports
 from sqlalchemy import (
-    Column, String, Boolean, DateTime, Enum as SQLEnum,
+    Column, String, Boolean, DateTime, Enum as SQLEnum, Float, Integer, Text,
     Index, CheckConstraint, JSON
 )
 from sqlalchemy.orm import relationship, validates
@@ -318,6 +318,113 @@ class User(Base, UUIDMixin, TimestampMixin, SoftDeleteMixin):
         String(500),
         nullable=True,
         comment="Company website URL (only for company accounts)"
+    )
+
+    company_cover_photo_url = Column(
+        String(500),
+        nullable=True,
+        comment="Public cover photo URL for company profile",
+    )
+
+    company_gallery_images = Column(
+        JSON,
+        nullable=True,
+        default=list,
+        comment="Up to 6 public company gallery image URLs",
+    )
+
+    company_culture = Column(
+        Text,
+        nullable=True,
+        comment="Free-text company culture section",
+    )
+
+    company_linkedin_url = Column(
+        String(500),
+        nullable=True,
+        comment="Company LinkedIn URL",
+    )
+
+    company_telegram_url = Column(
+        String(500),
+        nullable=True,
+        comment="Company Telegram URL",
+    )
+
+    company_instagram_url = Column(
+        String(500),
+        nullable=True,
+        comment="Company Instagram URL",
+    )
+
+    company_facebook_url = Column(
+        String(500),
+        nullable=True,
+        comment="Company Facebook URL",
+    )
+
+    company_founded_year = Column(
+        Integer,
+        nullable=True,
+        comment="Company founded year",
+    )
+
+    company_video_url = Column(
+        String(500),
+        nullable=True,
+        comment="Company video URL (YouTube/Vimeo)",
+    )
+
+    # Employer trust/verification lifecycle (used for public trust badges)
+    verification_state = Column(
+        String(20),
+        nullable=False,
+        default="unverified",
+        index=True,
+        comment="Company verification state: unverified, pending, approved, rejected",
+    )
+
+    verification_submitted_at = Column(
+        UTCDateTime(),
+        nullable=True,
+        comment="When company submitted verification request",
+    )
+
+    verification_reviewed_at = Column(
+        UTCDateTime(),
+        nullable=True,
+        comment="When admin reviewed verification",
+    )
+
+    verification_reviewed_by = Column(
+        String(36),
+        nullable=True,
+        comment="Reviewer user id (UUID as string)",
+    )
+
+    verification_notes = Column(
+        String(1000),
+        nullable=True,
+        comment="Verification decision notes",
+    )
+
+    trust_badges = Column(
+        JSON,
+        nullable=True,
+        default=list,
+        comment="Public trust badges attached to company profile",
+    )
+
+    employer_response_rate = Column(
+        Float,
+        nullable=True,
+        comment="Historical response rate percentage (0..100)",
+    )
+
+    employer_avg_response_hours = Column(
+        Float,
+        nullable=True,
+        comment="Average first-response time in hours",
     )
     
     # =========================================================================
@@ -661,6 +768,15 @@ class User(Base, UUIDMixin, TimestampMixin, SoftDeleteMixin):
                 f"Invalid admin_role. Must be one of: {', '.join(sorted(valid_values))}"
             )
         return normalized
+
+    @validates("verification_state")
+    def validate_verification_state(self, key: str, value: str) -> str:
+        """Constrain verification state to known values."""
+        normalized = (value or "unverified").strip().lower()
+        valid = {"unverified", "pending", "approved", "rejected"}
+        if normalized not in valid:
+            raise ValueError(f"Invalid verification_state. Must be one of: {', '.join(sorted(valid))}")
+        return normalized
     
     # =========================================================================
     # HELPER METHODS
@@ -798,7 +914,20 @@ class User(Base, UUIDMixin, TimestampMixin, SoftDeleteMixin):
         if self.role == UserRole.COMPANY:
             data["company_name"] = self.company_name
             data["company_website"] = self.company_website
-        
+            data["company_cover_photo_url"] = self.company_cover_photo_url
+            data["company_gallery_images"] = self.company_gallery_images or []
+            data["company_culture"] = self.company_culture
+            data["company_linkedin_url"] = self.company_linkedin_url
+            data["company_telegram_url"] = self.company_telegram_url
+            data["company_instagram_url"] = self.company_instagram_url
+            data["company_facebook_url"] = self.company_facebook_url
+            data["company_founded_year"] = self.company_founded_year
+            data["company_video_url"] = self.company_video_url
+            data["verification_state"] = self.verification_state
+            data["trust_badges"] = self.trust_badges or []
+            data["employer_response_rate"] = self.employer_response_rate
+            data["employer_avg_response_hours"] = self.employer_avg_response_hours
+
         # Add sensitive fields if requested
         if include_sensitive:
             data["phone"] = self.phone
@@ -806,5 +935,17 @@ class User(Base, UUIDMixin, TimestampMixin, SoftDeleteMixin):
             data["is_deleted"] = self.is_deleted
             data["last_login"] = self.last_login.isoformat() if self.last_login else None
             data["updated_at"] = self.updated_at.isoformat() if self.updated_at else None
-        
+            data["verification_submitted_at"] = (
+                self.verification_submitted_at.isoformat()
+                if self.verification_submitted_at
+                else None
+            )
+            data["verification_reviewed_at"] = (
+                self.verification_reviewed_at.isoformat()
+                if self.verification_reviewed_at
+                else None
+            )
+            data["verification_reviewed_by"] = self.verification_reviewed_by
+            data["verification_notes"] = self.verification_notes
+
         return data

@@ -432,7 +432,7 @@ export default function ResumesPage() {
               whileHover={{ y: -4 }}
               transition={{ duration: 0.2 }}
             >
-              <Card className="group relative overflow-hidden hover:shadow-lg transition-all">
+              <Card className="group relative overflow-visible hover:shadow-lg transition-all">
                 <CardContent className="p-5">
                   {/* Status & AI Badge */}
                   <div className="mb-4 flex items-center justify-between">

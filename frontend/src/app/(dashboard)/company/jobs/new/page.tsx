@@ -12,7 +12,7 @@
 
 "use client";
 
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import { useRouter } from "next/navigation";
 import { useForm } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
@@ -55,8 +55,10 @@ import {
 import { Switch } from "@/components/ui/switch";
 import { cn } from "@/lib/utils";
 import { toast } from "sonner";
-import { jobApi, aiApi, getErrorMessage } from "@/lib/api";
+import { api, jobApi, aiApi, getErrorMessage } from "@/lib/api";
 import { useTranslation } from "@/hooks/useTranslation";
+import RichTextEditor from "@/components/editor/RichTextEditor";
+import { plainTextToRichHtml, sanitizeRichTextHtml, stripHtmlTags } from "@/lib/utils";
 
 // =============================================================================
 // VALIDATION SCHEMA
@@ -70,8 +72,14 @@ const jobSchema = z.object({
   experienceLevel: z.enum(["entry", "junior", "mid", "senior", "lead", "executive"]),
   salaryMin: z.number().min(0).optional(),
   salaryMax: z.number().min(0).optional(),
+  salaryCurrency: z.enum(["UZS", "USD"]).default("UZS"),
   isSalaryVisible: z.boolean().default(true),
-  description: z.string().min(100, "Tavsif kamida 100 ta belgi bo'lishi kerak"),
+  description: z
+    .string()
+    .refine(
+      (value) => stripHtmlTags(value).length >= 100,
+      "Tavsif kamida 100 ta belgi bo'lishi kerak",
+    ),
   requirements: z.string().min(50, "Talablar kamida 50 ta belgi bo'lishi kerak"),
   benefits: z.string().optional(),
   skills: z.array(z.string()).min(1, "Kamida 1 ta ko'nikma kiriting"),
@@ -143,12 +151,26 @@ export default function NewJobPage() {
       jobType: "full_time",
       experienceLevel: "mid",
       isSalaryVisible: true,
+      salaryCurrency: "UZS",
       skills: [],
+      description: "",
+      requirements: "",
+      benefits: "",
       vacancies: 1,
     },
   });
 
   const formData = watch();
+
+  useEffect(() => {
+    api
+      .get("/users/me/notification-preferences")
+      .then((res) => {
+        const preferred = String(res.data?.data?.preferred_salary_currency || "UZS").toUpperCase();
+        setValue("salaryCurrency", preferred === "USD" ? "USD" : "UZS");
+      })
+      .catch(() => {});
+  }, [setValue]);
 
   // Step validation
   const validateStep = async (step: number) => {
@@ -231,7 +253,9 @@ export default function NewJobPage() {
         ...(data.nice_to_have?.length ? ["", isRu ? "Будет плюсом:" : "Qo'shimcha afzallik:", ...data.nice_to_have.map((n) => `• ${n}`)] : []),
       ].join("\n");
 
-      setValue("description", descriptionBlock);
+      setValue("description", plainTextToRichHtml(descriptionBlock), { shouldDirty: true, shouldValidate: true });
+      const benefitsBlock = (data.benefits || []).map((b) => `• ${b}`).join("\n");
+      setValue("benefits", plainTextToRichHtml(benefitsBlock), { shouldDirty: true, shouldValidate: true });
       setValue("requirements", requirementsBlock);
       toast.success(
         data.ai_generated
@@ -254,11 +278,12 @@ export default function NewJobPage() {
         location: data.location,
         job_type: data.jobType,
         experience_level: data.experienceLevel,
-        description: data.description,
+        description: sanitizeRichTextHtml(data.description),
         requirements: { text: data.requirements, skills: data.skills },
-        benefits: data.benefits,
+        benefits: sanitizeRichTextHtml(data.benefits || ""),
         salary_min: data.salaryMin,
         salary_max: data.salaryMax,
+        salary_currency: data.salaryCurrency,
         is_salary_visible: data.isSalaryVisible,
         vacancies: data.vacancies,
         deadline: data.deadline || null,
@@ -288,11 +313,12 @@ export default function NewJobPage() {
         location: formData.location,
         job_type: formData.jobType,
         experience_level: formData.experienceLevel,
-        description: formData.description,
+        description: sanitizeRichTextHtml(formData.description),
         requirements: { text: formData.requirements, skills: formData.skills },
-        benefits: formData.benefits,
+        benefits: sanitizeRichTextHtml(formData.benefits || ""),
         salary_min: formData.salaryMin,
         salary_max: formData.salaryMax,
+        salary_currency: formData.salaryCurrency,
         is_salary_visible: formData.isSalaryVisible,
         vacancies: formData.vacancies,
         deadline: formData.deadline || null,
@@ -442,21 +468,37 @@ export default function NewJobPage() {
                     </div>
 
                     <div>
-                      <Label htmlFor="salaryMin">Minimal maosh (UZS)</Label>
+                      <Label>Maosh valyutasi</Label>
+                      <Select
+                        value={formData.salaryCurrency}
+                        onValueChange={(v) => setValue("salaryCurrency", v as "UZS" | "USD")}
+                      >
+                        <SelectTrigger>
+                          <SelectValue />
+                        </SelectTrigger>
+                        <SelectContent>
+                          <SelectItem value="UZS">UZS</SelectItem>
+                          <SelectItem value="USD">USD</SelectItem>
+                        </SelectContent>
+                      </Select>
+                    </div>
+
+                    <div>
+                      <Label htmlFor="salaryMin">Minimal maosh ({formData.salaryCurrency})</Label>
                       <Input
                         id="salaryMin"
                         type="number"
-                        placeholder="5,000,000"
+                        placeholder={formData.salaryCurrency === "USD" ? "1200" : "5,000,000"}
                         {...register("salaryMin", { valueAsNumber: true })}
                       />
                     </div>
 
                     <div>
-                      <Label htmlFor="salaryMax">Maksimal maosh (UZS)</Label>
+                      <Label htmlFor="salaryMax">Maksimal maosh ({formData.salaryCurrency})</Label>
                       <Input
                         id="salaryMax"
                         type="number"
-                        placeholder="15,000,000"
+                        placeholder={formData.salaryCurrency === "USD" ? "3000" : "15,000,000"}
                         {...register("salaryMax", { valueAsNumber: true })}
                       />
                     </div>
@@ -532,11 +574,10 @@ export default function NewJobPage() {
                     </Button>
                   </div>
 
-                  <Textarea
+                  <RichTextEditor
+                    value={formData.description || ""}
+                    onChange={(value) => setValue("description", value, { shouldDirty: true, shouldValidate: true })}
                     placeholder="Lavozim haqida batafsil ma'lumot..."
-                    rows={12}
-                    {...register("description")}
-                    className={errors.description ? "border-red-500" : ""}
                   />
                   {errors.description && (
                     <p className="text-sm text-red-500">{errors.description.message}</p>
@@ -544,10 +585,10 @@ export default function NewJobPage() {
 
                   <div>
                     <Label>Imtiyozlar va bonuslar</Label>
-                    <Textarea
+                    <RichTextEditor
+                      value={formData.benefits || ""}
+                      onChange={(value) => setValue("benefits", value, { shouldDirty: true, shouldValidate: false })}
                       placeholder="masalan: Tibbiy sug'urta, bepul tushlik, masofaviy ishlash..."
-                      rows={4}
-                      {...register("benefits")}
                     />
                   </div>
                 </CardContent>
@@ -675,7 +716,7 @@ export default function NewJobPage() {
                         {formData.isSalaryVisible && formData.salaryMin && (
                           <span className="flex items-center gap-1">
                             <DollarSign className="h-4 w-4" />
-                            {formData.salaryMin?.toLocaleString()} - {formData.salaryMax?.toLocaleString()} UZS
+                            {formData.salaryMin?.toLocaleString()} - {formData.salaryMax?.toLocaleString()} {formData.salaryCurrency}
                           </span>
                         )}
                       </div>
@@ -686,9 +727,14 @@ export default function NewJobPage() {
                         <h3 className="mb-2 font-semibold text-surface-900 dark:text-white">
                           Ish tavsifi
                         </h3>
-                        <p className="whitespace-pre-wrap text-surface-600 dark:text-surface-400">
-                          {formData.description || "Tavsif kiritilmagan"}
-                        </p>
+                        {formData.description ? (
+                          <div
+                            className="prose max-w-none text-surface-600 dark:prose-invert dark:text-surface-300"
+                            dangerouslySetInnerHTML={{ __html: sanitizeRichTextHtml(formData.description) }}
+                          />
+                        ) : (
+                          <p className="text-surface-600 dark:text-surface-400">Tavsif kiritilmagan</p>
+                        )}
                       </div>
 
                       <div>
@@ -705,9 +751,10 @@ export default function NewJobPage() {
                           <h3 className="mb-2 font-semibold text-surface-900 dark:text-white">
                             Imtiyozlar
                           </h3>
-                          <p className="whitespace-pre-wrap text-surface-600 dark:text-surface-400">
-                            {formData.benefits}
-                          </p>
+                          <div
+                            className="prose max-w-none text-surface-600 dark:prose-invert dark:text-surface-300"
+                            dangerouslySetInnerHTML={{ __html: sanitizeRichTextHtml(formData.benefits) }}
+                          />
                         </div>
                       )}
 

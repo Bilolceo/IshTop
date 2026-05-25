@@ -24,7 +24,7 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@/components/ui/select";
-import { jobApi, getErrorMessage } from "@/lib/api";
+import { api, jobApi, getErrorMessage } from "@/lib/api";
 import type { Job } from "@/types/api";
 import { toast } from "sonner";
 
@@ -45,6 +45,7 @@ export default function EditJobPage() {
   const [experienceLevel, setExperienceLevel] = useState("junior");
   const [salaryMin, setSalaryMin] = useState("");
   const [salaryMax, setSalaryMax] = useState("");
+  const [salaryCurrency, setSalaryCurrency] = useState<"UZS" | "USD">("UZS");
   const [skills, setSkills] = useState<string[]>([]);
   const [skillInput, setSkillInput] = useState("");
   const [education, setEducation] = useState("");
@@ -64,6 +65,8 @@ export default function EditJobPage() {
         setExperienceLevel(data.experience_level || "junior");
         setSalaryMin(data.salary_min?.toString() || "");
         setSalaryMax(data.salary_max?.toString() || "");
+        const normalizedCurrency = String(data.salary_currency || "").toUpperCase();
+        setSalaryCurrency(normalizedCurrency === "USD" ? "USD" : "UZS");
         setSkills(data.requirements?.skills || []);
         setEducation(data.requirements?.education || "");
         setExperience(data.requirements?.experience || "");
@@ -75,6 +78,17 @@ export default function EditJobPage() {
     };
     if (jobId) fetchJob();
   }, [jobId]);
+
+  useEffect(() => {
+    if (job) return;
+    api
+      .get("/users/me/notification-preferences")
+      .then((res) => {
+        const preferred = String(res.data?.data?.preferred_salary_currency || "UZS").toUpperCase();
+        setSalaryCurrency(preferred === "USD" ? "USD" : "UZS");
+      })
+      .catch(() => {});
+  }, [job]);
 
   const addSkill = () => {
     const trimmed = skillInput.trim();
@@ -103,6 +117,7 @@ export default function EditJobPage() {
         experience_level: experienceLevel,
         salary_min: salaryMin ? Number(salaryMin) : undefined,
         salary_max: salaryMax ? Number(salaryMax) : undefined,
+        salary_currency: salaryCurrency,
         requirements: {
           skills,
           education: education || undefined,
@@ -233,22 +248,37 @@ export default function EditJobPage() {
           <h2 className="font-bold text-surface-900">Maosh (ixtiyoriy)</h2>
           <div className="grid gap-4 sm:grid-cols-2">
             <div>
-              <Label>Minimal maosh ($)</Label>
+              <Label>Valyuta</Label>
+              <Select
+                value={salaryCurrency}
+                onValueChange={(value) => setSalaryCurrency(value === "USD" ? "USD" : "UZS")}
+              >
+                <SelectTrigger className="mt-1">
+                  <SelectValue />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="UZS">UZS</SelectItem>
+                  <SelectItem value="USD">USD</SelectItem>
+                </SelectContent>
+              </Select>
+            </div>
+            <div>
+              <Label>Minimal maosh ({salaryCurrency})</Label>
               <Input
                 type="number"
                 value={salaryMin}
                 onChange={(e) => setSalaryMin(e.target.value)}
-                placeholder="500"
+                placeholder={salaryCurrency === "USD" ? "1200" : "5,000,000"}
                 className="mt-1"
               />
             </div>
             <div>
-              <Label>Maksimal maosh ($)</Label>
+              <Label>Maksimal maosh ({salaryCurrency})</Label>
               <Input
                 type="number"
                 value={salaryMax}
                 onChange={(e) => setSalaryMax(e.target.value)}
-                placeholder="2000"
+                placeholder={salaryCurrency === "USD" ? "3000" : "15,000,000"}
                 className="mt-1"
               />
             </div>

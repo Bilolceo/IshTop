@@ -246,7 +246,7 @@ export default function ApplicationDetailPage() {
                 {(job.salary_min || job.salary_max) && (
                   <span className="flex items-center gap-1 text-green-600">
                     <DollarSign className="h-4 w-4" />
-                    {formatSalaryRange(job.salary_min, job.salary_max)}
+                    {formatSalaryRange(job.salary_min, job.salary_max, "uz", job.salary_currency || "USD")}
                   </span>
                 )}
               </div>

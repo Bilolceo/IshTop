@@ -40,6 +40,7 @@ interface JobFilters {
 interface JobMatchApiItem {
   job: Job;
   match_score: number;
+  explainability?: Job["explainability"];
 }
 
 interface JobMatchApiResponse {
@@ -167,6 +168,7 @@ export function useJobs() {
       const matchedJobs: (Job & { matchScore?: number })[] = (data.matches || []).map((m) => ({
         ...m.job,
         matchScore: m.match_score,
+        explainability: m.explainability,
       }));
 
       setState((prev) => ({
@@ -235,13 +237,43 @@ export function useJobs() {
     }
   }, []);
 
-  // Close a job
-  const closeJob = useCallback(async (jobId: string) => {
+  // Pause a job
+  const pauseJob = useCallback(async (jobId: string) => {
     try {
-      await jobApi.close(jobId);
+      await jobApi.pause(jobId);
       setState((prev) => ({
         ...prev,
-        jobs: prev.jobs.map((j) => j.id === jobId ? { ...j, status: "closed" } : j),
+        jobs: prev.jobs.map((j) => j.id === jobId ? { ...j, status: "paused" } : j),
+      }));
+      toast.success("Vakansiya pauzaga qo'yildi");
+    } catch (error) {
+      toast.error(getErrorMessage(error));
+      throw error;
+    }
+  }, []);
+
+  // Reopen a job
+  const reopenJob = useCallback(async (jobId: string) => {
+    try {
+      await jobApi.reopen(jobId);
+      setState((prev) => ({
+        ...prev,
+        jobs: prev.jobs.map((j) => j.id === jobId ? { ...j, status: "active", close_reason_code: undefined, close_reason_note: undefined } : j),
+      }));
+      toast.success("Vakansiya qayta ochildi");
+    } catch (error) {
+      toast.error(getErrorMessage(error));
+      throw error;
+    }
+  }, []);
+
+  // Close a job
+  const closeJob = useCallback(async (jobId: string, reason?: { reason_code?: "hired" | "other"; reason_note?: string }) => {
+    try {
+      await jobApi.close(jobId, reason);
+      setState((prev) => ({
+        ...prev,
+        jobs: prev.jobs.map((j) => j.id === jobId ? { ...j, status: "closed", close_reason_code: reason?.reason_code, close_reason_note: reason?.reason_note } : j),
       }));
       toast.success("Vakansiya yopildi");
     } catch (error) {
@@ -287,6 +319,8 @@ export function useJobs() {
     clearFilters,
     matchJobs,
     publishJob,
+    pauseJob,
+    reopenJob,
     closeJob,
     deleteJob,
     saveJob,

@@ -130,6 +130,8 @@ export default function JobsPage() {
   const [isLoadingMore, setIsLoadingMore] = useState(false);
   const [showMobileFilters, setShowMobileFilters] = useState(false);
   const [showSplitView, setShowSplitView] = useState(false);
+  const [loadTimedOut, setLoadTimedOut] = useState(false);
+  const explainabilityViewedRef = useRef<Set<string>>(new Set());
 
   // Filters
   const [filters, setFilters] = useState({
@@ -223,6 +225,15 @@ export default function JobsPage() {
   useEffect(() => {
     setLocalJobs(jobs as (Job & { matchScore?: number })[]);
   }, [jobs]);
+
+  useEffect(() => {
+    if (!isLoading) {
+      setLoadTimedOut(false);
+      return;
+    }
+    const timer = window.setTimeout(() => setLoadTimedOut(true), 7000);
+    return () => window.clearTimeout(timer);
+  }, [isLoading]);
 
   // -------------------------------------------------------------------------
   // Feed mode switching
@@ -375,7 +386,30 @@ export default function JobsPage() {
     }
   };
 
+  const trackFunnelEvent = useCallback(
+    async (eventName: string, payload: Record<string, unknown>) => {
+      try {
+        await jobApi.trackEvent({
+          event_name: eventName,
+          source: "student_jobs_page",
+          metadata: payload,
+          job_id: typeof payload.job_id === "string" ? payload.job_id : undefined,
+        });
+      } catch {
+        // Intentionally non-blocking
+      }
+    },
+    [],
+  );
+
   const handleApply = (job: Job) => {
+    if (job.explainability) {
+      void trackFunnelEvent("apply_after_explainability", {
+        job_id: job.id,
+        confidence: job.explainability.confidence,
+        missing_count: job.explainability.missing_items.length,
+      });
+    }
     router.push(`/student/jobs/${job.id}/apply`);
   };
 
@@ -403,6 +437,17 @@ export default function JobsPage() {
       setSelectedJob(sortedJobs[0]);
     }
   }, [sortedJobs, showSplitView, selectedJob]);
+
+  useEffect(() => {
+    if (!selectedJob?.id || !selectedJob.explainability) return;
+    if (explainabilityViewedRef.current.has(selectedJob.id)) return;
+    explainabilityViewedRef.current.add(selectedJob.id);
+    void trackFunnelEvent("view_explainability", {
+      job_id: selectedJob.id,
+      confidence: selectedJob.explainability.confidence,
+      missing_count: selectedJob.explainability.missing_items.length,
+    });
+  }, [selectedJob, trackFunnelEvent]);
 
   // =========================================================================
   // RENDER
@@ -565,6 +610,27 @@ export default function JobsPage() {
           )}
         </div>
       </header>
+
+      {loadTimedOut && (
+        <div className="mx-3 mt-3 rounded-xl border border-amber-300 bg-amber-50 px-4 py-3 text-sm text-amber-900 dark:border-amber-700/50 dark:bg-amber-900/20 dark:text-amber-100 lg:mx-4">
+          <div className="flex flex-wrap items-center justify-between gap-3">
+            <p>
+              {isRu
+                ? "Загрузка занимает больше обычного. Проверьте соединение и попробуйте снова."
+                : "Yuklash odatdagidan uzoq davom etmoqda. Aloqani tekshirib, qayta urinib ko'ring."}
+            </p>
+            <Button
+              size="sm"
+              variant="outline"
+              onClick={() => void loadJobsForFeedMode(feedMode)}
+              className="shrink-0"
+            >
+              <RotateCcw className="mr-2 h-3.5 w-3.5" />
+              {isRu ? "Повторить" : "Qayta urinish"}
+            </Button>
+          </div>
+        </div>
+      )}
 
       {/* ------------------------------------------------------------------ */}
       {/* BODY: 2-column                                                      */}

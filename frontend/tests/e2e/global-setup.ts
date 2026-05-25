@@ -1,7 +1,7 @@
 import { request } from '@playwright/test';
 import { execFileSync } from 'node:child_process';
 import { createHash } from 'node:crypto';
-import { existsSync } from 'node:fs';
+import { existsSync, mkdirSync, writeFileSync } from 'node:fs';
 import path from 'node:path';
 
 type Json = Record<string, any>;
@@ -12,6 +12,7 @@ const RAW_API_URL = process.env.NEXT_PUBLIC_API_URL || 'http://127.0.0.1:8000';
 const API_URL = RAW_API_URL.replace(/\/api\/v1\/?$/, '');
 const ROOT_DIR = path.resolve(process.cwd(), '..');
 const BACKEND_DIR = path.join(ROOT_DIR, 'backend');
+const E2E_SEED_FILE = path.join(process.cwd(), 'test-results', 'e2e-seed.json');
 const WEAK_SECRET_KEYS = new Set([
   '',
   'your-super-secret-key-change-in-production',
@@ -45,7 +46,55 @@ function resolveSeedSecretKey(): string {
   return createHash('sha256').update(deterministicSeed).digest('hex');
 }
 
-function ensureAdminAccount() {
+function resolveSmokeAdminCredentials() {
+  const runId = [
+    process.env.E2E_RUN_ID,
+    process.env.GITHUB_RUN_ID,
+    process.env.BUILD_BUILDID,
+    `${Date.now()}-${process.pid}`,
+  ].find(Boolean) as string;
+  const safeRunId = runId.toLowerCase().replace(/[^a-z0-9]+/g, '.').replace(/^\.+|\.+$/g, '');
+
+  return {
+    email: (process.env.E2E_ADMIN_EMAIL || `admin.e2e.${safeRunId}@ishtop.uz`).toLowerCase(),
+    password: process.env.E2E_ADMIN_PASSWORD || 'Admin123!',
+  };
+}
+
+function writeSeedFile(seed: Json) {
+  mkdirSync(path.dirname(E2E_SEED_FILE), { recursive: true });
+  writeFileSync(E2E_SEED_FILE, `${JSON.stringify(seed, null, 2)}\n`, 'utf8');
+}
+
+function discoverLocalBackendSqliteDatabaseUrl(): string | null {
+  try {
+    const listener = execFileSync('lsof', ['-nP', '-iTCP:8000', '-sTCP:LISTEN', '-Fp'], {
+      encoding: 'utf8',
+      stdio: ['ignore', 'pipe', 'ignore'],
+    });
+    const pid = listener
+      .split('\n')
+      .find((line) => /^p\d+$/.test(line))
+      ?.slice(1);
+
+    if (!pid) return null;
+
+    const openFiles = execFileSync('lsof', ['-nP', '-p', pid], {
+      encoding: 'utf8',
+      stdio: ['ignore', 'pipe', 'ignore'],
+    });
+    const dbPath = openFiles
+      .split('\n')
+      .map((line) => line.match(/(\/\S+\.db)\b/)?.[1])
+      .find((value): value is string => Boolean(value));
+
+    return dbPath ? `sqlite:///${dbPath}` : null;
+  } catch {
+    return null;
+  }
+}
+
+function ensureAdminAccount(email: string, password: string) {
   const script = `
 import os
 import sys
@@ -59,7 +108,8 @@ sys.path.insert(0, ".")
 from app.config import settings
 from app.models.user import User
 
-ADMIN_EMAIL = "admin@ishtop.uz"
+ADMIN_EMAIL = os.environ["E2E_ADMIN_EMAIL"].lower()
+ADMIN_PASSWORD = os.environ["E2E_ADMIN_PASSWORD"]
 ADMIN_ROLE_VALUE = "admin"
 ADMIN_SUB_ROLE_VALUE = "super_admin"
 
@@ -82,7 +132,7 @@ try:
         email=ADMIN_EMAIL,
         full_name="System Admin",
     )
-    password_source.set_password("Admin123!")
+    password_source.set_password(ADMIN_PASSWORD)
     password_hash = password_source.password_hash
 
     existing_admin_row = db.execute(
@@ -185,9 +235,16 @@ finally:
 `;
 
   const isCi = Boolean(process.env.CI) || process.env.GITHUB_ACTIONS === 'true';
-  const candidateDatabaseUrls = isCi
-    ? [process.env.DATABASE_URL || 'postgresql://test:test@localhost:5432/ishtop_test']
-    : [process.env.DATABASE_URL || 'sqlite:///./ishtop.db'];
+  const localDiscoveredDatabaseUrl = process.env.DATABASE_URL
+    ? null
+    : discoverLocalBackendSqliteDatabaseUrl();
+  const candidateDatabaseUrls = Array.from(
+    new Set(
+      isCi
+        ? [process.env.DATABASE_URL || 'postgresql://test:test@localhost:5432/ishtop_test']
+        : [process.env.DATABASE_URL || localDiscoveredDatabaseUrl || '', ''],
+    ),
+  );
 
   let lastError: unknown = null;
   const seedSecretKey = resolveSeedSecretKey();
@@ -233,8 +290,10 @@ finally:
           stdio: 'pipe',
           env: {
             ...process.env,
-            DATABASE_URL: databaseUrl,
+            ...(databaseUrl ? { DATABASE_URL: databaseUrl } : {}),
             SECRET_KEY: seedSecretKey,
+            E2E_ADMIN_EMAIL: email,
+            E2E_ADMIN_PASSWORD: password,
             PYTHONUTF8: '1',
           },
         });
@@ -307,6 +366,11 @@ async function login(ctx: any, email: string, password: string): Promise<string>
 
 async function createJob(ctx: any, token: string, job: Json): Promise<string> {
   const res = await postJson(ctx, '/api/v1/jobs', job, { authorization: `Bearer ${token}` });
+  if (res.status() === 409) {
+    const data = (await res.json()) as Json;
+    const existingId = data?.error?.details?.existing_job_id as string | undefined;
+    if (existingId) return existingId;
+  }
   if (res.status() !== 201) {
     const text = await res.text();
     throw new Error(`Create job failed (${res.status()}): ${text}`);
@@ -359,8 +423,22 @@ async function applyToJob(ctx: any, token: string, jobId: string, resumeId: stri
 
 export default async function globalSetup() {
   const ctx = await request.newContext();
+  const smokeAdmin = resolveSmokeAdminCredentials();
 
-  ensureAdminAccount();
+  try {
+    ensureAdminAccount(smokeAdmin.email, smokeAdmin.password);
+    writeSeedFile({ smokeAdmin });
+  } catch (error) {
+    const health = await ctx.get(`${API_URL}/health`).catch(() => null);
+    if (!health?.ok()) {
+      throw error;
+    }
+    throw new Error(
+      `E2E global setup: failed to seed smoke admin account (${smokeAdmin.email}) while the backend API is healthy. ` +
+        `The admin smoke test requires a freshly seeded admin to avoid shared login lockout contamination. ` +
+        `Original error: ${error instanceof Error ? error.message : String(error)}`,
+    );
+  }
 
   // Fixed seed accounts used by Playwright specs.
   const studentEmail = 'john@example.com';

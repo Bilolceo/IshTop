@@ -39,6 +39,10 @@ import {
   UserCheck,
   UserX,
   MessageSquare,
+  AlertTriangle,
+  CircleCheck,
+  Circle,
+  X,
 } from "lucide-react";
 import { useAuth } from "@/hooks/useAuth";
 import { useTranslation } from "@/hooks/useTranslation";
@@ -51,8 +55,24 @@ import { Badge } from "@/components/ui/badge";
 import { Progress } from "@/components/ui/progress";
 import { Skeleton } from "@/components/ui/skeleton";
 import { cn } from "@/lib/utils";
+import { api } from "@/lib/api";
 import type { Job } from "@/types/api";
 
+type OnboardingStep = {
+  key: string;
+  label: string;
+  url: string;
+  completed: boolean;
+};
+
+type OnboardingChecklist = {
+  progress: string;
+  completed_count: number;
+  total_count: number;
+  all_done: boolean;
+  dismissed: boolean;
+  steps: OnboardingStep[];
+};
 
 // =============================================================================
 // COMPONENTS
@@ -122,11 +142,70 @@ export default function CompanyDashboardPage() {
   const { user } = useAuth();
   const { t } = useTranslation();
   const { jobs, isLoading: jobsLoading, fetchMyJobs } = useJobs();
+  const [profileCompletion, setProfileCompletion] = useState(100);
+  const [onboarding, setOnboarding] = useState<OnboardingChecklist | null>(null);
+  const [onboardingLoading, setOnboardingLoading] = useState(true);
+  const [dismissingChecklist, setDismissingChecklist] = useState(false);
 
   // eslint-disable-next-line react-hooks/exhaustive-deps
   useEffect(() => {
     fetchMyJobs();
   }, []);
+
+  useEffect(() => {
+    const computeCompletion = async () => {
+      try {
+        const res = await api.get("/users/me/notification-preferences");
+        const prefs = res.data?.data || {};
+        const checks = [
+          Boolean(user?.avatar_url),
+          Boolean(user?.company_name?.trim()),
+          Boolean(user?.company_website?.trim()),
+          Boolean((prefs.company_size || "").trim()),
+          Boolean((prefs.company_industry || "").trim()),
+          Boolean(user?.location?.trim()),
+          Boolean(user?.bio?.trim()),
+        ];
+        const percent = Math.round((checks.filter(Boolean).length / checks.length) * 100);
+        setProfileCompletion(percent);
+      } catch {
+        // keep default value
+      }
+    };
+    if (user) {
+      void computeCompletion();
+    }
+  }, [user]);
+
+  useEffect(() => {
+    const fetchChecklist = async () => {
+      try {
+        setOnboardingLoading(true);
+        const res = await api.get("/users/me/company-onboarding-checklist");
+        setOnboarding(res.data);
+      } catch {
+        setOnboarding(null);
+      } finally {
+        setOnboardingLoading(false);
+      }
+    };
+    if (user?.role === "company") {
+      void fetchChecklist();
+    }
+  }, [jobs, user?.role]);
+
+  const handleDismissChecklist = async () => {
+    if (!onboarding?.all_done) return;
+    try {
+      setDismissingChecklist(true);
+      await api.post("/users/me/company-onboarding-checklist/dismiss");
+      setOnboarding((prev) => (prev ? { ...prev, dismissed: true } : prev));
+    } catch {
+      // noop
+    } finally {
+      setDismissingChecklist(false);
+    }
+  };
 
   const isLoading = jobsLoading;
 
@@ -162,6 +241,79 @@ export default function CompanyDashboardPage() {
           </Link>
         </div>
       </motion.div>
+
+      {profileCompletion < 80 && (
+        <motion.div
+          initial={{ opacity: 0, y: 12 }}
+          animate={{ opacity: 1, y: 0 }}
+          className="rounded-xl border border-amber-200 bg-amber-50 p-4 dark:border-amber-500/30 dark:bg-amber-500/10"
+        >
+          <div className="flex flex-wrap items-center justify-between gap-3">
+            <div>
+              <p className="flex items-center gap-2 text-sm font-semibold text-amber-800 dark:text-amber-200">
+                <AlertTriangle className="h-4 w-4" />
+                {t("companyDashboard.companyProfile")} {profileCompletion}%
+              </p>
+              <p className="text-xs text-amber-700 dark:text-amber-300">
+                {t("companyDashboard.companyProfileDesc")}
+              </p>
+            </div>
+            <Link href="/company/settings#company">
+              <Button size="sm" variant="outline" className="border-amber-300 text-amber-700 hover:bg-amber-100">
+                {t("common.completeProfile")}
+              </Button>
+            </Link>
+          </div>
+        </motion.div>
+      )}
+
+      {!onboardingLoading && onboarding && !onboarding.dismissed && (
+        <motion.div
+          initial={{ opacity: 0, y: 10 }}
+          animate={{ opacity: 1, y: 0 }}
+          className="rounded-xl border border-brand-200 bg-brand-50 p-4 dark:border-brand-500/30 dark:bg-brand-500/10"
+        >
+          <div className="mb-3 flex items-center justify-between gap-3">
+            <div>
+              <p className="text-sm font-semibold text-brand-800 dark:text-brand-100">
+                Kompaniya onboarding checklist
+              </p>
+              <p className="text-xs text-brand-700 dark:text-brand-200">{onboarding.progress}</p>
+            </div>
+            {onboarding.all_done && (
+              <Button
+                size="sm"
+                variant="outline"
+                onClick={handleDismissChecklist}
+                disabled={dismissingChecklist}
+                className="border-brand-300 text-brand-700 hover:bg-brand-100"
+              >
+                <X className="mr-1 h-4 w-4" />
+                {dismissingChecklist ? "Yopilmoqda..." : "Checklistni yopish"}
+              </Button>
+            )}
+          </div>
+          <div className="space-y-2">
+            {onboarding.steps.map((step) => (
+              <Link key={step.key} href={step.url}>
+                <div className="flex items-center justify-between rounded-lg border border-brand-100 bg-white px-3 py-2 transition hover:bg-brand-50/40 dark:border-brand-500/20 dark:bg-surface-900/50">
+                  <div className="flex items-center gap-2">
+                    {step.completed ? (
+                      <CircleCheck className="h-4 w-4 text-emerald-600" />
+                    ) : (
+                      <Circle className="h-4 w-4 text-brand-500" />
+                    )}
+                    <span className={cn("text-sm", step.completed ? "text-surface-700 dark:text-surface-200" : "text-surface-800 dark:text-white")}>
+                      {step.label}
+                    </span>
+                  </div>
+                  <span className="text-xs text-surface-500">{step.completed ? "Bajarildi" : "Ochish"}</span>
+                </div>
+              </Link>
+            ))}
+          </div>
+        </motion.div>
+      )}
 
       {/* Stats Grid */}
       <motion.div

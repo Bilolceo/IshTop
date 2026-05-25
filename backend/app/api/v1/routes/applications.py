@@ -62,6 +62,8 @@ from app.models import (
     ApplicationStatus, JobStatus, UserRole, ResumeStatus
 )
 from app.services import job_matching
+from app.services.telegram_service import send_company_telegram_notification
+from app.config import settings
 
 try:
     from app.services.email_service import email_service
@@ -184,7 +186,7 @@ class StatusUpdateRequest(BaseModel):
     
     status: str = Field(
         ...,
-        description="New status: pending, reviewing, shortlisted, interview, rejected, accepted"
+        description="New status: pending, reviewing, shortlisted, interview, accepted, hired, rejected, withdrawn"
     )
     
     notes: Optional[str] = Field(
@@ -246,7 +248,7 @@ class AutoApplyCriteria(BaseModel):
     
     min_salary: Optional[int] = Field(
         None,
-        description="Minimum salary requirement (in cents)"
+        description="Minimum salary requirement (whole units in selected currency)"
     )
     
     keywords: List[str] = Field(
@@ -338,6 +340,32 @@ class ApplicationData(BaseModel):
     resume: Optional[Dict[str, Any]] = None
     applicant: Optional[Dict[str, Any]] = None
     notes: Optional[str] = None  # Only for company view
+    tags: List[str] = Field(default_factory=list)
+    message_history: List[Dict[str, Any]] = Field(default_factory=list)
+
+
+class BulkStatusUpdateRequest(BaseModel):
+    application_ids: List[str] = Field(default_factory=list)
+    status: str
+    notes: Optional[str] = Field(default=None, max_length=5000)
+
+
+class BulkEmailRequest(BaseModel):
+    application_ids: List[str] = Field(default_factory=list)
+    subject: str = Field(..., min_length=2, max_length=300)
+    body: str = Field(..., min_length=2, max_length=20000)
+    template_key: Optional[str] = Field(default=None, max_length=64)
+
+
+class NotesTagsUpdateRequest(BaseModel):
+    notes: Optional[str] = Field(default=None, max_length=5000)
+    tags: List[str] = Field(default_factory=list)
+
+
+class MessageSendRequest(BaseModel):
+    subject: str = Field(..., min_length=2, max_length=300)
+    body: str = Field(..., min_length=2, max_length=20000)
+    template_key: Optional[str] = Field(default=None, max_length=64)
 
 
 class ApplicationListData(BaseModel):
@@ -470,6 +498,8 @@ def application_to_data(
         resume=resume_data,
         applicant=applicant_data,
         notes=app.notes if include_notes else None,
+        tags=list(app.tags or []) if include_notes else [],
+        message_history=list(app.message_history or []) if include_notes else [],
         match_breakdown=app.match_breakdown if include_breakdown else None,
     )
 
@@ -729,8 +759,32 @@ async def apply_to_job(
         
         db.commit()
         db.refresh(application)
-        
+
         logger.info(f"[{request_id}] Application created: {application.id}")
+
+        company_prefs = (job.company.notification_preferences or {}) if job.company else {}
+        should_send_telegram = (
+            bool(job.company)
+            and company_prefs.get("telegram_enabled", False)
+            and company_prefs.get("telegram_new_applications", True)
+        )
+        if should_send_telegram:
+            candidate_name = student.full_name or "Nomzod"
+            job_title = job.title or "Vakansiya"
+            company_name = job.company.company_name or job.company.full_name or "Kompaniya"
+            dashboard_url = f"{settings.FRONTEND_URL.rstrip('/')}/company/applicants/{application.id}"
+            telegram_body = (
+                f"Yangi ariza qabul qilindi.\n"
+                f"Kompaniya: {company_name}\n"
+                f"Vakansiya: {job_title}\n"
+                f"Nomzod: {candidate_name}\n"
+                f"Ko'rish: {dashboard_url}"
+            )
+            await send_company_telegram_notification(
+                company=job.company,
+                title="📥 Yangi ariza",
+                message=telegram_body,
+            )
         
         # Build response
         app_data = application_to_data(
@@ -1024,36 +1078,7 @@ async def update_application_status(
             detail=f"Invalid status. Must be one of: {', '.join(valid_statuses)}"
         )
     
-    # Apply status update
-    if request.status == ApplicationStatus.REVIEWING.value:
-        application.mark_as_reviewing(request.notes)
-    elif request.status == ApplicationStatus.SHORTLISTED.value:
-        application.shortlist(request.notes)
-    elif request.status == ApplicationStatus.INTERVIEW.value:
-        if not request.interview_at:
-            raise HTTPException(
-                status_code=status.HTTP_400_BAD_REQUEST,
-                detail="Interview date is required for 'interview' status"
-            )
-        resolved_interview_type = _resolve_interview_type(
-            request.interview_type,
-            application.job,
-            request.meeting_link,
-        )
-        application.schedule_interview(
-            request.interview_at,
-            interview_type=resolved_interview_type,
-            meeting_link=request.meeting_link,
-            notes=request.notes,
-        )
-    elif request.status == ApplicationStatus.REJECTED.value:
-        application.reject(request.notes)
-    elif request.status == ApplicationStatus.ACCEPTED.value:
-        application.accept(request.notes)
-    else:
-        application.status = request.status
-        if request.notes:
-            application.notes = request.notes
+    _apply_status_transition(application, request)
     
     db.commit()
     db.refresh(application)
@@ -1851,6 +1876,353 @@ async def top_candidates_for_job(
     )
 
 
+@router.get(
+    "/company/list",
+    response_model=StandardResponse,
+    summary="List company applications (optionally by job)",
+)
+async def list_company_applications(
+    job_id: Optional[str] = Query(None),
+    status_filter: Optional[str] = Query(None, alias="status"),
+    search: Optional[str] = Query(None),
+    tag: Optional[str] = Query(None),
+    page: int = Query(1, ge=1),
+    page_size: int = Query(20, ge=1, le=200),
+    company: User = Depends(get_current_company),
+    db: Session = Depends(get_db),
+):
+    start_time = time.time()
+
+    q = (
+        db.query(Application)
+        .join(Job, Job.id == Application.job_id)
+        .join(User, User.id == Application.user_id)
+        .filter(
+            Application.is_deleted == False,
+            Job.is_deleted == False,
+            Job.company_id == company.id,
+            User.is_deleted == False,
+        )
+    )
+
+    if job_id:
+        try:
+            q = q.filter(Application.job_id == UUID(job_id))
+        except ValueError:
+            raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="Invalid job_id")
+
+    if status_filter:
+        q = q.filter(Application.status == status_filter.strip().lower())
+
+    if search and search.strip():
+        term = f"%{search.strip()}%"
+        q = q.filter(or_(User.full_name.ilike(term), User.email.ilike(term)))
+
+    rows = q.order_by(Application.applied_at.desc()).all()
+
+    if tag and tag.strip():
+        lookup = tag.strip().lower()
+        rows = [
+            app for app in rows
+            if any(str(item).strip().lower() == lookup for item in (app.tags or []))
+        ]
+
+    total = len(rows)
+    start = (page - 1) * page_size
+    end = start + page_size
+    paged = rows[start:end]
+
+    status_counts: Dict[str, int] = {}
+    for app in rows:
+        status_counts[app.status] = status_counts.get(app.status, 0) + 1
+
+    data = {
+        "applications": [
+            application_to_data(
+                app,
+                include_job=True,
+                include_resume=True,
+                include_applicant=True,
+                include_notes=True,
+                include_breakdown=True,
+            ).model_dump()
+            for app in paged
+        ],
+        "total": total,
+        "page": page,
+        "page_size": page_size,
+        "total_pages": (total + page_size - 1) // page_size if total else 0,
+        "status_counts": status_counts,
+    }
+    return create_response(True, "Company applications retrieved", data, start_time)
+
+
+def _company_scoped_applications(
+    db: Session,
+    company_id: UUID,
+    application_ids: List[str],
+) -> List[Application]:
+    valid_ids: List[UUID] = []
+    for raw_id in application_ids:
+        try:
+            valid_ids.append(UUID(raw_id))
+        except ValueError:
+            continue
+    if not valid_ids:
+        return []
+    return (
+        db.query(Application)
+        .join(Job, Job.id == Application.job_id)
+        .filter(
+            Application.id.in_(valid_ids),
+            Application.is_deleted == False,
+            Job.is_deleted == False,
+            Job.company_id == company_id,
+        )
+        .all()
+    )
+
+
+@router.post(
+    "/company/bulk-status",
+    response_model=StandardResponse,
+    summary="Bulk update candidate status",
+)
+async def company_bulk_status_update(
+    request: BulkStatusUpdateRequest,
+    company: User = Depends(get_current_company),
+    db: Session = Depends(get_db),
+):
+    start_time = time.time()
+
+    valid_statuses = [s.value for s in ApplicationStatus]
+    target_status = (request.status or "").strip().lower()
+    if target_status not in valid_statuses:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail=f"Invalid status. Must be one of: {', '.join(valid_statuses)}",
+        )
+    if target_status == ApplicationStatus.INTERVIEW.value:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail="Bulk interview status update is not supported. Use individual scheduling.",
+        )
+
+    rows = _company_scoped_applications(db, company.id, request.application_ids)
+    if not rows:
+        return create_response(True, "No applications matched", {"updated": 0}, start_time)
+
+    payload = StatusUpdateRequest(status=target_status, notes=request.notes)
+    for app in rows:
+        _apply_status_transition(app, payload)
+
+    db.commit()
+    return create_response(
+        True,
+        "Bulk status update completed",
+        {"updated": len(rows), "status": target_status},
+        start_time,
+    )
+
+
+def _append_message_history(
+    application: Application,
+    *,
+    sender: User,
+    subject: str,
+    body: str,
+    template_key: Optional[str],
+    delivered: bool,
+) -> None:
+    history = list(application.message_history or [])
+    history.append(
+        {
+            "id": str(uuid_module.uuid4()),
+            "sent_at": datetime.now(timezone.utc).isoformat(),
+            "sender_id": str(sender.id),
+            "sender_name": sender.full_name,
+            "channel": "email",
+            "subject": subject,
+            "body": body,
+            "template_key": template_key,
+            "delivered": delivered,
+        }
+    )
+    application.message_history = history[-100:]
+
+
+@router.post(
+    "/company/bulk-email",
+    response_model=StandardResponse,
+    summary="Send templated email to selected candidates",
+)
+async def company_bulk_email_send(
+    request: BulkEmailRequest,
+    company: User = Depends(get_current_company),
+    db: Session = Depends(get_db),
+):
+    start_time = time.time()
+    rows = _company_scoped_applications(db, company.id, request.application_ids)
+    if not rows:
+        return create_response(True, "No applications matched", {"sent": 0, "failed": 0}, start_time)
+
+    sent = 0
+    failed = 0
+    for app in rows:
+        to_email = app.user.email if app.user else None
+        if not to_email:
+            failed += 1
+            _append_message_history(
+                app,
+                sender=company,
+                subject=request.subject,
+                body=request.body,
+                template_key=request.template_key,
+                delivered=False,
+            )
+            continue
+
+        ok = await email_service.send_raw_email(
+            to_email=to_email,
+            to_name=app.user.full_name if app.user else None,
+            subject=request.subject,
+            body=request.body,
+            html=False,
+        )
+        if ok:
+            sent += 1
+        else:
+            failed += 1
+        _append_message_history(
+            app,
+            sender=company,
+            subject=request.subject,
+            body=request.body,
+            template_key=request.template_key,
+            delivered=ok,
+        )
+
+    db.commit()
+    return create_response(
+        True,
+        "Bulk email operation completed",
+        {"sent": sent, "failed": failed, "total": len(rows)},
+        start_time,
+    )
+
+
+@router.put(
+    "/{application_id}/notes-tags",
+    response_model=StandardResponse,
+    summary="Update private notes and tags for an application",
+)
+async def update_notes_and_tags(
+    application_id: UUID,
+    request: NotesTagsUpdateRequest,
+    company: User = Depends(get_current_company),
+    db: Session = Depends(get_db),
+):
+    start_time = time.time()
+    app = db.query(Application).filter(
+        Application.id == application_id,
+        Application.is_deleted == False,
+    ).first()
+    if not app:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Application not found")
+    if not _company_owns_application(app, company):
+        raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail="Forbidden")
+
+    app.notes = request.notes
+    app.tags = _normalize_tags(request.tags)
+    db.commit()
+    db.refresh(app)
+
+    data = application_to_data(
+        app,
+        include_job=True,
+        include_resume=True,
+        include_applicant=True,
+        include_notes=True,
+        include_breakdown=True,
+    ).model_dump()
+    return create_response(True, "Notes and tags updated", data, start_time)
+
+
+@router.get(
+    "/{application_id}/messages",
+    response_model=StandardResponse,
+    summary="Get sent message history for an application",
+)
+async def get_application_messages(
+    application_id: UUID,
+    company: User = Depends(get_current_company),
+    db: Session = Depends(get_db),
+):
+    start_time = time.time()
+    app = db.query(Application).filter(
+        Application.id == application_id,
+        Application.is_deleted == False,
+    ).first()
+    if not app:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Application not found")
+    if not _company_owns_application(app, company):
+        raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail="Forbidden")
+
+    history = list(app.message_history or [])
+    return create_response(True, "Message history retrieved", {"messages": history}, start_time)
+
+
+@router.post(
+    "/{application_id}/messages/send",
+    response_model=StandardResponse,
+    summary="Send message to candidate and log history",
+)
+async def send_application_message(
+    application_id: UUID,
+    request: MessageSendRequest,
+    company: User = Depends(get_current_company),
+    db: Session = Depends(get_db),
+):
+    start_time = time.time()
+    app = db.query(Application).filter(
+        Application.id == application_id,
+        Application.is_deleted == False,
+    ).first()
+    if not app:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Application not found")
+    if not _company_owns_application(app, company):
+        raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail="Forbidden")
+
+    to_email = app.user.email if app.user else None
+    if not to_email:
+        raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="Candidate email not found")
+
+    delivered = await email_service.send_raw_email(
+        to_email=to_email,
+        to_name=app.user.full_name if app.user else None,
+        subject=request.subject,
+        body=request.body,
+        html=False,
+    )
+    _append_message_history(
+        app,
+        sender=company,
+        subject=request.subject,
+        body=request.body,
+        template_key=request.template_key,
+        delivered=delivered,
+    )
+    db.commit()
+    db.refresh(app)
+
+    return create_response(
+        delivered,
+        "Message sent" if delivered else "Message queued/logged but delivery failed",
+        {"delivered": delivered, "messages": app.message_history or []},
+        start_time,
+    )
+
+
 # =============================================================================
 # INTERVIEW SCORECARDS — structured, bias-resistant evaluation
 # =============================================================================
@@ -1902,6 +2274,56 @@ def _company_owns_application(application: Application, user: User) -> bool:
     if user.role == UserRole.ADMIN.value:
         return True
     return bool(application.job and application.job.company_id == user.id)
+
+
+def _normalize_tags(raw_tags: List[str]) -> List[str]:
+    seen: set[str] = set()
+    normalized: List[str] = []
+    for tag in raw_tags:
+        value = str(tag or "").strip()
+        if not value:
+            continue
+        if value.lower() in seen:
+            continue
+        seen.add(value.lower())
+        normalized.append(value[:64])
+        if len(normalized) >= 20:
+            break
+    return normalized
+
+
+def _apply_status_transition(application: Application, request: StatusUpdateRequest) -> None:
+    if request.status == ApplicationStatus.REVIEWING.value:
+        application.mark_as_reviewing(request.notes)
+    elif request.status == ApplicationStatus.SHORTLISTED.value:
+        application.shortlist(request.notes)
+    elif request.status == ApplicationStatus.INTERVIEW.value:
+        if request.interview_at:
+            resolved_interview_type = _resolve_interview_type(
+                request.interview_type,
+                application.job,
+                request.meeting_link,
+            )
+            application.schedule_interview(
+                request.interview_at,
+                interview_type=resolved_interview_type,
+                meeting_link=request.meeting_link,
+                notes=request.notes,
+            )
+        else:
+            application.status = ApplicationStatus.INTERVIEW.value
+            if request.notes:
+                application.notes = request.notes
+    elif request.status == ApplicationStatus.REJECTED.value:
+        application.reject(request.notes)
+    elif request.status == ApplicationStatus.ACCEPTED.value:
+        application.accept(request.notes)
+    elif request.status == ApplicationStatus.HIRED.value:
+        application.mark_hired(request.notes)
+    else:
+        application.status = request.status
+        if request.notes:
+            application.notes = request.notes
 
 
 

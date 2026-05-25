@@ -24,6 +24,7 @@ class ApplicationStatusEnum(str, Enum):
     INTERVIEW = "interview"
     REJECTED = "rejected"
     ACCEPTED = "accepted"
+    HIRED = "hired"
     WITHDRAWN = "withdrawn"
 
 
@@ -183,6 +184,8 @@ class ApplicationResponse(BaseModel):
     
     # Internal notes (only for company)
     notes: Optional[str] = None
+    tags: List[str] = Field(default_factory=list)
+    message_history: List[Dict[str, Any]] = Field(default_factory=list)
     
     model_config = ConfigDict(from_attributes=True)
 

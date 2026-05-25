@@ -569,7 +569,7 @@ export default function StudentDashboardPage() {
                               </p>
                               {(job.salary_min || job.salary_max) && (
                                 <p className="mt-1 text-sm font-medium text-green-600">
-                                  {formatSalaryRange(job.salary_min, job.salary_max, locale)}
+                                  {formatSalaryRange(job.salary_min, job.salary_max, locale, job.salary_currency || "USD")}
                                 </p>
                               )}
                             </div>

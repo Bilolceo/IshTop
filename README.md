@@ -56,6 +56,13 @@ python seed_data.py
 python -m uvicorn app.main:app --reload --host 127.0.0.1 --port 8000
 ```
 
+Backfill existing trust/discovery fields after running migrations:
+```powershell
+cd backend
+python scripts/backfill_trust_and_discovery.py --dry-run
+python scripts/backfill_trust_and_discovery.py
+```
+
 Backend:
 - API: `http://127.0.0.1:8000`
 - Docs: `http://127.0.0.1:8000/docs`
@@ -108,4 +115,3 @@ GitHub Actions workflow: `.github/workflows/ci.yml` runs:
 - Backend tests (Python 3.10/3.11)
 - Frontend build
 - Playwright E2E
-

@@ -215,7 +215,7 @@ function buildJobDescription(job: Job): string {
     `Title: ${job.title || ""}`,
     `Company: ${job.company?.name || ""}`,
     `Location: ${job.location || ""}`,
-    `Salary: ${formatSalaryRange(job.salary_min, job.salary_max)}`,
+    `Salary: ${formatSalaryRange(job.salary_min, job.salary_max, "uz", job.salary_currency || "USD")}`,
     `Description: ${truncateText(job.description || "", 2500)}`,
     asListLine((job.requirements?.skills || []).slice(0, 40), "Requirements"),
     asListLine((extendedJob.responsibilities || []).slice(0, 30), "Responsibilities"),
@@ -735,7 +735,7 @@ function ReviewSection({
                 </span>
                 <span className="flex items-center gap-1">
                   <DollarSign className="h-3 w-3" />
-                  {formatSalaryRange(job.salary_min, job.salary_max)}
+                  {formatSalaryRange(job.salary_min, job.salary_max, "uz", job.salary_currency || "USD")}
                 </span>
               </div>
             </div>

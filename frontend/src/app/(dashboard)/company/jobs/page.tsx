@@ -19,6 +19,8 @@ import {
   Archive,
   TrendingUp,
   Clock,
+  PauseCircle,
+  PlayCircle,
 } from "lucide-react";
 import { useJobs } from "@/hooks/useJobs";
 import { useTranslation } from "@/hooks/useTranslation";
@@ -26,6 +28,16 @@ import { Button } from "@/components/ui/button";
 import { Card, CardContent } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { SkeletonCard } from "@/components/ui/skeleton";
+import { Label } from "@/components/ui/label";
+import { Textarea } from "@/components/ui/textarea";
+import {
+  Dialog,
+  DialogContent,
+  DialogDescription,
+  DialogFooter,
+  DialogHeader,
+  DialogTitle,
+} from "@/components/ui/dialog";
 import { formatRelativeTime, formatSalaryRange } from "@/lib/utils";
 import type { Job } from "@/types/api";
 
@@ -34,16 +46,22 @@ export default function CompanyJobsPage() {
   const isRu = locale === "ru";
   const statusLabel: Record<string, string> = isRu
     ? { active: "Активная", draft: "Черновик", paused: "Приостановлена", closed: "Закрыта" }
-    : { active: "Faol", draft: "Qoralama", paused: "To'xtatilgan", closed: "Yopilgan" };
+    : { active: "Faol", draft: "Qoralama", paused: "Pauza", closed: "Yopilgan" };
   const {
     jobs,
     isLoading,
     fetchMyJobs,
     publishJob,
+    pauseJob,
+    reopenJob,
     closeJob,
     deleteJob,
   } = useJobs();
   const [activeMenu, setActiveMenu] = useState<string | null>(null);
+  const [closeDialogJob, setCloseDialogJob] = useState<Job | null>(null);
+  const [closeReasonCode, setCloseReasonCode] = useState<"hired" | "other">("hired");
+  const [closeReasonNote, setCloseReasonNote] = useState("");
+  const [actionJobId, setActionJobId] = useState<string | null>(null);
 
   // eslint-disable-next-line react-hooks/exhaustive-deps
   useEffect(() => {
@@ -52,12 +70,39 @@ export default function CompanyJobsPage() {
 
   const handleAction = async (action: string, job: Job) => {
     setActiveMenu(null);
-    if (action === "publish") await publishJob(job.id);
-    if (action === "close") await closeJob(job.id);
+    setActionJobId(job.id);
+    try {
+      if (action === "publish") await publishJob(job.id);
+      if (action === "pause") await pauseJob(job.id);
+      if (action === "reopen") await reopenJob(job.id);
+      if (action === "close") {
+        setCloseReasonCode("hired");
+        setCloseReasonNote("");
+        setCloseDialogJob(job);
+      }
+    } finally {
+      setActionJobId(null);
+    }
     if (action === "delete") {
       if (confirm(t("companyJobsPage.deleteConfirm", { title: job.title }))) {
         await deleteJob(job.id);
       }
+    }
+  };
+
+  const handleConfirmClose = async () => {
+    if (!closeDialogJob) return;
+    setActionJobId(closeDialogJob.id);
+    try {
+      await closeJob(closeDialogJob.id, {
+        reason_code: closeReasonCode,
+        reason_note: closeReasonNote.trim() || undefined,
+      });
+      setCloseDialogJob(null);
+      setCloseReasonCode("hired");
+      setCloseReasonNote("");
+    } finally {
+      setActionJobId(null);
     }
   };
 
@@ -191,12 +236,14 @@ export default function CompanyJobsPage() {
                         {job.title}
                       </h3>
                       <Badge
-                        variant={
+                        className={
                           job.status === "active"
-                            ? "success"
-                            : job.status === "draft"
-                            ? "secondary"
-                            : "outline"
+                            ? "bg-emerald-100 text-emerald-700 dark:bg-emerald-500/20 dark:text-emerald-300"
+                            : job.status === "paused"
+                            ? "bg-amber-100 text-amber-700 dark:bg-amber-500/20 dark:text-amber-300"
+                            : job.status === "closed"
+                            ? "bg-surface-200 text-surface-700 dark:bg-surface-700 dark:text-surface-300"
+                            : "bg-indigo-100 text-indigo-700 dark:bg-indigo-500/20 dark:text-indigo-300"
                         }
                       >
                         {statusLabel[job.status] || job.status}
@@ -209,7 +256,7 @@ export default function CompanyJobsPage() {
                       <span>{job.job_type?.replace("_", " ")}</span>
                       <span>{job.experience_level}</span>
                       {job.salary_min !== undefined && job.salary_max !== undefined && (
-                        <span>{formatSalaryRange(job.salary_min, job.salary_max, locale)}</span>
+                        <span>{formatSalaryRange(job.salary_min, job.salary_max, locale, job.salary_currency || "USD")}</span>
                       )}
                     </div>
 
@@ -255,6 +302,7 @@ export default function CompanyJobsPage() {
                       <Button
                         variant="ghost"
                         size="sm"
+                        disabled={actionJobId === job.id}
                         onClick={() => setActiveMenu(activeMenu === job.id ? null : job.id)}
                       >
                         <MoreVertical className="h-4 w-4" />
@@ -278,11 +326,38 @@ export default function CompanyJobsPage() {
                             )}
                             {job.status === "active" && (
                               <button
+                                onClick={() => handleAction("pause", job)}
+                                className="flex w-full items-center gap-2 rounded-lg px-3 py-2 text-sm text-surface-600 hover:bg-surface-100 dark:text-surface-400 dark:hover:bg-surface-700"
+                              >
+                                <PauseCircle className="h-4 w-4" />
+                                {isRu ? "Поставить на паузу" : "Pauza qilish"}
+                              </button>
+                            )}
+                            {job.status === "active" && (
+                              <button
                                 onClick={() => handleAction("close", job)}
                                 className="flex w-full items-center gap-2 rounded-lg px-3 py-2 text-sm text-surface-600 hover:bg-surface-100 dark:text-surface-400 dark:hover:bg-surface-700"
                               >
                                 <Archive className="h-4 w-4" />
-                                {t("companyJobsPage.closeJob")}
+                                {isRu ? "Закрыть вакансию" : "Vakansiyani yopish"}
+                              </button>
+                            )}
+                            {(job.status === "paused" || job.status === "closed" || job.status === "filled") && (
+                              <button
+                                onClick={() => handleAction("reopen", job)}
+                                className="flex w-full items-center gap-2 rounded-lg px-3 py-2 text-sm text-surface-600 hover:bg-surface-100 dark:text-surface-400 dark:hover:bg-surface-700"
+                              >
+                                <PlayCircle className="h-4 w-4" />
+                                {isRu ? "Переоткрыть вакансию" : "Qayta ochish"}
+                              </button>
+                            )}
+                            {job.status === "paused" && (
+                              <button
+                                onClick={() => handleAction("close", job)}
+                                className="flex w-full items-center gap-2 rounded-lg px-3 py-2 text-sm text-surface-600 hover:bg-surface-100 dark:text-surface-400 dark:hover:bg-surface-700"
+                              >
+                                <Archive className="h-4 w-4" />
+                                {isRu ? "Закрыть вакансию" : "Vakansiyani yopish"}
                               </button>
                             )}
                             <button
@@ -303,6 +378,60 @@ export default function CompanyJobsPage() {
           ))}
         </div>
       )}
+
+      <Dialog open={!!closeDialogJob} onOpenChange={(open) => !open && setCloseDialogJob(null)}>
+        <DialogContent>
+          <DialogHeader>
+            <DialogTitle>{isRu ? "Закрыть вакансию" : "Vakansiyani yopish"}</DialogTitle>
+            <DialogDescription>
+              {isRu
+                ? "Причину можно указать для внутренней аналитики."
+                : "Sababni ixtiyoriy tarzda ko'rsatishingiz mumkin."}
+            </DialogDescription>
+          </DialogHeader>
+
+          <div className="space-y-3">
+            <div className="space-y-2">
+              <Label>{isRu ? "Причина" : "Sabab"}</Label>
+              <div className="grid gap-2">
+                <button
+                  type="button"
+                  onClick={() => setCloseReasonCode("hired")}
+                  className={`rounded-lg border px-3 py-2 text-left text-sm ${closeReasonCode === "hired" ? "border-emerald-500 bg-emerald-50 text-emerald-700" : "border-surface-300 text-surface-700"}`}
+                >
+                  {isRu ? "Кандидат найден" : "Yollanuvchi topildi"}
+                </button>
+                <button
+                  type="button"
+                  onClick={() => setCloseReasonCode("other")}
+                  className={`rounded-lg border px-3 py-2 text-left text-sm ${closeReasonCode === "other" ? "border-amber-500 bg-amber-50 text-amber-700" : "border-surface-300 text-surface-700"}`}
+                >
+                  {isRu ? "Другая причина" : "Boshqa sabab"}
+                </button>
+              </div>
+            </div>
+
+            <div className="space-y-2">
+              <Label htmlFor="close-reason-note">{isRu ? "Комментарий (необязательно)" : "Izoh (ixtiyoriy)"}</Label>
+              <Textarea
+                id="close-reason-note"
+                value={closeReasonNote}
+                onChange={(event) => setCloseReasonNote(event.target.value)}
+                placeholder={isRu ? "Короткий комментарий..." : "Qisqa izoh..."}
+              />
+            </div>
+          </div>
+
+          <DialogFooter>
+            <Button variant="outline" onClick={() => setCloseDialogJob(null)}>
+              {isRu ? "Отмена" : "Bekor qilish"}
+            </Button>
+            <Button onClick={handleConfirmClose} disabled={!closeDialogJob || actionJobId === closeDialogJob.id}>
+              {actionJobId === closeDialogJob?.id ? (isRu ? "Закрывается..." : "Yopilmoqda...") : (isRu ? "Закрыть" : "Yopish")}
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
     </div>
   );
 }

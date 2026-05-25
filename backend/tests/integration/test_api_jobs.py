@@ -402,6 +402,13 @@ class TestJobMatching:
         payload = response.json().get("data", response.json())
         # Should return matched jobs with scores
         assert isinstance(payload, list) or "matches" in payload
+        if isinstance(payload, dict) and payload.get("matches"):
+            match = payload["matches"][0]
+            assert "match_score" in match
+            assert "explainability" in match
+            assert isinstance(match["explainability"]["fit_reasons"], list)
+            assert isinstance(match["explainability"]["missing_items"], list)
+            assert set(match["explainability"]["improvement_plan"].keys()) == {"d7", "d14", "d30"}
 
     @pytest.mark.asyncio
     async def test_match_jobs_unauthenticated(self, async_client: AsyncClient):

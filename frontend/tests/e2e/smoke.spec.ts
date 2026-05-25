@@ -1,9 +1,29 @@
 import { test, expect } from "@playwright/test";
+import { readFileSync } from "node:fs";
+import path from "node:path";
 
 type Json = Record<string, any>;
 
 const APP_URL = "http://127.0.0.1:3000";
 const API_URL = process.env.NEXT_PUBLIC_API_URL || "http://127.0.0.1:8000/api/v1";
+const E2E_SEED_FILE = path.join(process.cwd(), "test-results", "e2e-seed.json");
+
+function getSeededSmokeAdmin() {
+  try {
+    const seed = JSON.parse(readFileSync(E2E_SEED_FILE, "utf8")) as Json;
+    const smokeAdmin = seed.smokeAdmin as Json | undefined;
+    if (smokeAdmin?.email && smokeAdmin?.password) {
+      return { email: String(smokeAdmin.email), password: String(smokeAdmin.password) };
+    }
+  } catch {
+    // Fall through to the legacy admin for externally pre-seeded environments.
+  }
+
+  return {
+    email: process.env.E2E_ADMIN_EMAIL || "admin@ishtop.uz",
+    password: process.env.E2E_ADMIN_PASSWORD || "Admin123!",
+  };
+}
 
 async function loginAndBuildAuthStorage(request: any, email: string, password: string) {
   let res: any = null;
@@ -21,7 +41,12 @@ async function loginAndBuildAuthStorage(request: any, email: string, password: s
     break;
   }
 
-  expect(res.ok()).toBeTruthy();
+  if (!res?.ok()) {
+    const status = res?.status?.() ?? "no response";
+    const body = res ? await res.text() : "";
+    throw new Error(`Login failed for ${email} (${status}): ${body}`);
+  }
+
   const data = (await res.json()) as Json;
 
   return JSON.stringify({
@@ -46,7 +71,8 @@ async function applyAuthState(page: any, storageValue: string) {
 
 test.describe("Smoke Expansion", () => {
   test("admin dashboard loads with seeded admin account", async ({ page, request }) => {
-    const authStorage = await loginAndBuildAuthStorage(request, "admin@ishtop.uz", "Admin123!");
+    const admin = getSeededSmokeAdmin();
+    const authStorage = await loginAndBuildAuthStorage(request, admin.email, admin.password);
     await applyAuthState(page, authStorage);
 
     await page.goto(`${APP_URL}/admin`);

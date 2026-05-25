@@ -163,6 +163,14 @@ from app.models.landing_content import (
     LandingContent,
 )
 
+from app.models.verification_audit_log import (
+    VerificationAuditLog,
+)
+
+from app.models.funnel_event import (
+    FunnelEvent,
+)
+
 # =============================================================================
 # EXPORT ALL (for `from app.models import *`)
 # =============================================================================
@@ -219,6 +227,8 @@ __all__ = [
     "Notification",           # User notifications
     "SavedSearch",           # Saved search filters
     "LandingContent",
+    "VerificationAuditLog",
+    "FunnelEvent",
 ]
 
 # =============================================================================

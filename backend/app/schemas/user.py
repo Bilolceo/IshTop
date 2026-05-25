@@ -35,6 +35,15 @@ class UserUpdate(BaseModel):
     # Company-specific
     company_name: Optional[str] = Field(None, max_length=255)
     company_website: Optional[str] = Field(None, max_length=500)
+    company_cover_photo_url: Optional[str] = Field(None, max_length=500)
+    company_gallery_images: Optional[List[str]] = None
+    company_culture: Optional[str] = Field(None, max_length=4000)
+    company_linkedin_url: Optional[str] = Field(None, max_length=500)
+    company_telegram_url: Optional[str] = Field(None, max_length=500)
+    company_instagram_url: Optional[str] = Field(None, max_length=500)
+    company_facebook_url: Optional[str] = Field(None, max_length=500)
+    company_founded_year: Optional[int] = Field(None, ge=1700, le=2200)
+    company_video_url: Optional[str] = Field(None, max_length=500)
     
     model_config = ConfigDict(
         json_schema_extra={
@@ -63,6 +72,16 @@ class UserProfileResponse(BaseModel):
     location: Optional[str] = None
     company_name: Optional[str] = None
     company_website: Optional[str] = None
+    company_cover_photo_url: Optional[str] = None
+    company_gallery_images: List[str] = Field(default_factory=list)
+    company_culture: Optional[str] = None
+    company_linkedin_url: Optional[str] = None
+    company_telegram_url: Optional[str] = None
+    company_instagram_url: Optional[str] = None
+    company_facebook_url: Optional[str] = None
+    company_founded_year: Optional[int] = None
+    company_video_url: Optional[str] = None
+    verification_state: Optional[str] = None
     created_at: datetime
     updated_at: datetime
     last_login: Optional[datetime] = None

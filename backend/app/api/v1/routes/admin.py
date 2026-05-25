@@ -44,10 +44,13 @@ from app.models import (
     Resume,
     Job,
     Application,
+    VerificationAuditLog,
+    FunnelEvent,
     UserRole,
     AdminSubRole,
     ADMIN_PERMISSION_MATRIX,
 )
+from app.services.trust_engine import calculate_job_trust
 from app.services.error_logging_service import (
     error_logger,
     ErrorCategory,
@@ -133,6 +136,18 @@ class UserStatsResponse(BaseModel):
     stats: Dict[str, Any]
 
 
+class FunnelKpiResponse(BaseModel):
+    """Candidate funnel KPI response."""
+    success: bool = True
+    days: int
+    start_date: str
+    end_date: str
+    events: List[str]
+    totals: Dict[str, int]
+    conversions: Dict[str, float]
+    daily: List[Dict[str, Any]]
+
+
 class AdminRoleMatrixResponse(BaseModel):
     """Admin sub-role permission matrix response."""
     success: bool = True
@@ -183,6 +198,20 @@ class UserListResponse(BaseModel):
 class UpdateUserStatusRequest(BaseModel):
     """Request body for updating user status."""
     is_active: bool = Field(..., description="Account status")
+
+
+class CompanyVerificationReviewRequest(BaseModel):
+    action: str = Field(..., description="approve or reject")
+    notes: Optional[str] = Field(None, max_length=1000)
+    badges: List[str] = Field(default_factory=list)
+
+    @field_validator("action")
+    @classmethod
+    def validate_action(cls, value: str) -> str:
+        normalized = (value or "").strip().lower()
+        if normalized not in {"approve", "reject"}:
+            raise ValueError("action must be 'approve' or 'reject'")
+        return normalized
 
 
 # =============================================================================
@@ -616,6 +645,102 @@ async def get_user_statistics(
 # DASHBOARD SUMMARY
 # =============================================================================
 
+FUNNEL_KPI_EVENTS = [
+    "search",
+    "view_job",
+    "view_explainability",
+    "apply_after_explainability",
+    "interview_scheduled",
+]
+
+FUNNEL_CONVERSION_STEPS = [
+    ("search_to_view_job", "view_job", "search"),
+    ("view_job_to_view_explainability", "view_explainability", "view_job"),
+    (
+        "view_explainability_to_apply_after_explainability",
+        "apply_after_explainability",
+        "view_explainability",
+    ),
+    (
+        "apply_after_explainability_to_interview_scheduled",
+        "interview_scheduled",
+        "apply_after_explainability",
+    ),
+]
+
+
+def _funnel_conversions(counts: Dict[str, int]) -> Dict[str, float]:
+    conversions: Dict[str, float] = {}
+    for name, numerator_key, denominator_key in FUNNEL_CONVERSION_STEPS:
+        denominator = counts.get(denominator_key, 0)
+        if denominator > 0:
+            conversions[name] = round(counts.get(numerator_key, 0) / denominator, 4)
+    return conversions
+
+
+@router.get(
+    "/kpi/funnel",
+    response_model=FunnelKpiResponse,
+    summary="Candidate funnel KPI summary",
+    description="Daily funnel event counts and conversion ratios for the last N days.",
+)
+async def get_funnel_kpis(
+    days: int = Query(7, ge=1, le=90, description="Number of trailing days to include"),
+    admin: User = Depends(require_admin_permission("admin.dashboard.read")),
+    db: Session = Depends(get_db),
+):
+    """Return daily and total KPI counts for persisted funnel events."""
+    today = datetime.now(timezone.utc).date()
+    start_date = today - timedelta(days=days - 1)
+    start_at = datetime.combine(start_date, datetime.min.time(), tzinfo=timezone.utc)
+
+    rows = (
+        db.query(FunnelEvent)
+        .filter(
+            FunnelEvent.event_name.in_(FUNNEL_KPI_EVENTS),
+            FunnelEvent.created_at >= start_at,
+        )
+        .all()
+    )
+
+    daily_counts: Dict[str, Dict[str, int]] = {
+        (start_date + timedelta(days=offset)).isoformat(): {event: 0 for event in FUNNEL_KPI_EVENTS}
+        for offset in range(days)
+    }
+    totals: Dict[str, int] = {event: 0 for event in FUNNEL_KPI_EVENTS}
+
+    for row in rows:
+        created_at = row.created_at
+        if created_at is None or row.event_name not in totals:
+            continue
+        if created_at.tzinfo is None:
+            created_at = created_at.replace(tzinfo=timezone.utc)
+        day_key = created_at.astimezone(timezone.utc).date().isoformat()
+        if day_key not in daily_counts:
+            continue
+        daily_counts[day_key][row.event_name] += 1
+        totals[row.event_name] += 1
+
+    daily = [
+        {
+            "date": day,
+            "counts": counts,
+            "conversions": _funnel_conversions(counts),
+        }
+        for day, counts in sorted(daily_counts.items())
+    ]
+
+    return FunnelKpiResponse(
+        days=days,
+        start_date=start_date.isoformat(),
+        end_date=today.isoformat(),
+        events=FUNNEL_KPI_EVENTS,
+        totals=totals,
+        conversions=_funnel_conversions(totals),
+        daily=daily,
+    )
+
+
 @router.get(
     "/dashboard",
     summary="📊 Admin Dashboard",
@@ -768,6 +893,108 @@ async def update_user_status(
             "user_id": str(user.id),
             "is_active": user.is_active_account
         }
+    }
+
+
+@router.get(
+    "/companies/verification",
+    summary="List company verification submissions",
+    description="Review company verification queue with optional state filter.",
+)
+async def list_company_verification_submissions(
+    state: Optional[str] = Query(None, description="unverified|pending|approved|rejected"),
+    limit: int = Query(50, ge=1, le=200),
+    offset: int = Query(0, ge=0),
+    admin: User = Depends(require_admin_permission("admin.users.read")),
+    db: Session = Depends(get_db),
+):
+    q = db.query(User).filter(
+        User.role == UserRole.COMPANY,
+        User.is_deleted == False,
+    )
+    if state:
+        q = q.filter(User.verification_state == state.strip().lower())
+
+    total = q.count()
+    companies = q.order_by(User.verification_submitted_at.desc(), User.created_at.desc()).offset(offset).limit(limit).all()
+
+    items: List[Dict[str, Any]] = []
+    for company in companies:
+        latest_audit = (
+            db.query(VerificationAuditLog)
+            .filter(VerificationAuditLog.company_id == company.id)
+            .order_by(VerificationAuditLog.created_at.desc())
+            .first()
+        )
+        items.append(
+            {
+                "company_id": str(company.id),
+                "company_name": company.company_name or company.full_name,
+                "email": company.email,
+                "verification_state": company.verification_state,
+                "submitted_at": company.verification_submitted_at.isoformat() if company.verification_submitted_at else None,
+                "reviewed_at": company.verification_reviewed_at.isoformat() if company.verification_reviewed_at else None,
+                "trust_badges": company.trust_badges or [],
+                "last_audit": latest_audit.to_dict() if latest_audit else None,
+            }
+        )
+
+    return {"success": True, "total": total, "items": items}
+
+
+@router.post(
+    "/companies/{company_id}/verification/review",
+    summary="Approve/reject company verification",
+)
+async def review_company_verification(
+    company_id: UUID,
+    request: CompanyVerificationReviewRequest,
+    admin: User = Depends(require_admin_permission("admin.users.write")),
+    db: Session = Depends(get_db),
+):
+    company = db.query(User).filter(
+        User.id == company_id,
+        User.role == UserRole.COMPANY,
+        User.is_deleted == False,
+    ).first()
+    if not company:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Company not found")
+
+    company.verification_state = "approved" if request.action == "approve" else "rejected"
+    company.verification_reviewed_at = datetime.now(timezone.utc)
+    company.verification_reviewed_by = str(admin.id)
+    company.verification_notes = request.notes
+    if request.action == "reject":
+        company.trust_badges = []
+    elif request.badges:
+        company.trust_badges = request.badges
+
+    audit = VerificationAuditLog(
+        company_id=company.id,
+        actor_id=admin.id,
+        action=request.action,
+        notes=request.notes,
+        payload={"badges": request.badges},
+    )
+    db.add(audit)
+
+    # Recompute trust payload for all active jobs from this company.
+    jobs = db.query(Job).filter(Job.company_id == company.id, Job.is_deleted == False).all()
+    for job in jobs:
+        trust_payload = calculate_job_trust(job, company)
+        job.trust_score = float(trust_payload["trust_score"])
+        job.trust_badges = trust_payload["trust_badges"]
+        job.trust_factors = trust_payload["trust_factors"]
+
+    db.commit()
+    db.refresh(company)
+    db.refresh(audit)
+
+    return {
+        "success": True,
+        "message": f"Company verification {request.action}d",
+        "verification_state": company.verification_state,
+        "audit_id": str(audit.id),
     }
 
 
@@ -1000,6 +1227,7 @@ async def admin_list_companies(
 
     out = []
     for c in companies:
+        company_verified = bool((c.verification_state or "").lower() == "approved")
         out.append(
             {
                 "id": str(c.id),
@@ -1009,6 +1237,8 @@ async def admin_list_companies(
                 "contact_name": c.full_name,
                 "phone": c.phone,
                 "is_verified": c.is_verified,
+                "company_verified": company_verified,
+                "verification_state": c.verification_state,
                 "is_active": c.is_active_account,
                 "created_at": c.created_at.isoformat() if c.created_at else None,
                 "last_login": c.last_login.isoformat() if c.last_login else None,
@@ -1040,6 +1270,9 @@ async def admin_verify_company(
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Company not found")
 
     company.is_verified = payload.is_verified
+    company.verification_state = "approved" if payload.is_verified else "unverified"
+    company.verification_reviewed_at = datetime.now(timezone.utc)
+    company.verification_reviewed_by = str(admin.id)
     db.commit()
     logger.info(
         f"Admin {admin.email} set company {company.id} verified={payload.is_verified}"
@@ -1048,7 +1281,11 @@ async def admin_verify_company(
     return {
         "success": True,
         "message": "Company verification updated",
-        "data": {"id": str(company.id), "is_verified": company.is_verified},
+        "data": {
+            "id": str(company.id),
+            "is_verified": company.is_verified,
+            "verification_state": company.verification_state,
+        },
     }
 
 

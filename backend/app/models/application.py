@@ -125,6 +125,7 @@ class ApplicationStatus(str, Enum):
     INTERVIEW = "interview"       # Interview scheduled
     REJECTED = "rejected"         # Not moving forward
     ACCEPTED = "accepted"         # Offer extended
+    HIRED = "hired"               # Candidate joined / final hire
     WITHDRAWN = "withdrawn"       # Candidate withdrew
 
 
@@ -261,6 +262,20 @@ class Application(Base, UUIDMixin, TimestampMixin, SoftDeleteMixin):
         Text,
         nullable=True,
         comment="Internal recruiter notes (not shown to applicant)"
+    )
+
+    tags = Column(
+        JSON,
+        nullable=True,
+        default=list,
+        comment="Internal recruiter tags for quick filtering/scanning",
+    )
+
+    message_history = Column(
+        JSON,
+        nullable=True,
+        default=list,
+        comment="Outbound recruiter-to-candidate message history",
     )
     
     # AI-calculated match score between resume and job
@@ -457,6 +472,18 @@ class Application(Base, UUIDMixin, TimestampMixin, SoftDeleteMixin):
             self.reviewed_at = utc_now()
         if notes:
             self.notes = notes
+
+    def mark_hired(self, notes: Optional[str] = None) -> None:
+        """
+        Mark candidate as hired.
+        This is a final state.
+        """
+        self.status = ApplicationStatus.HIRED.value
+        self.decided_at = utc_now()
+        if not self.reviewed_at:
+            self.reviewed_at = utc_now()
+        if notes:
+            self.notes = notes
     
     def withdraw(self) -> None:
         """
@@ -491,13 +518,14 @@ class Application(Base, UUIDMixin, TimestampMixin, SoftDeleteMixin):
         return self.status in [
             ApplicationStatus.REJECTED.value,
             ApplicationStatus.ACCEPTED.value,
+            ApplicationStatus.HIRED.value,
             ApplicationStatus.WITHDRAWN.value,
         ]
     
     @property
     def is_successful(self) -> bool:
         """Was the application successful?"""
-        return self.status == ApplicationStatus.ACCEPTED.value
+        return self.status in [ApplicationStatus.ACCEPTED.value, ApplicationStatus.HIRED.value]
     
     @property
     def days_since_applied(self) -> int:
@@ -559,6 +587,8 @@ class Application(Base, UUIDMixin, TimestampMixin, SoftDeleteMixin):
             "status": self.status,
             "cover_letter": self.cover_letter,
             "match_score": self.match_score,
+            "tags": self.tags or [],
+            "message_history": self.message_history or [],
             "is_in_progress": self.is_in_progress,
             "days_since_applied": self.days_since_applied,
             "applied_at": self.applied_at.isoformat() if self.applied_at else None,
