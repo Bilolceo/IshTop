@@ -509,3 +509,74 @@ Your IshTop platform is now LIVE in production!
 - Review this guide
 
 **Good luck!** 🚀
+
+
+---
+
+## 🚂 Railway Deploy Flow (CI/CD)
+
+### Avtomatik deploy jarayoni
+
+```
+git push main
+     │
+     ▼
+GitHub Actions: CI/CD Pipeline
+     │
+     ├─ backend-tests  (Python 3.10 + 3.11)
+     ├─ backend-lint   (flake8, black, isort)
+     ├─ frontend-tests (TypeScript, ESLint, build)
+     ├─ e2e-tests      (Playwright)
+     ├─ security-scan  (Trivy)
+     └─ build-check    (Docker build)
+          │
+          ▼ (barcha testlar o'tsa)
+     deploy job (environment: production)
+          │
+          ├─ Railway Backend → serviceInstanceRedeploy
+          └─ Railway Frontend → serviceInstanceRedeploy
+```
+
+### Kerakli GitHub Secrets
+
+| Secret nomi                    | Qayerdan olish                                      |
+|-------------------------------|-----------------------------------------------------|
+| `RAILWAY_TOKEN`               | railway.app → Account Settings → Tokens             |
+| `RAILWAY_PROJECT_ID`          | Railway dashboard → Project → Settings → Project ID |
+| `RAILWAY_BACKEND_SERVICE_ID`  | Railway → Project → Backend service → Settings      |
+| `RAILWAY_FRONTEND_SERVICE_ID` | Railway → Project → Frontend service → Settings     |
+
+### Secrets qo'shish qadamlari
+
+1. GitHub repo → **Settings** → **Secrets and variables** → **Actions**
+2. **New repository secret** tugmasini bosing
+3. Yuqoridagi 4 ta secretni birma-bir qo'shing
+
+### Rollback qadamlari
+
+**Variant 1 — Railway dashboard orqali:**
+1. [railway.app](https://railway.app) → Loyihangizga kiring
+2. Tegishli service → **Deployments** tabiga o'ting
+3. Oldingi muvaffaqiyatli deploy yonidagi **"Redeploy"** tugmasini bosing
+
+**Variant 2 — Git revert orqali:**
+```bash
+# Oxirgi commitni revert qiling
+git revert HEAD --no-edit
+git push origin main
+# Bu yangi CI/CD run ishga tushiradi va oldingi versiyani deploy qiladi
+```
+
+**Variant 3 — Railway CLI orqali:**
+```bash
+npm install -g @railway/cli
+railway login
+railway link <PROJECT_ID>
+railway rollback  # Interaktiv tanlash
+```
+
+### Deploy monitoring
+
+- **Railway dashboard**: https://railway.app/project/${RAILWAY_PROJECT_ID}
+- **GitHub Actions logs**: https://github.com/Bilolceo/IshTop/actions
+- **Job summary**: har bir deploy run'da `$GITHUB_STEP_SUMMARY` da link ko'rsatiladi
