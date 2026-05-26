@@ -311,51 +311,65 @@ jobs:
             NEXT_PUBLIC_API_URL=http://127.0.0.1:8000
 
   # ===========================================================================
-  # DEPLOYMENT — Render.com (main branch only, all checks must pass)
+  # DEPLOYMENT — Railway (main branch only, all checks must pass)
   # ===========================================================================
   # Prerequisites (add these in GitHub → Settings → Secrets → Actions):
-  #   RENDER_DEPLOY_HOOK_BACKEND  — from Render dashboard → backend service → Settings → Deploy Hook
-  #   RENDER_DEPLOY_HOOK_FRONTEND — from Render dashboard → frontend service → Settings → Deploy Hook
+  #   RAILWAY_TOKEN          — Railway API token (railway.app → Account → Tokens)
+  #   RAILWAY_BACKEND_SERVICE_ID  — Service ID for backend  (Railway dashboard → Service → Settings)
+  #   RAILWAY_FRONTEND_SERVICE_ID — Service ID for frontend (Railway dashboard → Service → Settings)
+  #   RAILWAY_PROJECT_ID     — Project ID (Railway dashboard → Project → Settings)
+  # ===========================================================================
   deploy:
-    name: Deploy to Production (Render)
+    name: Deploy to Production (Railway)
     runs-on: ubuntu-latest
     needs: [backend-tests, frontend-tests, e2e-tests, build-check]
     if: github.ref == 'refs/heads/main' && github.event_name == 'push'
+    environment: production
 
     steps:
-      - name: Trigger backend deploy on Render
+      - name: Trigger backend deploy on Railway
         env:
-          RENDER_DEPLOY_HOOK_BACKEND: ${{ secrets.RENDER_DEPLOY_HOOK_BACKEND }}
+          RAILWAY_TOKEN: ${{ secrets.RAILWAY_TOKEN }}
+          SERVICE_ID: ${{ secrets.RAILWAY_BACKEND_SERVICE_ID }}
+          PROJECT_ID: ${{ secrets.RAILWAY_PROJECT_ID }}
         run: |
-          if [ -z "$RENDER_DEPLOY_HOOK_BACKEND" ]; then
-            echo "RENDER_DEPLOY_HOOK_BACKEND secret not set — skipping."
-          else
-            echo "Triggering backend deploy..."
-            curl -s --fail-with-body "$RENDER_DEPLOY_HOOK_BACKEND" \
-              | jq -r '.deploy.id // "triggered"'
-            echo "Backend deploy triggered."
+          if [ -z "$RAILWAY_TOKEN" ] || [ -z "$SERVICE_ID" ]; then
+            echo "RAILWAY_TOKEN or RAILWAY_BACKEND_SERVICE_ID not set — skipping."
+            exit 0
           fi
+          echo "Triggering backend deploy on Railway..."
+          RESPONSE=$(curl -s --fail-with-body \
+            -X POST \
+            -H "Authorization: Bearer $RAILWAY_TOKEN" \
+            -H "Content-Type: application/json" \
+            -d "{\"query\": \"mutation { serviceInstanceRedeploy(environmentId: null, serviceId: \\\"$SERVICE_ID\\\") }\", \"variables\": {}}" \
+            https://backboard.railway.app/graphql/v2)
+          echo "Response: $RESPONSE"
+          echo "Backend deploy triggered successfully."
 
-      - name: Trigger frontend deploy on Render
+      - name: Trigger frontend deploy on Railway
         env:
-          RENDER_DEPLOY_HOOK_FRONTEND: ${{ secrets.RENDER_DEPLOY_HOOK_FRONTEND }}
+          RAILWAY_TOKEN: ${{ secrets.RAILWAY_TOKEN }}
+          SERVICE_ID: ${{ secrets.RAILWAY_FRONTEND_SERVICE_ID }}
+          PROJECT_ID: ${{ secrets.RAILWAY_PROJECT_ID }}
         run: |
-          if [ -z "$RENDER_DEPLOY_HOOK_FRONTEND" ]; then
-            echo "RENDER_DEPLOY_HOOK_FRONTEND secret not set — skipping."
-          else
-            echo "Triggering frontend deploy..."
-            curl -s --fail-with-body "$RENDER_DEPLOY_HOOK_FRONTEND" \
-              | jq -r '.deploy.id // "triggered"'
-            echo "Frontend deploy triggered."
+          if [ -z "$RAILWAY_TOKEN" ] || [ -z "$SERVICE_ID" ]; then
+            echo "RAILWAY_TOKEN or RAILWAY_FRONTEND_SERVICE_ID not set — skipping."
+            exit 0
           fi
+          echo "Triggering frontend deploy on Railway..."
+          RESPONSE=$(curl -s --fail-with-body \
+            -X POST \
+            -H "Authorization: Bearer $RAILWAY_TOKEN" \
+            -H "Content-Type: application/json" \
+            -d "{\"query\": \"mutation { serviceInstanceRedeploy(environmentId: null, serviceId: \\\"$SERVICE_ID\\\") }\", \"variables\": {}}" \
+            https://backboard.railway.app/graphql/v2)
+          echo "Response: $RESPONSE"
+          echo "Frontend deploy triggered successfully."
 
-      - name: Summary
-        run: echo "Monitor deploy progress at https://dashboard.render.com"
-
-
-
-
-
-
-
-
+      - name: Deploy summary
+        run: |
+          echo "## Railway Deployment Triggered" >> $GITHUB_STEP_SUMMARY
+          echo "- Branch: ${{ github.ref_name }}" >> $GITHUB_STEP_SUMMARY
+          echo "- Commit: ${{ github.sha }}" >> $GITHUB_STEP_SUMMARY
+          echo "- Monitor: https://railway.app/project/${{ secrets.RAILWAY_PROJECT_ID }}" >> $GITHUB_STEP_SUMMARY
