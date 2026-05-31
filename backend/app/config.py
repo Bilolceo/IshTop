@@ -22,6 +22,7 @@ HOW IT WORKS:
 
 from pydantic_settings import BaseSettings, SettingsConfigDict
 import os
+import sys
 from pathlib import Path
 
 from pydantic import AliasChoices, Field, ValidationInfo, field_validator, model_validator
@@ -481,7 +482,16 @@ class Settings(BaseSettings):
         accept real traffic. Skipped entirely under pytest (CI env where DEBUG
         may be flipped intentionally) by checking the PYTEST_CURRENT_TEST hint.
         """
-        if self.DEBUG or os.environ.get("PYTEST_CURRENT_TEST"):
+        # Bypass when running tests. PYTEST_CURRENT_TEST is set per-test (not
+        # at conftest-import time), so also check for the pytest module being
+        # already imported, plus an explicit override for ad-hoc scripts
+        # (e2e global-setup spawns a fresh python that doesn't import pytest).
+        if (
+            self.DEBUG
+            or os.environ.get("PYTEST_CURRENT_TEST")
+            or "pytest" in sys.modules
+            or os.environ.get("SKIP_PROD_VALIDATOR") == "1"
+        ):
             return self
 
         errors: List[str] = []

@@ -57,9 +57,13 @@ def _set_prod_env(monkeypatch, **overrides):
     is isolated.
     """
     # The prod validator (_validate_production_environment) short-circuits
-    # when PYTEST_CURRENT_TEST is set so the rest of the suite can keep using
-    # relaxed envs. Delete it here so the validator actually runs.
+    # when PYTEST_CURRENT_TEST is set OR when pytest is in sys.modules OR
+    # when SKIP_PROD_VALIDATOR=1, so the rest of the suite can keep using
+    # relaxed envs. Disable every bypass here so the validator actually runs.
+    import sys as _sys
     monkeypatch.delenv("PYTEST_CURRENT_TEST", raising=False)
+    monkeypatch.delenv("SKIP_PROD_VALIDATOR", raising=False)
+    monkeypatch.delitem(_sys.modules, "pytest", raising=False)
     monkeypatch.setenv("DEBUG", "false")
     monkeypatch.setenv("SECRET_KEY", "prod-strong-secret-0123456789abcdef0123456789")
     monkeypatch.setenv("DATABASE_URL", "postgresql://u:p@localhost/db")

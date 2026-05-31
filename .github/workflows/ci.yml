@@ -100,6 +100,12 @@ jobs:
   secret-scan:
     name: Secret Scan (gitleaks)
     runs-on: ubuntu-latest
+    # gitleaks-action calls /repos/.../pulls/{n}/commits to scan only the PR
+    # commit range. Default GITHUB_TOKEN cannot read PR contents/commits
+    # without explicit permissions.
+    permissions:
+      contents: read
+      pull-requests: read
     steps:
       - name: Checkout code
         uses: actions/checkout@v5
@@ -233,6 +239,11 @@ jobs:
           NEXT_PUBLIC_API_URL: http://127.0.0.1:8000/api/v1
           # Used by Playwright global-setup seeding (admin account).
           DATABASE_URL: postgresql://test:test@localhost:5432/ishtop_test
+          # global-setup.ts spawns a fresh python3 that imports app.config to
+          # seed the admin row. That subprocess does NOT have pytest loaded,
+          # so the production validator would trip without this override.
+          SMARTCAREER_DEBUG: "true"
+          SKIP_PROD_VALIDATOR: "1"
 
       - name: Dump backend logs (on failure)
         if: failure()
