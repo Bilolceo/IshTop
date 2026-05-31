@@ -17,6 +17,7 @@ import {
   Users,
 } from "lucide-react";
 import { adminApi, getErrorMessage } from "@/lib/api";
+import { BulkActionBar } from "@/components/admin/BulkActionBar";
 import { useTranslation } from "@/hooks/useTranslation";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
@@ -62,6 +63,7 @@ export default function AdminCompaniesPage() {
     "all" | "verified" | "unverified"
   >("all");
   const [busyId, setBusyId] = useState<string | null>(null);
+  const [selected, setSelected] = useState<Set<string>>(new Set());
 
   const t = useMemo(
     () =>
@@ -139,6 +141,37 @@ export default function AdminCompaniesPage() {
     void load();
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [search, verifyFilter]);
+
+  useEffect(() => {
+    const handler = (e: KeyboardEvent) => {
+      if (e.key === "Escape") setSelected(new Set());
+    };
+    document.addEventListener("keydown", handler);
+    return () => document.removeEventListener("keydown", handler);
+  }, []);
+
+  const toggleAll = () => {
+    if (selected.size === companies.length) {
+      setSelected(new Set());
+    } else {
+      setSelected(new Set(companies.map((c) => c.id)));
+    }
+  };
+
+  const toggleOne = (id: string) => {
+    setSelected((prev) => {
+      const next = new Set(prev);
+      if (next.has(id)) next.delete(id);
+      else next.add(id);
+      return next;
+    });
+  };
+
+  const handleBulkAction = async (action: string) => {
+    await adminApi.bulkCompanies(Array.from(selected), action);
+    setSelected(new Set());
+    await load();
+  };
 
   const toggleVerify = async (company: AdminCompany) => {
     setBusyId(company.id);
@@ -238,6 +271,19 @@ export default function AdminCompaniesPage() {
           </CardTitle>
         </CardHeader>
         <CardContent>
+          {!loading && companies.length > 0 && (
+            <div className="mb-3 flex items-center gap-2 pb-2 border-b border-surface-100 dark:border-surface-800">
+              <input
+                type="checkbox"
+                checked={selected.size === companies.length && companies.length > 0}
+                onChange={toggleAll}
+                className="h-4 w-4 rounded border-surface-300 accent-brand-500"
+              />
+              <span className="text-xs text-surface-500">
+                {selected.size > 0 ? `${selected.size} tanlandi` : "Hammasini tanlash"}
+              </span>
+            </div>
+          )}
           {loading ? (
             <div className="space-y-3">
               {[1, 2, 3, 4].map((i) => (
@@ -252,12 +298,20 @@ export default function AdminCompaniesPage() {
             </div>
           ) : (
             <div className="grid gap-4 md:grid-cols-2">
-              {companies.map((company) => (
+              {companies.map((company) => {
+                const isSelected = selected.has(company.id);
+                return (
                 <div
                   key={company.id}
-                  className="rounded-2xl border border-surface-200 p-4 transition-colors hover:border-brand-200 dark:border-surface-700 dark:hover:border-brand-500/40"
+                  className={`rounded-2xl border p-4 transition-colors ${isSelected ? "border-brand-400 bg-brand-50 dark:border-brand-500/60 dark:bg-brand-500/10" : "border-surface-200 hover:border-brand-200 dark:border-surface-700 dark:hover:border-brand-500/40"}`}
                 >
                   <div className="flex items-start justify-between gap-3">
+                    <input
+                      type="checkbox"
+                      checked={isSelected}
+                      onChange={() => toggleOne(company.id)}
+                      className="mt-1 h-4 w-4 flex-shrink-0 rounded border-surface-300 accent-brand-500"
+                    />
                     <div className="flex min-w-0 items-start gap-3">
                       <UserAvatar name={company.company_name} size="md" />
                       <div className="min-w-0">
@@ -353,11 +407,22 @@ export default function AdminCompaniesPage() {
                     </span>
                   </div>
                 </div>
-              ))}
+              );
+              })}
             </div>
           )}
         </CardContent>
       </Card>
+
+      <BulkActionBar
+        selectedCount={selected.size}
+        onAction={handleBulkAction}
+        onClear={() => setSelected(new Set())}
+        actions={[
+          { label: "Tasdiqlash", action: "verify", variant: "default" },
+          { label: "Bloklash", action: "deactivate", variant: "destructive", requireConfirm: true },
+        ]}
+      />
     </div>
   );
 }

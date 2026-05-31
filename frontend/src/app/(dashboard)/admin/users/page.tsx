@@ -10,6 +10,7 @@ import {
   UserX,
   Users,
 } from "lucide-react";
+import { BulkActionBar } from "@/components/admin/BulkActionBar";
 import { adminApi, getErrorMessage } from "@/lib/api";
 import type { AdminManagedUser, UserRole } from "@/types/api";
 import { Badge } from "@/components/ui/badge";
@@ -121,6 +122,7 @@ export default function AdminUsersPage() {
   const [refreshing, setRefreshing] = useState(false);
   const [loadingMore, setLoadingMore] = useState(false);
   const [savingId, setSavingId] = useState<string | null>(null);
+  const [selected, setSelected] = useState<Set<string>>(new Set());
 
   const hasMore = users.length < total;
 
@@ -163,6 +165,37 @@ export default function AdminUsersPage() {
     void fetchUsers(false);
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [role, isActive, search]);
+
+  useEffect(() => {
+    const handler = (e: KeyboardEvent) => {
+      if (e.key === "Escape") setSelected(new Set());
+    };
+    document.addEventListener("keydown", handler);
+    return () => document.removeEventListener("keydown", handler);
+  }, []);
+
+  const toggleAll = () => {
+    if (selected.size === users.length) {
+      setSelected(new Set());
+    } else {
+      setSelected(new Set(users.map((u) => u.id)));
+    }
+  };
+
+  const toggleOne = (id: string) => {
+    setSelected((prev) => {
+      const next = new Set(prev);
+      if (next.has(id)) next.delete(id);
+      else next.add(id);
+      return next;
+    });
+  };
+
+  const handleBulkAction = async (action: string) => {
+    await adminApi.bulkUsers(Array.from(selected), action);
+    setSelected(new Set());
+    await fetchUsers(false);
+  };
 
   const handleSearchSubmit = () => {
     setOffset(0);
@@ -321,6 +354,19 @@ export default function AdminUsersPage() {
           </CardTitle>
         </CardHeader>
         <CardContent>
+          {loadState === "ready" && users.length > 0 && (
+            <div className="mb-2 flex items-center gap-2 pb-2 border-b border-surface-100 dark:border-surface-800">
+              <input
+                type="checkbox"
+                checked={selected.size === users.length && users.length > 0}
+                onChange={toggleAll}
+                className="h-4 w-4 rounded border-surface-300 accent-brand-500"
+              />
+              <span className="text-xs text-surface-500">
+                {selected.size > 0 ? `${selected.size} tanlandi` : "Hammasini tanlash"}
+              </span>
+            </div>
+          )}
           {loadState === "loading" ? (
             <div className="space-y-3">
               {Array.from({ length: 6 }).map((_, index) => (
@@ -343,11 +389,20 @@ export default function AdminUsersPage() {
             <div className="space-y-2.5">
               {users.map((user) => {
                 const isSaving = savingId === user.id;
+                const isSelected = selected.has(user.id);
                 return (
                   <div
                     key={user.id}
-                    className="grid gap-3 rounded-xl border border-surface-200 bg-white p-4 transition-colors hover:border-brand-300 dark:border-surface-700 dark:bg-surface-800 dark:hover:border-brand-500/40 lg:grid-cols-[1.6fr_0.8fr_0.9fr_auto]"
+                    className={`grid gap-3 rounded-xl border p-4 transition-colors lg:grid-cols-[auto_1.6fr_0.8fr_0.9fr_auto] ${isSelected ? "border-brand-400 bg-brand-50 dark:border-brand-500/60 dark:bg-brand-500/10" : "border-surface-200 bg-white hover:border-brand-300 dark:border-surface-700 dark:bg-surface-800 dark:hover:border-brand-500/40"}`}
                   >
+                    <div className="flex items-center">
+                      <input
+                        type="checkbox"
+                        checked={isSelected}
+                        onChange={() => toggleOne(user.id)}
+                        className="h-4 w-4 rounded border-surface-300 accent-brand-500"
+                      />
+                    </div>
                     <div className="flex items-start gap-3 min-w-0">
                       <UserAvatar name={user.full_name} size="md" />
                       <div className="min-w-0 flex-1">
@@ -441,6 +496,16 @@ export default function AdminUsersPage() {
           )}
         </CardContent>
       </Card>
+
+      <BulkActionBar
+        selectedCount={selected.size}
+        onAction={handleBulkAction}
+        onClear={() => setSelected(new Set())}
+        actions={[
+          { label: "Faollashtirish", action: "activate", variant: "default" },
+          { label: "Bloklash", action: "deactivate", variant: "destructive", requireConfirm: true },
+        ]}
+      />
     </div>
   );
 }

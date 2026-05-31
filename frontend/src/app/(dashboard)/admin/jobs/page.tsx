@@ -15,6 +15,7 @@ import {
   ShieldCheck,
 } from "lucide-react";
 import { adminApi, getErrorMessage } from "@/lib/api";
+import { BulkActionBar } from "@/components/admin/BulkActionBar";
 import { useTranslation } from "@/hooks/useTranslation";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
@@ -96,6 +97,7 @@ export default function AdminJobsPage() {
   const [statusFilter, setStatusFilter] = useState<string>("all");
   const [busyId, setBusyId] = useState<string | null>(null);
   const [confirmDelete, setConfirmDelete] = useState<AdminJob | null>(null);
+  const [selected, setSelected] = useState<Set<string>>(new Set());
 
   const t = useMemo(
     () =>
@@ -191,6 +193,37 @@ export default function AdminJobsPage() {
     void load();
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [search, statusFilter]);
+
+  useEffect(() => {
+    const handler = (e: KeyboardEvent) => {
+      if (e.key === "Escape") setSelected(new Set());
+    };
+    document.addEventListener("keydown", handler);
+    return () => document.removeEventListener("keydown", handler);
+  }, []);
+
+  const toggleAll = () => {
+    if (selected.size === jobs.length) {
+      setSelected(new Set());
+    } else {
+      setSelected(new Set(jobs.map((j) => j.id)));
+    }
+  };
+
+  const toggleOne = (id: string) => {
+    setSelected((prev) => {
+      const next = new Set(prev);
+      if (next.has(id)) next.delete(id);
+      else next.add(id);
+      return next;
+    });
+  };
+
+  const handleBulkAction = async (action: string) => {
+    await adminApi.bulkJobs(Array.from(selected), action);
+    setSelected(new Set());
+    await load();
+  };
 
   const changeStatus = async (job: AdminJob, next: string) => {
     setBusyId(job.id);
@@ -302,6 +335,19 @@ export default function AdminJobsPage() {
           </CardTitle>
         </CardHeader>
         <CardContent>
+          {!loading && jobs.length > 0 && (
+            <div className="mb-2 flex items-center gap-2 pb-2 border-b border-surface-100 dark:border-surface-800">
+              <input
+                type="checkbox"
+                checked={selected.size === jobs.length && jobs.length > 0}
+                onChange={toggleAll}
+                className="h-4 w-4 rounded border-surface-300 accent-brand-500"
+              />
+              <span className="text-xs text-surface-500">
+                {selected.size > 0 ? `${selected.size} tanlandi` : "Hammasini tanlash"}
+              </span>
+            </div>
+          )}
           {loading ? (
             <div className="space-y-3">
               {[1, 2, 3, 4].map((i) => (
@@ -318,11 +364,20 @@ export default function AdminJobsPage() {
             <div className="space-y-3">
               {jobs.map((job) => {
                 const tone = STATUS_TONE[job.status] || STATUS_TONE.draft;
+                const isSelected = selected.has(job.id);
                 return (
                   <div
                     key={job.id}
-                    className="grid gap-3 rounded-xl border border-surface-200 p-4 dark:border-surface-700 lg:grid-cols-[1.4fr_1fr_auto_auto]"
+                    className={`grid gap-3 rounded-xl border p-4 lg:grid-cols-[auto_1.4fr_1fr_auto_auto] ${isSelected ? "border-brand-400 bg-brand-50 dark:border-brand-500/60 dark:bg-brand-500/10" : "border-surface-200 dark:border-surface-700"}`}
                   >
+                    <div className="flex items-center">
+                      <input
+                        type="checkbox"
+                        checked={isSelected}
+                        onChange={() => toggleOne(job.id)}
+                        className="h-4 w-4 rounded border-surface-300 accent-brand-500"
+                      />
+                    </div>
                     <div className="min-w-0">
                       <p className="truncate font-semibold text-surface-900 dark:text-white">
                         {job.title}
@@ -414,6 +469,18 @@ export default function AdminJobsPage() {
           )}
         </CardContent>
       </Card>
+
+      <BulkActionBar
+        selectedCount={selected.size}
+        onAction={handleBulkAction}
+        onClear={() => setSelected(new Set())}
+        actions={[
+          { label: "Tasdiqlash", action: "approve", variant: "default" },
+          { label: "To'xtatish", action: "pause", variant: "outline" },
+          { label: "Yopish", action: "close", variant: "outline" },
+          { label: "O'chirish", action: "delete", variant: "destructive", requireConfirm: true },
+        ]}
+      />
 
       <Dialog
         open={!!confirmDelete}

@@ -385,6 +385,13 @@ export const adminApi = {
   verifyCompany: (companyId: string, is_verified: boolean) =>
     api.patch(`/admin/companies/${companyId}/verify`, { is_verified }),
 
+  bulkUsers: (ids: string[], action: string) =>
+    api.post<{ success: boolean; affected: number; action: string }>("/admin/users/bulk-action", { ids, action }),
+  bulkJobs: (ids: string[], action: string) =>
+    api.post<{ success: boolean; affected: number; action: string }>("/admin/jobs/bulk-action", { ids, action }),
+  bulkCompanies: (ids: string[], action: string) =>
+    api.post<{ success: boolean; affected: number; action: string }>("/admin/companies/bulk-action", { ids, action }),
+
   listApplications: (params?: { status?: string; search?: string; offset?: number; limit?: number }) =>
     api.get("/admin/applications", { params }),
 
