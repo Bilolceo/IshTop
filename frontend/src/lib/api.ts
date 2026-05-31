@@ -64,15 +64,10 @@ export const api: AxiosInstance = axios.create({
 
 api.interceptors.request.use(
   (config: InternalAxiosRequestConfig) => {
-    // Get token from store
-    const accessToken = useAuthStore.getState().accessToken;
-    
-    // Attach token to request
-    if (accessToken && config.headers) {
-      config.headers.Authorization = `Bearer ${accessToken}`;
-    }
-
-    // Log request in development
+    // Stage 2 cookie-only browser auth: do NOT inject Authorization headers.
+    // withCredentials: true (set on the axios instance above) sends the
+    // httpOnly access_token cookie automatically. The backend prefers cookie
+    // auth and falls back to Bearer only for mobile/API clients.
     if (process.env.NODE_ENV === "development") {
       console.log(`🚀 [API] ${config.method?.toUpperCase()} ${config.url}`, {
         params: config.params,
@@ -94,16 +89,16 @@ api.interceptors.request.use(
 
 let isRefreshing = false;
 let failedQueue: Array<{
-  resolve: (value: string | null) => void;
+  resolve: (value: boolean) => void;
   reject: (error: unknown) => void;
 }> = [];
 
-const processQueue = (error: unknown, token: string | null = null) => {
+const processQueue = (error: unknown, ok = false) => {
   failedQueue.forEach((prom) => {
     if (error) {
       prom.reject(error);
     } else {
-      prom.resolve(token);
+      prom.resolve(ok);
     }
   });
   failedQueue = [];
@@ -136,19 +131,15 @@ api.interceptors.response.use(
       });
     }
 
-    // Handle 401 Unauthorized
+    // Handle 401 Unauthorized — cookie-only flow: call /auth/refresh, then
+    // retry the original request. The new access cookie travels with retries
+    // automatically via withCredentials.
     if (error.response?.status === 401 && !originalRequest._retry) {
       if (isRefreshing) {
-        // Wait for token refresh
-        return new Promise((resolve, reject) => {
+        return new Promise<boolean>((resolve, reject) => {
           failedQueue.push({ resolve, reject });
         })
-          .then((token) => {
-            if (originalRequest.headers) {
-              originalRequest.headers.Authorization = `Bearer ${token}`;
-            }
-            return api(originalRequest);
-          })
+          .then((ok) => (ok ? api(originalRequest) : Promise.reject(error)))
           .catch((err) => Promise.reject(err));
       }
 
@@ -156,29 +147,22 @@ api.interceptors.response.use(
       isRefreshing = true;
 
       try {
-        // Attempt to refresh token
-        const newToken = await useAuthStore.getState().refreshAccessToken();
-        
-        if (newToken) {
-          processQueue(null, newToken);
-          if (originalRequest.headers) {
-            originalRequest.headers.Authorization = `Bearer ${newToken}`;
-          }
+        const ok = await useAuthStore.getState().refreshAccessToken();
+
+        if (ok) {
+          processQueue(null, true);
           return api(originalRequest);
-        } else {
-          // Refresh failed, logout user
-          processQueue(error, null);
-          useAuthStore.getState().logout();
-          
-          // Redirect to login (if in browser)
-          if (typeof window !== "undefined") {
-            window.location.href = "/login";
-          }
-          
-          return Promise.reject(error);
         }
+
+        // Refresh failed — logout + redirect to login
+        processQueue(error, false);
+        useAuthStore.getState().logout();
+        if (typeof window !== "undefined") {
+          window.location.href = "/login";
+        }
+        return Promise.reject(error);
       } catch (refreshError) {
-        processQueue(refreshError, null);
+        processQueue(refreshError, false);
         useAuthStore.getState().logout();
         return Promise.reject(refreshError);
       } finally {
@@ -210,8 +194,7 @@ export const authApi = {
   
   logout: () => api.post("/auth/logout"),
   
-  refreshToken: (refreshToken?: string | null) =>
-    api.post("/auth/refresh", refreshToken ? { refresh_token: refreshToken } : {}),
+  refreshToken: () => api.post("/auth/refresh"),
   
   forgotPassword: (email: string) =>
     api.post("/auth/forgot-password", { email }),

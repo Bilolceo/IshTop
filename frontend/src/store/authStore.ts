@@ -111,42 +111,24 @@ function sanitizeUserForClient(user: User | null): User | null {
   } as User;
 }
 
-function extractTokens(payload: unknown): { accessToken: string | null; refreshToken: string | null } {
-  const root = unwrapPayload(payload);
-  const nestedTokens = isRecord(root.tokens) ? root.tokens : null;
-
-  const accessToken =
-    (typeof root.access_token === "string" ? root.access_token : null) ??
-    (typeof nestedTokens?.access_token === "string" ? nestedTokens.access_token : null);
-  const refreshToken =
-    (typeof root.refresh_token === "string" ? root.refresh_token : null) ??
-    (typeof nestedTokens?.refresh_token === "string" ? nestedTokens.refresh_token : null);
-
-  return { accessToken, refreshToken };
-}
-
 function applyAuthResponse(
   set: (updater: (state: AuthState) => void) => void,
   payload: unknown,
-  options?: { requireTokens?: boolean }
 ) {
+  // Stage 2 cookie-only auth: we intentionally IGNORE any access_token /
+  // refresh_token returned in the JSON body. The browser session is anchored
+  // exclusively by httpOnly cookies set by the backend; surfacing tokens to
+  // JS would defeat the XSS protection these cookies provide. Mobile / API
+  // clients can still read the JSON tokens — we just don't store them here.
   const user = extractUser(payload);
-  const { accessToken, refreshToken } = extractTokens(payload);
-  const requireTokens = options?.requireTokens ?? false;
-
-  if (requireTokens && (!accessToken || !refreshToken)) {
-    throw new Error("Authentication response is missing access or refresh token");
-  }
 
   set((state) => {
     state.user = sanitizeUserForClient(user);
-    state.accessToken = accessToken;
-    state.refreshToken = refreshToken;
-    state.isAuthenticated = !!user || !!accessToken;
+    state.isAuthenticated = !!user;
     state.isLoading = false;
   });
 
-  return { user: sanitizeUserForClient(user), accessToken, refreshToken };
+  return { user: sanitizeUserForClient(user) };
 }
 
 function extractMeUser(payload: unknown): User | null {
@@ -158,23 +140,25 @@ function extractMeUser(payload: unknown): User | null {
 // =============================================================================
 
 interface AuthState {
-  // State
+  // State — cookie-only browser auth: NO tokens here, not in memory, not
+  // persisted. Backend httpOnly cookies are the single source of truth.
   user: User | null;
-  accessToken: string | null;
-  refreshToken: string | null;
   isAuthenticated: boolean;
   hasHydrated: boolean;
   isLoading: boolean;
   error: string | null;
-  
+
   // Actions
   setUser: (user: User | null) => void;
-  setTokens: (accessToken: string, refreshToken: string) => void;
   setHasHydrated: (value: boolean) => void;
   login: (email: string, password: string) => Promise<void>;
   register: (data: RegisterData) => Promise<void>;
   logout: () => Promise<void>;
-  refreshAccessToken: () => Promise<string | null>;
+  /**
+   * Calls /auth/refresh using the httpOnly refresh cookie. Returns true if
+   * the session was renewed, false if the user must re-authenticate.
+   */
+  refreshAccessToken: () => Promise<boolean>;
   updateProfile: (data: Partial<User>) => Promise<void>;
   clearError: () => void;
   bootstrapSession: () => Promise<void>;
@@ -199,8 +183,6 @@ export const useAuthStore = create<AuthState>()(
     immer((set, get) => ({
       // Initial state
       user: null,
-      accessToken: null,
-      refreshToken: null,
       isAuthenticated: false,
       hasHydrated: false,
       isLoading: false,
@@ -211,14 +193,6 @@ export const useAuthStore = create<AuthState>()(
         set((state) => {
           state.user = sanitizeUserForClient(user);
           state.isAuthenticated = !!user;
-        }),
-
-      // Set tokens
-      setTokens: (accessToken, refreshToken) =>
-        set((state) => {
-          state.accessToken = accessToken;
-          state.refreshToken = refreshToken;
-          state.isAuthenticated = true;
         }),
 
       // Persist hydration gate (prevents redirect-to-login flashes on refresh).
@@ -289,37 +263,26 @@ export const useAuthStore = create<AuthState>()(
         }
       },
 
-      // Logout
+      // Logout — clears httpOnly cookies on the server, then clears the
+      // in-memory user. No token reading because there is none.
       logout: async () => {
-        const { accessToken, refreshToken } = get();
         set((state) => {
           state.isLoading = true;
           state.error = null;
         });
 
         try {
-          // Best-effort server logout (token blacklist). Even if it fails,
-          // we still clear local state.
-          const headers: Record<string, string> = {
-            "Content-Type": "application/json",
-          };
-          if (accessToken) {
-            headers.Authorization = `Bearer ${accessToken}`;
-          }
-
           await fetch(`${API_BASE_URL}/auth/logout`, {
             method: "POST",
-            headers,
+            headers: { "Content-Type": "application/json" },
             credentials: "include",
-            body: JSON.stringify(refreshToken ? { refresh_token: refreshToken } : {}),
+            body: "{}",
           });
         } catch {
-          // ignore
+          // ignore — local state still gets cleared
         } finally {
           set((state) => {
             state.user = null;
-            state.accessToken = null;
-            state.refreshToken = null;
             state.isAuthenticated = false;
             state.isLoading = false;
             state.error = null;
@@ -327,35 +290,33 @@ export const useAuthStore = create<AuthState>()(
         }
       },
 
-      // Refresh access token
+      // Refresh access token via the httpOnly refresh cookie. Returns true on
+      // success (cookie was renewed by the server), false on failure. No
+      // token value flows through JavaScript.
       refreshAccessToken: async () => {
-        const { refreshToken } = get();
-
         try {
           const res = await fetch(`${API_BASE_URL}/auth/refresh`, {
             method: "POST",
             headers: { "Content-Type": "application/json" },
             credentials: "include",
-            body: JSON.stringify(refreshToken ? { refresh_token: refreshToken } : {}),
+            body: "{}",
           });
 
           if (!res.ok) {
-            const msg = await parseApiError(res);
-            throw new Error(msg);
+            throw new Error(await parseApiError(res));
           }
 
           const data = await res.json();
-          const { accessToken } = applyAuthResponse(set, data);
-
-          return accessToken;
-        } catch (error) {
+          applyAuthResponse(set, data);
+          return true;
+        } catch {
           // If refresh fails, logout
           await get().logout();
-          return null;
+          return false;
         }
       },
 
-      // Update profile
+      // Update profile — cookie auth via credentials: include. No Bearer.
       updateProfile: async (data) => {
         set((state) => {
           state.isLoading = true;
@@ -363,17 +324,9 @@ export const useAuthStore = create<AuthState>()(
         });
 
         try {
-          const { accessToken } = get();
-          const headers: Record<string, string> = {
-            "Content-Type": "application/json",
-          };
-          if (accessToken) {
-            headers.Authorization = `Bearer ${accessToken}`;
-          }
-
           const res = await fetch(`${API_BASE_URL}/users/me`, {
             method: "PUT",
-            headers,
+            headers: { "Content-Type": "application/json" },
             credentials: "include",
             body: JSON.stringify(data),
           });
@@ -419,7 +372,7 @@ export const useAuthStore = create<AuthState>()(
           });
           if (!res.ok) return;
           const data = await res.json();
-          applyAuthResponse(set, data, { requireTokens: false });
+          applyAuthResponse(set, data);
         } catch {
           // ignore bootstrap failures
         }
@@ -428,10 +381,32 @@ export const useAuthStore = create<AuthState>()(
     {
       name: "auth-storage",
       storage: createJSONStorage(() => localStorage),
+      version: 3,
+      // SECURITY INVARIANT (Stage 2 — cookie-only auth):
+      // Tokens MUST NEVER appear in localStorage, sessionStorage, in-memory
+      // state, JS-readable cookies, or Authorization headers from the
+      // browser. Cookies set by the backend (AUTH_ACCESS_COOKIE_NAME /
+      // AUTH_REFRESH_COOKIE_NAME, both httpOnly) are the single source of
+      // truth for browser auth. Mobile / API clients can still pass Bearer
+      // tokens — the backend supports both paths via get_current_user.
+      // Only `user` and `isAuthenticated` are persisted, and only to avoid
+      // a flash of logged-out chrome on hard refresh.
       partialize: (state) => ({
         user: sanitizeUserForClient(state.user),
         isAuthenticated: state.isAuthenticated,
       }),
+      migrate: (persistedState: unknown, version: number) => {
+        // Defensive: strip any legacy persisted tokens from pre-v2 stores so
+        // a returning visitor whose laptop has an old auth-storage payload
+        // immediately stops leaking tokens via localStorage.
+        if (isRecord(persistedState)) {
+          if ("accessToken" in persistedState) delete (persistedState as Record<string, unknown>).accessToken;
+          if ("refreshToken" in persistedState) delete (persistedState as Record<string, unknown>).refreshToken;
+          if ("tokens" in persistedState) delete (persistedState as Record<string, unknown>).tokens;
+        }
+        void version;
+        return persistedState as AuthState;
+      },
       onRehydrateStorage: () => (state) => {
         const finalizeHydration = async () => {
           // Attempt silent cookie-based session restore before auth-gated redirects run.
@@ -452,4 +427,7 @@ export const selectUser = (state: AuthState) => state.user;
 export const selectIsAuthenticated = (state: AuthState) => state.isAuthenticated;
 export const selectIsLoading = (state: AuthState) => state.isLoading;
 export const selectError = (state: AuthState) => state.error;
-export const selectAccessToken = (state: AuthState) => state.accessToken;
+// Stage 2: browser auth is cookie-only. Kept as a stable export so any legacy
+// import sites continue to type-check; always returns null because there is
+// no JS-accessible access token by design.
+export const selectAccessToken = (_state: AuthState): null => null;

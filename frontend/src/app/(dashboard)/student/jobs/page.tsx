@@ -455,6 +455,8 @@ export default function JobsPage() {
 
   return (
     <div className="flex h-[calc(100vh-64px)] min-w-0 flex-col bg-surface-50/60 dark:bg-surface-950">
+      {/* Accessible page title — keeps a single H1 for SEO + screen readers without altering the visible search-led layout. */}
+      <h1 className="sr-only">{isRu ? "Поиск вакансий" : "Ish o'rinlari"}</h1>
       {/* ------------------------------------------------------------------ */}
       {/* TOP HEADER: search + sort + filter pills                            */}
       {/* ------------------------------------------------------------------ */}

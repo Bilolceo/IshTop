@@ -471,6 +471,67 @@ class Settings(BaseSettings):
 
         return self
 
+    @model_validator(mode="after")
+    def _validate_production_environment(self) -> "Settings":
+        """
+        Block boot if production-critical safety settings are misconfigured.
+
+        Only runs when DEBUG is False — local dev keeps relaxed defaults. The
+        intent is to fail fast at startup instead of letting an unsafe instance
+        accept real traffic. Skipped entirely under pytest (CI env where DEBUG
+        may be flipped intentionally) by checking the PYTEST_CURRENT_TEST hint.
+        """
+        if self.DEBUG or os.environ.get("PYTEST_CURRENT_TEST"):
+            return self
+
+        errors: List[str] = []
+
+        # Rate limiting must be on to keep brute-force off the auth surface.
+        if not self.RATE_LIMIT_ENABLED:
+            errors.append(
+                "RATE_LIMIT_ENABLED must be true in production (currently false)."
+            )
+
+        # CORS wildcards permit credentialed cross-origin requests to any site.
+        for origin in self.cors_origins_list:
+            if origin.strip() in {"*", "null"}:
+                errors.append(
+                    f"CORS_ORIGINS must list exact origins; wildcard {origin!r} is not allowed."
+                )
+                break
+
+        # Local SQLite cannot survive container restarts and offers no concurrency.
+        db_url = (self.DATABASE_URL or "").strip().lower()
+        if db_url.startswith("sqlite:"):
+            errors.append(
+                "DATABASE_URL points to SQLite in production. Use Postgres (postgresql://...)."
+            )
+
+        # JWT blacklist + rate limiting both rely on Redis for cross-instance state.
+        if not self.REDIS_ENABLED and (
+            self.TOKEN_BLACKLIST_USE_REDIS or self.RATE_LIMIT_USE_REDIS
+        ):
+            errors.append(
+                "REDIS_ENABLED must be true in production (TOKEN_BLACKLIST_USE_REDIS / "
+                "RATE_LIMIT_USE_REDIS depend on it). Set REDIS_URL and flip REDIS_ENABLED."
+            )
+
+        # SECRET_KEY: belt-and-braces re-check on top of _validate_production_secrets.
+        if len((self.SECRET_KEY or "").strip()) < 32:
+            errors.append("SECRET_KEY must be at least 32 characters long in production.")
+
+        # Cookie Secure: validator above forces this, but assert anyway.
+        if not self.AUTH_COOKIE_SECURE:
+            errors.append("AUTH_COOKIE_SECURE must be true in production.")
+
+        if errors:
+            joined = "\n  - ".join(errors)
+            raise ValueError(
+                "Unsafe production configuration — refusing to boot:\n  - " + joined
+            )
+
+        return self
+
 
 @lru_cache()
 def get_settings() -> Settings:

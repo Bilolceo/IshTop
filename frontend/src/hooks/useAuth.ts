@@ -52,8 +52,6 @@ export function useAuth() {
   const router = useRouter();
 
   const user = useAuthStore((s) => s.user);
-  const accessToken = useAuthStore((s) => s.accessToken);
-  const refreshToken = useAuthStore((s) => s.refreshToken);
   const isAuthenticated = useAuthStore((s) => s.isAuthenticated);
   const isLoading = useAuthStore((s) => s.isLoading);
   const error = useAuthStore((s) => s.error);
@@ -94,16 +92,10 @@ export function useAuth() {
   }, [router, storeLogout]);
 
   const changePassword = useCallback(async (oldPassword: string, newPassword: string) => {
-    const token = useAuthStore.getState().accessToken;
-    const headers: Record<string, string> = {
-      "Content-Type": "application/json",
-    };
-    if (token) {
-      headers.Authorization = `Bearer ${token}`;
-    }
+    // Cookie auth: credentials: include sends httpOnly access_token cookie.
     const res = await fetch(`${API_BASE_URL}/auth/change-password`, {
       method: "POST",
-      headers,
+      headers: { "Content-Type": "application/json" },
       credentials: "include",
       body: JSON.stringify({ current_password: oldPassword, new_password: newPassword }),
     });
@@ -140,8 +132,6 @@ export function useAuth() {
   return useMemo(
     () => ({
       user: user as User | null,
-      accessToken,
-      refreshToken,
       isAuthenticated,
       isLoading,
       error,
@@ -158,8 +148,6 @@ export function useAuth() {
     }),
     [
       user,
-      accessToken,
-      refreshToken,
       isAuthenticated,
       isLoading,
       error,

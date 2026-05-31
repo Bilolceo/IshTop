@@ -444,34 +444,51 @@ export function DashboardLayout({ children }: DashboardLayoutProps) {
         </header>
 
         {/* Page content */}
-        <main className={cn("p-4 sm:p-6 lg:p-8", isCompany ? "pb-24 lg:pb-8" : "")}>{children}</main>
+        <main
+          className={cn(
+            "p-4 sm:p-6 lg:p-8",
+            isCompany || isAdmin ? "pb-24 lg:pb-8" : "",
+          )}
+        >
+          {children}
+        </main>
       </div>
 
-      {isCompany && (
-        <nav className="fixed inset-x-0 bottom-0 z-30 border-t border-surface-200 bg-white/95 px-2 py-2 backdrop-blur lg:hidden dark:border-surface-700 dark:bg-surface-900/95">
-          <div className="grid grid-cols-4 gap-1">
-            {companyNavItems.map((item) => {
-              const isActive = isNavItemActive(item);
-              return (
-                <Link
-                  key={item.href}
-                  href={item.href}
-                  className={cn(
-                    "inline-flex items-center justify-center rounded-xl p-3 transition-colors",
-                    isActive
-                      ? "bg-brand-50 text-brand-700 dark:bg-brand-500/20 dark:text-brand-300"
-                      : "text-surface-600 hover:bg-surface-100 dark:text-surface-300 dark:hover:bg-surface-800"
-                  )}
-                  aria-label={t(item.labelKey)}
-                >
-                  <item.icon className="h-5 w-5" />
-                  <span className="sr-only">{t(item.labelKey)}</span>
-                </Link>
-              );
-            })}
-          </div>
-        </nav>
-      )}
+      {(isCompany || isAdmin) && (() => {
+        // Admin sidebar has 9 routes; bottom nav keeps the 5 most frequent.
+        const mobileItems = isAdmin ? adminNavItems.slice(0, 5) : companyNavItems;
+        const cols = mobileItems.length === 5 ? "grid-cols-5" : "grid-cols-4";
+        return (
+          <nav
+            aria-label="Mobile navigation"
+            className="fixed inset-x-0 bottom-0 z-30 border-t border-surface-200 bg-white/95 px-2 py-2 backdrop-blur lg:hidden dark:border-surface-700 dark:bg-surface-900/95"
+            style={{ paddingBottom: "calc(env(safe-area-inset-bottom, 0px) + 0.5rem)" }}
+          >
+            <div className={cn("grid gap-1", cols)}>
+              {mobileItems.map((item) => {
+                const isActive = isNavItemActive(item);
+                return (
+                  <Link
+                    key={item.href}
+                    href={item.href}
+                    aria-current={isActive ? "page" : undefined}
+                    className={cn(
+                      "inline-flex items-center justify-center rounded-xl p-3 transition-colors",
+                      isActive
+                        ? "bg-brand-50 text-brand-700 dark:bg-brand-500/20 dark:text-brand-300"
+                        : "text-surface-600 hover:bg-surface-100 dark:text-surface-300 dark:hover:bg-surface-800",
+                    )}
+                    aria-label={t(item.labelKey)}
+                  >
+                    <item.icon className="h-5 w-5" />
+                    <span className="sr-only">{t(item.labelKey)}</span>
+                  </Link>
+                );
+              })}
+            </div>
+          </nav>
+        );
+      })()}
     </div>
   );
 }
