@@ -404,6 +404,24 @@ export const adminApi = {
   upsertLandingContent: (data: { locale: "uz" | "ru"; payload: Record<string, unknown>; is_published: boolean }) =>
     api.put<LandingContentResponse>("/landing/admin/content", data),
   deleteLandingContent: (locale: "uz" | "ru") => api.delete(`/landing/admin/content?locale=${locale}`),
+
+  auditLogs: (params?: { admin_id?: string; action?: string; from_date?: string; to_date?: string; page?: number }) =>
+    api.get<{
+      success: boolean;
+      total: number;
+      page: number;
+      logs: {
+        id: string;
+        admin_id: string | null;
+        admin_name: string;
+        action: string;
+        target_type: string;
+        target_id: string | null;
+        target_label: string | null;
+        notes: string | null;
+        created_at: string;
+      }[];
+    }>("/admin/audit-logs", { params }),
 };
 
 export const landingApi = {
