@@ -1194,14 +1194,17 @@ async def bulk_action_users(
     if payload.action not in valid_actions:
         raise HTTPException(status_code=400, detail=f"Action must be one of {valid_actions}")
 
-    uuids = [UUID(id_) for id_ in payload.ids]
+    try:
+        uuids = [UUID(id_) for id_ in payload.ids]
+    except ValueError:
+        raise HTTPException(status_code=400, detail="One or more IDs are not valid UUIDs")
     users = db.query(User).filter(User.id.in_(uuids)).all()
 
     for u in users:
         u.is_active_account = payload.action == "activate"
 
     db.commit()
-    return {"affected": len(users), "action": payload.action}
+    return {"success": True, "affected": len(users), "action": payload.action}
 
 
 @router.post("/jobs/bulk-action")
@@ -1215,7 +1218,10 @@ async def bulk_action_jobs(
     if payload.action not in valid_actions:
         raise HTTPException(status_code=400, detail=f"Action must be one of {valid_actions}")
 
-    uuids = [UUID(id_) for id_ in payload.ids]
+    try:
+        uuids = [UUID(id_) for id_ in payload.ids]
+    except ValueError:
+        raise HTTPException(status_code=400, detail="One or more IDs are not valid UUIDs")
     jobs = db.query(Job).filter(Job.id.in_(uuids)).all()
 
     if payload.action == "delete":
@@ -1227,7 +1233,7 @@ async def bulk_action_jobs(
             j.status = status_map[payload.action]
 
     db.commit()
-    return {"affected": len(jobs), "action": payload.action}
+    return {"success": True, "affected": len(jobs), "action": payload.action}
 
 
 @router.post("/companies/bulk-action")
@@ -1241,7 +1247,10 @@ async def bulk_action_companies(
     if payload.action not in valid_actions:
         raise HTTPException(status_code=400, detail=f"Action must be one of {valid_actions}")
 
-    uuids = [UUID(id_) for id_ in payload.ids]
+    try:
+        uuids = [UUID(id_) for id_ in payload.ids]
+    except ValueError:
+        raise HTTPException(status_code=400, detail="One or more IDs are not valid UUIDs")
     companies = db.query(User).filter(
         User.id.in_(uuids),
         User.role == UserRole.COMPANY,
@@ -1255,4 +1264,4 @@ async def bulk_action_companies(
             c.is_active_account = False
 
     db.commit()
-    return {"affected": len(companies), "action": payload.action}
+    return {"success": True, "affected": len(companies), "action": payload.action}
