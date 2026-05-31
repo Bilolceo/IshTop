@@ -34,6 +34,36 @@ from app.core.redis_client import get_redis
 
 logger = logging.getLogger(__name__)
 
+
+# Throttle the fallback alarm so a sustained Redis outage doesn't flood logs.
+_LAST_FALLBACK_WARN_TS: Dict[str, float] = {}
+_FALLBACK_WARN_INTERVAL_SECONDS = 60.0
+
+
+def _warn_rate_limit_fallback(scope: str) -> None:
+    """
+    Emit an alertable log line when the rate limiter falls back from Redis
+    to per-process memory while Redis was expected. Per-worker memory means
+    the effective budget is multiplied by gunicorn worker count and is not
+    consistent across replicas — SRE should know.
+
+    No-op when RATE_LIMIT_USE_REDIS=false or in DEBUG (legitimate dev mode).
+    """
+    if not settings.RATE_LIMIT_USE_REDIS or settings.DEBUG:
+        return
+    now = time.time()
+    last = _LAST_FALLBACK_WARN_TS.get(scope, 0.0)
+    if now - last < _FALLBACK_WARN_INTERVAL_SECONDS:
+        return
+    _LAST_FALLBACK_WARN_TS[scope] = now
+    logger.error(
+        "RATE_LIMIT_REDIS_UNAVAILABLE: scope=%s — using per-worker in-memory "
+        "limiter; effective budget is multiplied by worker count and not "
+        "consistent across replicas",
+        scope,
+    )
+
+
 # =============================================================================
 # RATE LIMITER CLASS
 # =============================================================================
@@ -362,6 +392,7 @@ def check_rate_limit_dependency(
                 key_prefix="api_ip",
             )
         else:
+            _warn_rate_limit_fallback("api_ip")
             is_allowed, retry_after = rate_limiter.check_rate_limit(
                 identifier=client_ip,
                 max_requests=max_requests,
@@ -401,6 +432,7 @@ def check_login_rate_limit(request: Request, identifier: Optional[str] = None):
             key_prefix="login_ip",
         )
     else:
+        _warn_rate_limit_fallback("login_ip")
         is_allowed, retry_after = rate_limiter.check_rate_limit(
             identifier=rate_key,
             max_requests=5,

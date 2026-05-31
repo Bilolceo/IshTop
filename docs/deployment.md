@@ -259,3 +259,29 @@ Run these **before** flipping DNS:
 - [ ] First deploy with `BOOTSTRAP_ADMIN_EMAIL` + `BOOTSTRAP_ADMIN_PASSWORD`,
       then immediately remove those env vars
 - [ ] Walk through Post-deploy QA checklist (§G)
+
+## H. Redis failure semantics (R3)
+
+When `REDIS_ENABLED=true` and Redis becomes unreachable at runtime:
+
+- **`/health`** returns **HTTP 503** with `{"status": "degraded", "redis":
+  "unavailable", "degraded_features": [...]}`. Wire alerting to any non-200
+  on `/health`.
+- **`/readyz`** returns **HTTP 503** so the orchestrator stops sending traffic
+  until Redis recovers.
+- **Token blacklist** (logout): silently falls back to per-worker in-memory
+  state to keep logout UX working. This is fail-open by design — a stable
+  log line `BLACKLIST_REDIS_UNAVAILABLE: ...` is emitted on every fallback.
+  **Wire an SRE alarm on that string.** Mitigation: short access-token TTL
+  (`ACCESS_TOKEN_EXPIRE_MINUTES` ≤ 10) so the unrevoked window is small.
+- **Rate limiter**: silently falls back to per-worker in-memory limiter.
+  Stable log line `RATE_LIMIT_REDIS_UNAVAILABLE: scope=...` is emitted at
+  most once per minute per scope. Effective budget is multiplied by gunicorn
+  worker count during the outage.
+- **OAuth state** (Google sign-in): fails **closed** with HTTP 503. New OAuth
+  sign-ins are blocked during an outage; existing sessions continue.
+
+The startup validator (`backend/app/config.py`) already refuses to boot in
+production if `REDIS_ENABLED=false` but any consumer expects Redis, so the
+only way to hit these runtime degradations is an actual Redis outage —
+treat any `*_REDIS_UNAVAILABLE` log line as a real incident.
