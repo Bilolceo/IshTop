@@ -119,13 +119,21 @@ services:
       - key: STRIPE_WEBHOOK_SECRET
         sync: false
 
-      # Redis — set REDIS_ENABLED=true and REDIS_URL if you add a Redis service.
+      # Redis — set REDIS_ENABLED=true and REDIS_URL when a Redis service is attached.
+      # NOTE: backend production validator refuses to boot when REDIS_ENABLED=false
+      # AND any of (RATE_LIMIT_USE_REDIS, TOKEN_BLACKLIST_USE_REDIS) is true.
+      # Defaults below let a Redis-less deployment start; flip all three to true
+      # once Redis is provisioned.
       - key: REDIS_ENABLED
         value: false
       - key: REDIS_URL
         sync: false
+      - key: RATE_LIMIT_USE_REDIS
+        value: false
+      - key: TOKEN_BLACKLIST_USE_REDIS
+        value: false
 
-      # Rate limiting
+      # Rate limiting (in-process when Redis is disabled — single-instance only)
       - key: RATE_LIMIT_ENABLED
         value: true
 

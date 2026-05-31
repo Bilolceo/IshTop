@@ -92,6 +92,25 @@ jobs:
         run: isort --check-only app tests || true
 
   # ===========================================================================
+  # SECRET SCAN (gitleaks)
+  # ===========================================================================
+  # Fails the build if a tracked file matches any gitleaks rule. Runs without
+  # GITLEAKS_LICENSE (free for public repos / open-source orgs); add a license
+  # secret named GITLEAKS_LICENSE to use the action on private orgs.
+  secret-scan:
+    name: Secret Scan (gitleaks)
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v5
+        with:
+          fetch-depth: 0
+      - name: Run gitleaks
+        uses: gitleaks/gitleaks-action@v2
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+
+  # ===========================================================================
   # FRONTEND TESTS
   # ===========================================================================
   frontend-tests:

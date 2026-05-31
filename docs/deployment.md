@@ -128,20 +128,37 @@ backend:  https://api.ishtop.uz
 - Browser sends cookie on cross-origin XHR because cookie domain matches.
 - Best UX, no SameSite=None needed.
 
-### Option 2 — Different Railway/Render subdomains
+### Option 2 — Different Railway/Render subdomains (cross-site)
 
 ```
 frontend: https://ishtop-frontend.up.railway.app
 backend:  https://ishtop-backend.up.railway.app
 ```
 
-- `AUTH_COOKIE_DOMAIN=` (leave blank — host-only cookies)
-- Cookies are set on the backend host; cross-origin XHR from the frontend
-  must use `credentials: "include"` (already done in axios).
-- This works but requires `SameSite=Lax` and `Secure=true` (already enforced).
-- **Limitation:** if browsers ever drop third-party cookies for top-level
-  navigations between these subdomains, OAuth callback flow breaks. For
-  customer demos this works; for a long-running product, configure Option 1.
+`up.railway.app` and `onrender.com` are on the [Public Suffix List](https://publicsuffix.org/),
+so each subdomain is a separate **site**. A browser XHR from
+`ishtop-frontend.up.railway.app` to `ishtop-backend.up.railway.app` is a
+cross-site request — the backend's auth cookie will only be attached if it is
+issued with `SameSite=None; Secure`.
+
+Required env (backend):
+
+- `AUTH_COOKIE_DOMAIN=` (leave blank — host-only cookies on the backend host)
+- `AUTH_COOKIE_SAMESITE=none`
+- `AUTH_COOKIE_SECURE=true` (already auto-forced when `DEBUG=false`)
+- `CORS_ORIGINS=https://ishtop-frontend.up.railway.app`
+
+Frontend axios already uses `withCredentials: true`, and the backend CORS
+middleware sets `allow_credentials=True`. The combination is what makes the
+cookie flow on cross-site fetches.
+
+**Why not SameSite=Lax here?** Lax cookies are only sent on same-site requests
+and top-level navigations. A cross-site `fetch`/`XMLHttpRequest` from the
+frontend won't carry a Lax cookie — login will appear to succeed (Set-Cookie
+returns) but every follow-up request will be unauthenticated.
+
+For a long-running product, prefer Option 1 (same root domain) to avoid the
+SameSite=None tax (third-party cookie restrictions, future browser changes).
 
 ## D. Google OAuth — production checklist
 
