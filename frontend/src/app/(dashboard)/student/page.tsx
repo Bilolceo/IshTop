@@ -1,21 +1,26 @@
 /**
  * =============================================================================
- * STUDENT DASHBOARD - Overview Page
+ * STUDENT DASHBOARD — Aurora redesign
  * =============================================================================
  *
- * Features:
- * - Stats cards (Resumes, Applications, Interviews, Views)
- * - Recent activity feed
- * - Quick actions buttons
- * - Job recommendations
+ * Premium dashboard built around "What's next?" decision flow:
+ *  - Focal greeting + single primary CTA
+ *  - Today's signal hero card (top match OR next interview OR profile nudge)
+ *  - Stats strip (compact, scannable)
+ *  - Recommended jobs with explainability cards
+ *  - Skill-gap panel (radar bars + 7/14/30-day plan)
+ *  - Application pipeline timeline
+ *  - Interview prep quick actions
+ *  - Saved jobs + recent activity
+ *  - Production-grade loading, empty, error states with retry
  */
 
 "use client";
 
-import { useEffect, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import { useRouter } from "next/navigation";
 import Link from "next/link";
-import { motion } from "framer-motion";
+import { AnimatePresence, motion, useReducedMotion } from "framer-motion";
 import {
   FileText,
   Send,
@@ -25,10 +30,16 @@ import {
   Briefcase,
   ArrowRight,
   ChevronRight,
-  CheckCircle,
+  CheckCircle2,
   AlertCircle,
   Target,
   Zap,
+  TrendingUp,
+  Lightbulb,
+  Bookmark,
+  ShieldCheck,
+  PlayCircle,
+  RefreshCw,
 } from "lucide-react";
 import { useAuth } from "@/hooks/useAuth";
 import { useTranslation } from "@/hooks/useTranslation";
@@ -43,37 +54,34 @@ import { Skeleton } from "@/components/ui/skeleton";
 import { formatRelativeTime, formatSalaryRange } from "@/lib/utils";
 import { jobApi, userApi } from "@/lib/api";
 import type { Job } from "@/types/api";
+import { AuroraGreeting } from "@/components/student/AuroraGreeting";
+import { AIInsightsPanel } from "@/components/student/AIInsightsPanel";
+import { StatCard } from "@/components/student/StatCard";
+import { SkillGapRadar } from "@/components/student/SkillGapRadar";
+import { Tilt } from "@/components/landing/sections/primitives";
 
 // =============================================================================
-// ANIMATION VARIANTS
+// MOTION
 // =============================================================================
 
-const containerVariants = {
+const stagger = {
   hidden: { opacity: 0 },
-  visible: {
-    opacity: 1,
-    transition: {
-      staggerChildren: 0.1,
-    },
-  },
+  visible: { opacity: 1, transition: { staggerChildren: 0.06 } },
 };
-
-const itemVariants = {
-  hidden: { opacity: 0, y: 20 },
+const item = {
+  hidden: { opacity: 0, y: 16 },
   visible: { opacity: 1, y: 0 },
 };
 
-type UpcomingInterviewCandidate = {
-  id: string;
-  status: string;
-  interview_at?: string;
-  interview_type?: string;
-  meeting_link?: string;
-  job?: {
-    title?: string;
-    company_name?: string;
-    company?: { name?: string };
-  };
+// =============================================================================
+// TYPES
+// =============================================================================
+
+type Recommendation = {
+  job: Job;
+  match_score: number;
+  skill_matches: string[];
+  missing_skills: string[];
 };
 
 type DashboardApplication = {
@@ -83,49 +91,34 @@ type DashboardApplication = {
   interview_at?: string;
   interview_type?: string;
   meeting_link?: string;
-  job?: {
-    title?: string;
-    company_name?: string;
-    company?: { name?: string };
-  };
+  job?: { title?: string; company_name?: string; company?: { name?: string } };
 };
 
-function formatInterviewDateTime(dateValue: string, locale: "uz" | "ru") {
-  const date = new Date(dateValue);
-  if (Number.isNaN(date.getTime())) {
-    return dateValue;
-  }
+const PIPELINE_STAGES = ["applied", "reviewing", "interview", "accepted"] as const;
+type PipelineStage = (typeof PIPELINE_STAGES)[number];
 
+// =============================================================================
+// HELPERS
+// =============================================================================
+
+function formatInterviewDateTime(value: string, locale: "uz" | "ru") {
+  const date = new Date(value);
+  if (Number.isNaN(date.getTime())) return value;
   return new Intl.DateTimeFormat(locale === "ru" ? "ru-RU" : "uz-UZ", {
     dateStyle: "medium",
     timeStyle: "short",
   }).format(date);
 }
 
-function formatInterviewTypeLabel(interviewType: string | undefined, t: (key: string) => string) {
-  if (!interviewType) {
-    return t("dashboard.interview.formatNotSet");
-  }
-
-  const normalized = interviewType.trim().toLowerCase();
-  if (normalized === "video") return t("dashboard.interview.videoInterview");
-  if (normalized === "phone") return t("dashboard.interview.phoneInterview");
-  if (normalized === "in-person" || normalized === "in person") return t("dashboard.interview.inPersonInterview");
-
-  return interviewType;
-}
-
-function getUpcomingInterview(applications: UpcomingInterviewCandidate[]) {
+function nextUpcomingInterview(apps: DashboardApplication[]) {
   const now = Date.now();
-
-  return applications
-    .filter((app) => app.status === "interview" && app.interview_at)
-    .map((app) => ({
-      ...app,
-      interviewTimestamp: new Date(app.interview_at as string).getTime(),
-    }))
-    .filter((app) => !Number.isNaN(app.interviewTimestamp) && app.interviewTimestamp >= now)
-    .sort((a, b) => a.interviewTimestamp - b.interviewTimestamp)[0] || null;
+  return (
+    apps
+      .filter((a) => a.status === "interview" && a.interview_at)
+      .map((a) => ({ ...a, ts: new Date(a.interview_at as string).getTime() }))
+      .filter((a) => !Number.isNaN(a.ts) && a.ts >= now)
+      .sort((a, b) => a.ts - b.ts)[0] || null
+  );
 }
 
 // =============================================================================
@@ -136,35 +129,30 @@ export default function StudentDashboardPage() {
   const router = useRouter();
   const { user } = useAuth();
   const { t, locale } = useTranslation();
+  const reduceMotion = useReducedMotion();
 
   const { resumes, isLoading: resumesLoading, fetchResumes } = useResume();
   const { stats: appStats, applications, isLoading: appsLoading, fetchMyApplications } = useApplications();
-  const { jobs, isLoading: jobsLoading, fetchJobs } = useJobs();
-  const [summaryCounts, setSummaryCounts] = useState<{ resumes: number; applications: number } | null>(null);
+  useJobs(); // warmup; not displayed in this redesign
 
-  type Recommendation = {
-    job: Job;
-    match_score: number;
-    skill_matches: string[];
-    missing_skills: string[];
-  };
+  const [summaryCounts, setSummaryCounts] = useState<{ resumes: number; applications: number } | null>(null);
   const [recommendations, setRecommendations] = useState<Recommendation[]>([]);
   const [recsLoading, setRecsLoading] = useState(true);
+  const [recsError, setRecsError] = useState(false);
   const [needsResume, setNeedsResume] = useState(false);
 
   useEffect(() => {
     fetchResumes();
     fetchMyApplications();
-    fetchJobs({}, 1);
-  }, [fetchJobs, fetchMyApplications, fetchResumes]);
+  }, [fetchMyApplications, fetchResumes]);
 
-  useEffect(() => {
-    let ignore = false;
+  const loadRecommendations = (signal?: AbortSignal) => {
     setRecsLoading(true);
-    jobApi
-      .recommended({ limit: 3 })
+    setRecsError(false);
+    return jobApi
+      .recommended({ limit: 4 })
       .then((res) => {
-        if (ignore) return;
+        if (signal?.aborted) return;
         const payload = (res.data ?? {}) as {
           matches?: Recommendation[];
           message?: string;
@@ -174,531 +162,1006 @@ export default function StudentDashboardPage() {
         setNeedsResume(matches.length === 0 && /resume/i.test(payload.message ?? ""));
       })
       .catch(() => {
-        if (!ignore) setRecommendations([]);
+        if (!signal?.aborted) {
+          setRecommendations([]);
+          setRecsError(true);
+        }
       })
       .finally(() => {
-        if (!ignore) setRecsLoading(false);
+        if (!signal?.aborted) setRecsLoading(false);
       });
-    return () => {
-      ignore = true;
-    };
+  };
+
+  useEffect(() => {
+    const ctrl = new AbortController();
+    loadRecommendations(ctrl.signal);
+    return () => ctrl.abort();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [user?.id]);
 
   useEffect(() => {
-    const loadSummaryCounts = async () => {
+    if (!user?.id) return;
+    (async () => {
       try {
-        const response = await userApi.getProfile();
-        const payload = response.data?.data ?? response.data ?? {};
-        const resumesCount = typeof payload.resume_count === "number" ? payload.resume_count : 0;
-        const applicationsCount = typeof payload.application_count === "number" ? payload.application_count : 0;
-        setSummaryCounts({ resumes: resumesCount, applications: applicationsCount });
+        const res = await userApi.getProfile();
+        const payload = res.data?.data ?? res.data ?? {};
+        setSummaryCounts({
+          resumes: typeof payload.resume_count === "number" ? payload.resume_count : 0,
+          applications: typeof payload.application_count === "number" ? payload.application_count : 0,
+        });
       } catch {
         setSummaryCounts(null);
       }
-    };
-
-    if (!user?.id) return;
-    loadSummaryCounts();
+    })();
   }, [user?.id]);
 
   const isLoading = resumesLoading || appsLoading;
 
-  // Compute profile completion based on real user data
-  const profileCompletion = (() => {
-    let score = 20; // base
-    if (user?.full_name) score += 20;
-    if (user?.email) score += 20;
-    if (user?.phone) score += 15;
-    if (user?.bio) score += 15;
-    if (user?.location) score += 10;
-    return score;
-  })();
+  // ---- Derived state -------------------------------------------------------
+
+  const profileCompletion = useMemo(() => {
+    let s = 20;
+    if (user?.full_name) s += 20;
+    if (user?.email) s += 20;
+    if (user?.phone) s += 15;
+    if (user?.bio) s += 15;
+    if (user?.location) s += 10;
+    return s;
+  }, [user]);
 
   const greeting = () => {
-    const hour = new Date().getHours();
-    if (hour < 12) return t("dashboard.greeting.morning");
-    if (hour < 18) return t("dashboard.greeting.afternoon");
+    const h = new Date().getHours();
+    if (h < 12) return t("dashboard.greeting.morning");
+    if (h < 18) return t("dashboard.greeting.afternoon");
     return t("dashboard.greeting.evening");
   };
 
-  const stats = [
+  const applicationsForDisplay = applications as DashboardApplication[];
+  const upcoming = nextUpcomingInterview(applicationsForDisplay);
+
+  // Pipeline counts
+  const pipelineCounts: Record<PipelineStage, number> = {
+    applied: appStats.pending ?? 0,
+    reviewing: appStats.reviewing ?? 0,
+    interview: appStats.interview ?? 0,
+    accepted: appStats.accepted ?? 0,
+  };
+  const pipelineTotal = PIPELINE_STAGES.reduce((sum, s) => sum + pipelineCounts[s], 0);
+
+  // Top recommendation for "today's signal"
+  const topRec = recommendations[0];
+  const topRecCompany = topRec?.job?.company?.name || t("common.company");
+
+  // Compact stat strip
+  const statStrip = [
     {
-      title: t("dashboard.stats.totalResumes"),
-      value: isLoading ? "—" : (summaryCounts?.resumes ?? resumes.length),
-      icon: FileText,
-      color: "from-purple-500 to-indigo-600",
-      bgColor: "bg-purple-100 dark:bg-purple-500/20",
-      iconColor: "text-purple-600",
-      change:
-        (summaryCounts?.resumes ?? resumes.length) > 0
-          ? t("dashboard.stats.resumeCount", { count: summaryCounts?.resumes ?? resumes.length })
-          : t("dashboard.stats.thisWeek"),
-      changeType: "positive",
+      label: t("dashboard.stats.totalResumes"),
+      value: summaryCounts?.resumes ?? resumes.length,
+      Icon: FileText,
+      tone: "text-violet-600 dark:text-violet-300",
+      bg: "bg-violet-500/10",
     },
     {
-      title: t("dashboard.stats.applicationsSent"),
-      value: isLoading ? "—" : (summaryCounts?.applications ?? appStats.total),
-      icon: Send,
-      color: "from-cyan-500 to-blue-600",
-      bgColor: "bg-cyan-100 dark:bg-cyan-500/20",
-      iconColor: "text-cyan-600",
-      change:
-        appStats.pending > 0
-          ? t("dashboard.stats.pendingCount", { count: appStats.pending })
-          : t("dashboard.stats.noApplications"),
-      changeType: "positive",
+      label: t("dashboard.stats.applicationsSent"),
+      value: summaryCounts?.applications ?? appStats.total,
+      Icon: Send,
+      tone: "text-cyan-600 dark:text-cyan-300",
+      bg: "bg-cyan-500/10",
     },
     {
-      title: t("dashboard.stats.interviewsScheduled"),
-      value: isLoading ? "—" : appStats.interview,
-      icon: Calendar,
-      color: "from-green-500 to-emerald-600",
-      bgColor: "bg-green-100 dark:bg-green-500/20",
-      iconColor: "text-green-600",
-      change: appStats.interview > 0 ? t("dashboard.stats.interviewCount", { count: appStats.interview }) : t("dashboard.stats.noInterviews"),
-      changeType: "neutral",
+      label: t("dashboard.stats.interviewsScheduled"),
+      value: appStats.interview,
+      Icon: Calendar,
+      tone: "text-emerald-600 dark:text-emerald-300",
+      bg: "bg-emerald-500/10",
     },
     {
-      title: t("dashboard.stats.profileViews"),
-      value: isLoading ? "—" : appStats.reviewing,
-      icon: Eye,
-      color: "from-amber-500 to-orange-600",
-      bgColor: "bg-amber-100 dark:bg-amber-500/20",
-      iconColor: "text-amber-600",
-      change: appStats.accepted > 0 ? t("dashboard.stats.acceptedCount", { count: appStats.accepted }) : t("dashboard.stats.underReview"),
-      changeType: "positive",
+      label: t("dashboard.stats.profileViews"),
+      value: appStats.reviewing,
+      Icon: Eye,
+      tone: "text-amber-600 dark:text-amber-300",
+      bg: "bg-amber-500/10",
     },
   ];
 
-  // Build recent activity from real applications
-  const applicationsForDisplay = applications as DashboardApplication[];
+  // Skill gap synthesized from missing skills across recommendations
+  const skillGap = useMemo(() => {
+    const counter = new Map<string, number>();
+    for (const r of recommendations) {
+      for (const s of r.missing_skills || []) counter.set(s, (counter.get(s) ?? 0) + 1);
+    }
+    return Array.from(counter.entries())
+      .sort((a, b) => b[1] - a[1])
+      .slice(0, 5)
+      .map(([skill, count]) => ({
+        skill,
+        gap: Math.min(100, 40 + count * 20),
+      }));
+  }, [recommendations]);
 
-  const recentActivity = applicationsForDisplay.slice(0, 5).map((app) => ({
-    id: app.id,
-    type: "application",
-    title: `${app.job?.title || t("dashboard.jobs.jobFallback")} - ${app.job?.company?.name || app.job?.company_name || t("common.company")}`,
-    time: app.applied_at ? formatRelativeTime(app.applied_at, locale) : "",
-    icon: app.status === "interview" ? Calendar : app.status === "accepted" ? CheckCircle : Send,
-    color: app.status === "interview"
-      ? "bg-green-100 text-green-600 dark:bg-green-500/20"
-      : app.status === "accepted"
-      ? "bg-cyan-100 text-cyan-600 dark:bg-cyan-500/20"
-      : "bg-blue-100 text-blue-600 dark:bg-blue-500/20",
-  }));
-
-  const upcomingInterview = getUpcomingInterview(applicationsForDisplay as UpcomingInterviewCandidate[]);
-  const upcomingInterviewCompanyName =
-    upcomingInterview?.job?.company?.name ||
-    upcomingInterview?.job?.company_name ||
-    t("common.company");
-
-  const quickActions = [
+  const interviewActions = [
     {
       title: t("dashboard.quickActions.createAIResume"),
-      description: t("dashboard.quickActions.createAIResumeDesc"),
-      icon: Sparkles,
+      desc: t("dashboard.quickActions.createAIResumeDesc"),
       href: "/student/resumes/create-ai",
-      color: "from-purple-500 to-indigo-600",
-      primary: true,
-      badge: t("dashboard.quickActions.aiPowered"),
+      Icon: Sparkles,
     },
     {
       title: t("dashboard.quickActions.browseJobs"),
-      description: t("dashboard.quickActions.browseJobsDesc"),
-      icon: Briefcase,
+      desc: t("dashboard.quickActions.browseJobsDesc"),
       href: "/student/jobs",
-      color: "from-cyan-500 to-blue-600",
+      Icon: Briefcase,
     },
     {
       title: t("dashboard.quickActions.autoApply"),
-      description: t("dashboard.quickActions.autoApplyDesc"),
-      icon: Zap,
+      desc: t("dashboard.quickActions.autoApplyDesc"),
       href: "/student/applications/auto-apply",
-      color: "from-amber-500 to-orange-600",
+      Icon: Zap,
     },
   ];
 
+  // =============================================================================
+  // RENDER
+  // =============================================================================
+
   return (
     <motion.div
-      variants={containerVariants}
-      initial="hidden"
+      variants={stagger}
+      initial={reduceMotion ? false : "hidden"}
       animate="visible"
       className="space-y-8"
     >
-      {/* Header */}
-      <motion.div variants={itemVariants} className="flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
-        <div>
-          <h1 className="font-display text-2xl font-bold text-surface-900 dark:text-white sm:text-3xl">
-            {greeting()}, {user?.full_name?.split(" ")[0] || t("common.student")}!
-          </h1>
-          <p className="mt-1 text-surface-500">
-            {t("dashboard.subtitle")}
-          </p>
-        </div>
-        <Link href="/student/resumes/create-ai">
-          <Button className="bg-gradient-to-r from-purple-500 to-indigo-600 shadow-lg shadow-purple-500/25 hover:shadow-purple-500/40">
-            <Sparkles className="mr-2 h-4 w-4" />
-            {t("dashboard.sidebar.createAIResume")}
-          </Button>
-        </Link>
-      </motion.div>
+      {/* ===== Aurora greeting hero (signature canvas treatment) ===== */}
+      <motion.section variants={item}>
+        <AuroraGreeting
+          eyebrow={greeting()}
+          name={user?.full_name?.split(" ")[0] || t("common.student")}
+          question="ready for what's next?"
+          subtitle={t("dashboard.subtitle")}
+          profileCompletion={profileCompletion}
+          ctaHref="/student/resumes/create-ai"
+          ctaLabel={t("dashboard.sidebar.createAIResume")}
+        />
+      </motion.section>
 
-      {/* Profile Completion Banner */}
-      {profileCompletion < 100 && (
-        <motion.div variants={itemVariants}>
-          <Card className="border-amber-200 bg-gradient-to-r from-amber-50 to-orange-50 dark:border-amber-500/30 dark:from-amber-900/20 dark:to-orange-900/20">
-            <CardContent className="flex flex-col gap-4 p-4 sm:flex-row sm:items-center sm:justify-between">
-              <div className="flex items-center gap-4">
-                <div className="flex h-12 w-12 items-center justify-center rounded-full bg-amber-100 dark:bg-amber-500/20">
-                  <AlertCircle className="h-6 w-6 text-amber-600" />
+      {/* ===== AI Insights — streaming reasoning trace about you ===== */}
+      <motion.section variants={item}>
+        <AIInsightsPanel
+          input={{
+            fullName: user?.full_name,
+            resumes: summaryCounts?.resumes ?? resumes.length,
+            applications: summaryCounts?.applications ?? appStats.total,
+            interviews: appStats.interview,
+            topMatchScore: topRec?.match_score,
+            topMatchTitle: topRec?.job?.title,
+            topMatchCompany:
+              topRec?.job?.company?.name ||
+              (topRec?.job as { company_name?: string } | undefined)?.company_name,
+            topMissingSkills: skillGap.map((s) => s.skill),
+          }}
+        />
+      </motion.section>
+
+      {/* ===== Today's signal — 3D tilt depth card ===== */}
+      <motion.section variants={item}>
+        <Tilt max={4} className="group">
+          <TodaysSignal
+            loading={isLoading || recsLoading}
+            profileCompletion={profileCompletion}
+            upcoming={upcoming}
+            topRec={topRec}
+            topRecCompany={topRecCompany}
+            locale={locale}
+            t={t}
+          />
+        </Tilt>
+      </motion.section>
+
+      {/* ===== Stat strip — animated count-ups ===== */}
+      <motion.section variants={item} aria-label="Key stats">
+        <div className="grid grid-cols-2 gap-3 lg:grid-cols-4">
+          {statStrip.map((s) => (
+            <StatCard
+              key={s.label}
+              label={s.label}
+              value={typeof s.value === "number" ? s.value : 0}
+              Icon={s.Icon}
+              iconClass={s.tone}
+              bgClass={s.bg}
+              loading={isLoading}
+            />
+          ))}
+        </div>
+      </motion.section>
+
+      {/* ===== Two-column area: Recommended jobs + Skill gap ===== */}
+      <div className="grid gap-6 lg:grid-cols-[1.4fr_1fr]">
+        <motion.section variants={item}>
+          <Card className="card-aurora p-0">
+            <CardHeader className="flex flex-row items-center justify-between border-b border-surface-200/60 pb-4 dark:border-white/[0.06]">
+              <CardTitle className="flex items-center gap-2 text-lg">
+                <Target className="h-5 w-5 text-violet-600 dark:text-violet-300" />
+                {t("dashboard.recommended.title")}
+              </CardTitle>
+              <Link href="/student/jobs" className="focus-ring rounded-full text-sm font-medium text-violet-600 hover:underline dark:text-violet-300">
+                {t("dashboard.recommended.browseAll")}
+              </Link>
+            </CardHeader>
+            <CardContent className="p-5">
+              {recsLoading ? (
+                <div className="space-y-3">
+                  {[1, 2, 3].map((i) => (
+                    <Skeleton key={i} className="h-28 w-full rounded-2xl" />
+                  ))}
                 </div>
-                <div>
-                  <h3 className="font-semibold text-surface-900 dark:text-white">{t("dashboard.profile.complete")}</h3>
-                  <p className="text-sm text-surface-500">
-                    {t("dashboard.profile.completeText")}
-                  </p>
+              ) : recsError ? (
+                <ErrorState onRetry={() => loadRecommendations()} t={t} />
+              ) : needsResume ? (
+                <EmptyResume t={t} />
+              ) : recommendations.length === 0 ? (
+                <p className="py-8 text-center text-sm text-surface-500 dark:text-white/55">
+                  {t("dashboard.recommended.empty")}
+                </p>
+              ) : (
+                <ul className="space-y-3">
+                  {recommendations.map((rec, i) => (
+                    <RecCard key={rec.job.id} rec={rec} index={i} locale={locale} t={t} />
+                  ))}
+                </ul>
+              )}
+            </CardContent>
+          </Card>
+        </motion.section>
+
+        <motion.section variants={item}>
+          <Card className="card-aurora p-0">
+            <CardHeader className="flex flex-row items-center justify-between border-b border-surface-200/60 pb-4 dark:border-white/[0.06]">
+              <CardTitle className="flex items-center gap-2 text-lg">
+                <Lightbulb className="h-5 w-5 text-amber-500" />
+                Skill gap plan
+              </CardTitle>
+              <Link href="/student/resumes" className="focus-ring rounded-full text-sm font-medium text-violet-600 hover:underline dark:text-violet-300">
+                Boost
+              </Link>
+            </CardHeader>
+            <CardContent className="p-5">
+              {recsLoading ? (
+                <div className="space-y-3">
+                  {[1, 2, 3].map((i) => (
+                    <Skeleton key={i} className="h-10 w-full rounded-xl" />
+                  ))}
                 </div>
-              </div>
-              <div className="flex items-center gap-4">
-                <div className="w-32">
-                  <div className="mb-1 flex justify-between text-xs">
-                    <span>{profileCompletion}%</span>
+              ) : skillGap.length === 0 ? (
+                <div className="rounded-2xl border border-dashed border-surface-200 p-6 text-center text-sm text-surface-500 dark:border-white/[0.08] dark:text-white/60">
+                  Profil to&apos;la — boshqa platformalardan tushgan ko&apos;nikmalarni qo&apos;shing.
+                </div>
+              ) : (
+                <>
+                  {/* Interactive radar — visualizes student level vs job requirements */}
+                  <SkillGapRadar data={skillGap} />
+
+                  {/* Legend */}
+                  <div className="mt-2 flex items-center justify-center gap-4 text-[11px] text-surface-500 dark:text-white/55">
+                    <span className="inline-flex items-center gap-1.5">
+                      <span aria-hidden className="h-2 w-2 rounded-full bg-gradient-to-br from-violet-500 to-cyan-400" />
+                      Sizning daraja
+                    </span>
+                    <span className="inline-flex items-center gap-1.5">
+                      <span aria-hidden className="h-2 w-2 rounded-full bg-surface-400/40" />
+                      Talab
+                    </span>
                   </div>
-                  <Progress value={profileCompletion} className="h-2" />
+
+                  <div className="mt-4 grid grid-cols-3 gap-2 text-center">
+                    {[
+                      { d: "7 kun", count: skillGap.length },
+                      { d: "14 kun", count: Math.min(skillGap.length, 3) },
+                      { d: "30 kun", count: Math.min(skillGap.length, 2) },
+                    ].map((p) => (
+                      <div
+                        key={p.d}
+                        className="rounded-2xl border border-surface-200 bg-white p-3 text-xs dark:border-white/[0.06] dark:bg-white/[0.03]"
+                      >
+                        <p className="font-semibold text-surface-900 dark:text-white">{p.d}</p>
+                        <p className="text-surface-500 dark:text-white/55">{p.count} ko&apos;nikma</p>
+                      </div>
+                    ))}
+                  </div>
+                </>
+              )}
+            </CardContent>
+          </Card>
+        </motion.section>
+      </div>
+
+      {/* ===== Pipeline timeline ===== */}
+      <motion.section variants={item} aria-label="Application pipeline">
+        <Card className="card-aurora p-6">
+          <div className="flex flex-col gap-2 sm:flex-row sm:items-end sm:justify-between">
+            <div>
+              <h2 className="flex items-center gap-2 font-display text-lg font-semibold text-surface-900 dark:text-white">
+                <TrendingUp className="h-5 w-5 text-violet-600 dark:text-violet-300" />
+                Application pipeline
+              </h2>
+              <p className="text-sm text-surface-500 dark:text-white/60">
+                {pipelineTotal} ta jami ariza · realtime status
+              </p>
+            </div>
+            <Link href="/student/applications" className="focus-ring rounded-full text-sm font-medium text-violet-600 hover:underline dark:text-violet-300">
+              {t("dashboard.recentActivity.viewAll")}
+            </Link>
+          </div>
+
+          <ol className="relative mt-6 grid gap-3 sm:grid-cols-4">
+            {/* Connecting flow line between stages — fills as section scrolls into view */}
+            <div
+              aria-hidden
+              className="pointer-events-none absolute left-0 right-0 top-1/2 hidden h-px -translate-y-1/2 overflow-hidden sm:block"
+            >
+              <div className="h-full w-full bg-surface-200 dark:bg-white/[0.06]" />
+              <motion.div
+                initial={reduceMotion ? false : { scaleX: 0 }}
+                whileInView={{ scaleX: 1 }}
+                viewport={{ once: true, amount: 0.3 }}
+                transition={{ duration: 1.3, ease: [0.19, 1, 0.22, 1] }}
+                style={{ transformOrigin: "0% 50%" }}
+                className="absolute inset-0 h-full bg-gradient-to-r from-cyan-400 via-violet-500 to-emerald-400 shadow-[0_0_18px_rgba(124,92,255,0.45)]"
+              />
+            </div>
+
+            {PIPELINE_STAGES.map((stage, i) => {
+              const count = pipelineCounts[stage];
+              const total = Math.max(pipelineTotal, 1);
+              const pct = Math.round((count / total) * 100);
+              const stageMeta: Record<PipelineStage, { label: string; tone: string }> = {
+                applied: { label: "Yuborildi", tone: "from-cyan-400 to-blue-500" },
+                reviewing: { label: "Ko'rib chiqilmoqda", tone: "from-amber-400 to-orange-500" },
+                interview: { label: "Suhbat", tone: "from-violet-400 to-indigo-500" },
+                accepted: { label: "Qabul qilindi", tone: "from-emerald-400 to-teal-500" },
+              };
+              return (
+                <motion.li
+                  key={stage}
+                  whileHover={reduceMotion ? undefined : { y: -3 }}
+                  transition={{ type: "spring", stiffness: 240, damping: 22 }}
+                  className="relative rounded-2xl border border-surface-200 bg-white p-4 transition-shadow hover:shadow-md dark:border-white/[0.06] dark:bg-white/[0.03]"
+                >
+                  <div className="flex items-center justify-between">
+                    <p className="text-xs font-semibold uppercase tracking-wider text-surface-500 dark:text-white/55">
+                      0{i + 1} · {stageMeta[stage].label}
+                    </p>
+                  </div>
+                  <p className="mt-2 font-display text-3xl font-semibold text-surface-900 dark:text-white">
+                    <PipelineCount value={count} delay={i * 0.08} />
+                  </p>
+                  <div className="mt-3 h-1.5 overflow-hidden rounded-full bg-surface-100 dark:bg-white/[0.06]">
+                    <motion.div
+                      initial={reduceMotion ? false : { width: 0 }}
+                      whileInView={{ width: `${pct}%` }}
+                      viewport={{ once: true, amount: 0.3 }}
+                      transition={{ duration: 1.1, ease: [0.19, 1, 0.22, 1], delay: 0.2 + i * 0.12 }}
+                      className={`h-full rounded-full bg-gradient-to-r ${stageMeta[stage].tone}`}
+                    />
+                  </div>
+                </motion.li>
+              );
+            })}
+          </ol>
+        </Card>
+      </motion.section>
+
+      {/* ===== Interview prep quick actions ===== */}
+      <motion.section variants={item}>
+        <h2 className="mb-3 font-display text-lg font-semibold text-surface-900 dark:text-white">
+          {t("dashboard.quickActions.title")}
+        </h2>
+        <div className="grid gap-4 sm:grid-cols-3">
+          {interviewActions.map((a, i) => (
+            <Link key={a.title} href={a.href} className="focus-ring rounded-3xl">
+              <motion.div
+                whileHover={reduceMotion ? undefined : { y: -3 }}
+                whileTap={reduceMotion ? undefined : { scale: 0.99 }}
+                className="card-aurora card-aurora-hover relative overflow-hidden p-6"
+              >
+                <span
+                  aria-hidden
+                  className="pointer-events-none absolute -right-10 -top-10 h-40 w-40 rounded-full opacity-60"
+                  style={{
+                    background:
+                      i === 0
+                        ? "radial-gradient(closest-side, rgba(124,92,255,0.25), transparent)"
+                        : i === 1
+                        ? "radial-gradient(closest-side, rgba(34,211,238,0.22), transparent)"
+                        : "radial-gradient(closest-side, rgba(245,181,68,0.22), transparent)",
+                  }}
+                />
+                <div className="relative">
+                  <span className="grid h-11 w-11 place-items-center rounded-2xl bg-white/80 text-violet-600 shadow-sm ring-1 ring-inset ring-surface-200 dark:bg-white/[0.04] dark:text-violet-300 dark:ring-white/10">
+                    <a.Icon className="h-5 w-5" />
+                  </span>
+                  <h3 className="mt-5 font-display text-lg font-semibold text-surface-900 dark:text-white">
+                    {a.title}
+                  </h3>
+                  <p className="mt-1 text-sm text-surface-600 dark:text-white/65">{a.desc}</p>
+                  <span className="mt-4 inline-flex items-center gap-1 text-sm font-semibold text-violet-600 dark:text-violet-300">
+                    {t("dashboard.recommended.browseAll")}
+                    <ArrowRight className="h-4 w-4 transition group-hover:translate-x-0.5" />
+                  </span>
                 </div>
-                <Link href="/student/settings">
-                  <Button variant="outline" size="sm">
-                    {t("dashboard.sidebar.profileSettings")}
+              </motion.div>
+            </Link>
+          ))}
+        </div>
+      </motion.section>
+
+      {/* ===== Activity + Saved jobs ===== */}
+      <div className="grid gap-6 lg:grid-cols-2">
+        <motion.section variants={item}>
+          <Card className="card-aurora p-0">
+            <CardHeader className="flex flex-row items-center justify-between border-b border-surface-200/60 pb-4 dark:border-white/[0.06]">
+              <CardTitle className="text-lg">{t("dashboard.recentActivity.title")}</CardTitle>
+              <Link href="/student/applications" className="focus-ring rounded-full text-sm font-medium text-violet-600 hover:underline dark:text-violet-300">
+                {t("dashboard.recentActivity.viewAll")}
+              </Link>
+            </CardHeader>
+            <CardContent className="p-5">
+              {appsLoading ? (
+                <div className="space-y-3">
+                  {[1, 2, 3].map((i) => (
+                    <Skeleton key={i} className="h-12 w-full" />
+                  ))}
+                </div>
+              ) : applicationsForDisplay.length === 0 ? (
+                <EmptyActivity t={t} />
+              ) : (
+                <ul className="space-y-3">
+                  {applicationsForDisplay.slice(0, 5).map((app) => {
+                    const Icon =
+                      app.status === "interview" ? Calendar : app.status === "accepted" ? CheckCircle2 : Send;
+                    const tone =
+                      app.status === "interview"
+                        ? "bg-emerald-500/10 text-emerald-600 dark:text-emerald-300"
+                        : app.status === "accepted"
+                        ? "bg-cyan-500/10 text-cyan-600 dark:text-cyan-300"
+                        : "bg-violet-500/10 text-violet-600 dark:text-violet-300";
+                    return (
+                      <li key={app.id} className="flex items-center gap-3">
+                        <span className={`grid h-10 w-10 place-items-center rounded-2xl ${tone}`}>
+                          <Icon className="h-4 w-4" />
+                        </span>
+                        <div className="min-w-0 flex-1">
+                          <p className="truncate text-sm font-medium text-surface-900 dark:text-white">
+                            {app.job?.title || t("dashboard.jobs.jobFallback")} ·{" "}
+                            <span className="font-normal text-surface-500 dark:text-white/55">
+                              {app.job?.company?.name || app.job?.company_name || t("common.company")}
+                            </span>
+                          </p>
+                          <p className="text-xs text-surface-500 dark:text-white/55">
+                            {app.applied_at ? formatRelativeTime(app.applied_at, locale) : ""}
+                          </p>
+                        </div>
+                        <ChevronRight className="h-4 w-4 text-surface-400" />
+                      </li>
+                    );
+                  })}
+                </ul>
+              )}
+            </CardContent>
+          </Card>
+        </motion.section>
+
+        <motion.section variants={item}>
+          <Card className="card-aurora p-0">
+            <CardHeader className="flex flex-row items-center justify-between border-b border-surface-200/60 pb-4 dark:border-white/[0.06]">
+              <CardTitle className="flex items-center gap-2 text-lg">
+                <Bookmark className="h-5 w-5 text-violet-600 dark:text-violet-300" />
+                Saved jobs
+              </CardTitle>
+              <Link href="/student/saved-jobs" className="focus-ring rounded-full text-sm font-medium text-violet-600 hover:underline dark:text-violet-300">
+                {t("dashboard.recentActivity.viewAll")}
+              </Link>
+            </CardHeader>
+            <CardContent className="p-5">
+              <div className="rounded-2xl border border-dashed border-surface-200 p-6 text-center dark:border-white/[0.08]">
+                <Bookmark className="mx-auto h-7 w-7 text-violet-500" />
+                <p className="mt-2 text-sm font-medium text-surface-900 dark:text-white">
+                  Saqlangan vakansiyalar shu yerda paydo bo&apos;ladi
+                </p>
+                <p className="mt-1 text-xs text-surface-500 dark:text-white/55">
+                  Vakansiya kartasidagi belgi orqali saqlab qo&apos;ying — keyin bir joydan ariza yuborasiz.
+                </p>
+                <Link href="/student/jobs" className="mt-4 inline-flex">
+                  <Button variant="outline" size="sm" className="rounded-full">
+                    Vakansiyalarni ko&apos;rish
                   </Button>
                 </Link>
               </div>
             </CardContent>
           </Card>
-        </motion.div>
-      )}
-
-      {/* Stats Grid */}
-      <motion.div variants={itemVariants} className="grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
-        {stats.map((stat, index) => (
-          <motion.div
-            key={stat.title}
-            initial={{ opacity: 0, y: 20 }}
-            animate={{ opacity: 1, y: 0 }}
-            transition={{ delay: index * 0.1 }}
-          >
-            <Card className="relative overflow-hidden hover:shadow-lg transition-shadow">
-              <CardContent className="p-6">
-                <div className="flex items-start justify-between">
-                  <div>
-                    <p className="text-sm font-medium text-surface-500">{stat.title}</p>
-                    <p className="mt-2 text-3xl font-bold text-surface-900 dark:text-white">
-                      {stat.value}
-                    </p>
-                    <p className={`mt-1 text-xs ${
-                      stat.changeType === "positive" ? "text-green-600" : "text-surface-500"
-                    }`}>
-                      {stat.change}
-                    </p>
-                  </div>
-                  <div className={`rounded-xl p-3 ${stat.bgColor}`}>
-                    <stat.icon className={`h-6 w-6 ${stat.iconColor}`} />
-                  </div>
-                </div>
-                {/* Decorative gradient */}
-                <div className={`absolute -right-8 -top-8 h-24 w-24 rounded-full bg-gradient-to-br ${stat.color} opacity-10`} />
-              </CardContent>
-            </Card>
-          </motion.div>
-        ))}
-      </motion.div>
-
-      {/* Quick Actions */}
-      <motion.div variants={itemVariants}>
-        <h2 className="mb-4 font-display text-lg font-semibold text-surface-900 dark:text-white">
-          {t("dashboard.quickActions.title")}
-        </h2>
-        <div className="grid gap-4 sm:grid-cols-3">
-          {quickActions.map((action) => (
-            <Link key={action.title} href={action.href}>
-              <motion.div
-                whileHover={{ scale: 1.02, y: -4 }}
-                whileTap={{ scale: 0.98 }}
-                className={`group relative overflow-hidden rounded-2xl p-6 text-white shadow-lg transition-shadow hover:shadow-xl ${
-                  action.primary
-                    ? "bg-gradient-to-br from-purple-500 to-indigo-600"
-                    : "bg-gradient-to-br " + action.color
-                }`}
-              >
-                {/* Animated background */}
-                <div className="absolute inset-0 bg-[url('data:image/svg+xml,...')] opacity-10" />
-                <motion.div
-                  animate={{ rotate: 360 }}
-                  transition={{ duration: 20, repeat: Infinity, ease: "linear" }}
-                  className="absolute -right-10 -top-10 h-32 w-32 rounded-full bg-white/10"
-                />
-                
-                <div className="relative">
-                  <div className="mb-4 flex h-12 w-12 items-center justify-center rounded-xl bg-white/20">
-                    <action.icon className="h-6 w-6" />
-                  </div>
-                  <h3 className="font-display text-lg font-semibold">{action.title}</h3>
-                  <p className="mt-1 text-sm text-white/80">{action.description}</p>
-                  <ArrowRight className="mt-4 h-5 w-5 transition-transform group-hover:translate-x-1" />
-                </div>
-
-                {action.badge && (
-                  <div className="absolute right-4 top-4">
-                    <span className="inline-flex items-center gap-1 rounded-full bg-white/20 px-2 py-0.5 text-xs font-medium">
-                      <Sparkles className="h-3 w-3" />
-                      {action.badge}
-                    </span>
-                  </div>
-                )}
-              </motion.div>
-            </Link>
-          ))}
-        </div>
-      </motion.div>
-
-      <div className="grid gap-8 lg:grid-cols-2">
-        {/* Recent Activity */}
-        <motion.div variants={itemVariants}>
-          <Card>
-            <CardHeader className="flex flex-row items-center justify-between pb-2">
-              <CardTitle className="text-lg">{t("dashboard.recentActivity.title")}</CardTitle>
-              <Link href="/student/applications" className="text-sm text-purple-600 hover:underline">
-                {t("dashboard.recentActivity.viewAll")}
-              </Link>
-            </CardHeader>
-            <CardContent>
-              {appsLoading ? (
-                <div className="space-y-3">
-                  {[1,2,3].map(i => <Skeleton key={i} className="h-12 w-full" />)}
-                </div>
-              ) : recentActivity.length === 0 ? (
-                <p className="py-6 text-center text-sm text-surface-500">
-                  {t("dashboard.recentActivity.empty")}
-                </p>
-              ) : (
-                <div className="space-y-4">
-                  {recentActivity.map((activity, index) => (
-                    <motion.div
-                      key={activity.id}
-                      initial={{ opacity: 0, x: -20 }}
-                      animate={{ opacity: 1, x: 0 }}
-                      transition={{ delay: index * 0.1 }}
-                      className="flex items-start gap-4"
-                    >
-                      <div className={`flex h-10 w-10 flex-shrink-0 items-center justify-center rounded-full ${activity.color}`}>
-                        <activity.icon className="h-5 w-5" />
-                      </div>
-                      <div className="flex-1 min-w-0">
-                        <p className="text-sm font-medium text-surface-900 dark:text-white truncate">
-                          {activity.title}
-                        </p>
-                        <p className="text-xs text-surface-500">{activity.time}</p>
-                      </div>
-                      <ChevronRight className="h-5 w-5 text-surface-400" />
-                    </motion.div>
-                  ))}
-                </div>
-              )}
-            </CardContent>
-          </Card>
-        </motion.div>
-
-        {/* Job Recommendations */}
-        <motion.div variants={itemVariants}>
-          <Card>
-            <CardHeader className="flex flex-row items-center justify-between pb-2">
-              <CardTitle className="text-lg flex items-center gap-2">
-                <Target className="h-5 w-5 text-purple-600" />
-                {t("dashboard.recommended.title")}
-              </CardTitle>
-              <Link href="/student/jobs" className="text-sm text-purple-600 hover:underline">
-                {t("dashboard.recommended.browseAll")}
-              </Link>
-            </CardHeader>
-            <CardContent>
-              {recsLoading ? (
-                <div className="space-y-3">
-                  {[1, 2, 3].map((i) => (
-                    <Skeleton key={i} className="h-24 w-full rounded-xl" />
-                  ))}
-                </div>
-              ) : needsResume ? (
-                <div className="flex flex-col items-center gap-3 rounded-xl border border-dashed border-purple-200 bg-purple-50/40 py-8 text-center dark:border-purple-500/30 dark:bg-purple-500/5">
-                  <Sparkles className="h-7 w-7 text-purple-500" />
-                  <p className="text-sm text-surface-600 dark:text-surface-300">
-                    {t("dashboard.recommended.noResume")}
-                  </p>
-                  <Link href="/student/resumes/create-ai">
-                    <Button size="sm">{t("dashboard.recommended.createResumeCTA")}</Button>
-                  </Link>
-                </div>
-              ) : recommendations.length === 0 ? (
-                <p className="py-6 text-center text-sm text-surface-500">
-                  {t("dashboard.recommended.empty")}
-                </p>
-              ) : (
-                <div className="space-y-4">
-                  {recommendations.map((rec, index) => {
-                    const score = Math.round(rec.match_score);
-                    const tone =
-                      score >= 80
-                        ? "bg-emerald-100 text-emerald-700 dark:bg-emerald-500/20 dark:text-emerald-300"
-                        : score >= 60
-                        ? "bg-amber-100 text-amber-700 dark:bg-amber-500/20 dark:text-amber-300"
-                        : "bg-surface-100 text-surface-600 dark:bg-surface-700 dark:text-surface-300";
-                    const job = rec.job;
-                    return (
-                      <Link key={job.id} href={`/student/jobs/${job.id}`}>
-                        <motion.div
-                          initial={{ opacity: 0, x: 20 }}
-                          animate={{ opacity: 1, x: 0 }}
-                          transition={{ delay: index * 0.1 }}
-                          className="group rounded-xl border border-surface-200 p-4 transition-all hover:border-purple-200 hover:shadow-md dark:border-surface-700 dark:hover:border-purple-500/30 cursor-pointer"
-                        >
-                          <div className="flex items-start justify-between gap-3">
-                            <div className="min-w-0 flex-1">
-                              <h4 className="truncate font-semibold text-surface-900 dark:text-white group-hover:text-purple-600">
-                                {job.title}
-                              </h4>
-                              <p className="truncate text-sm text-surface-500">
-                                {job.company?.name || t("common.company")} • {job.location}
-                              </p>
-                              {(job.salary_min || job.salary_max) && (
-                                <p className="mt-1 text-sm font-medium text-green-600">
-                                  {formatSalaryRange(job.salary_min, job.salary_max, locale, job.salary_currency || "USD")}
-                                </p>
-                              )}
-                            </div>
-                            <div className={`flex flex-col items-end shrink-0 rounded-lg px-2.5 py-1.5 ${tone}`}>
-                              <span className="text-base font-bold leading-none">{score}%</span>
-                              <span className="mt-0.5 text-[10px] font-semibold uppercase tracking-wider opacity-80">
-                                {t("dashboard.recommended.matchLabel")}
-                              </span>
-                            </div>
-                          </div>
-                          {rec.skill_matches.length > 0 && (
-                            <div className="mt-3">
-                              <p className="text-[11px] font-semibold uppercase tracking-wider text-surface-500">
-                                {t("dashboard.recommended.matchedSkills")}
-                              </p>
-                              <div className="mt-1.5 flex flex-wrap gap-1">
-                                {rec.skill_matches.slice(0, 4).map((skill: string) => (
-                                  <Badge
-                                    key={skill}
-                                    variant="secondary"
-                                    className="bg-emerald-50 text-emerald-700 text-xs dark:bg-emerald-500/10 dark:text-emerald-300"
-                                  >
-                                    {skill}
-                                  </Badge>
-                                ))}
-                                {rec.skill_matches.length > 4 && (
-                                  <span className="text-xs text-surface-500">
-                                    +{rec.skill_matches.length - 4}
-                                  </span>
-                                )}
-                              </div>
-                            </div>
-                          )}
-                        </motion.div>
-                      </Link>
-                    );
-                  })}
-                </div>
-              )}
-            </CardContent>
-          </Card>
-        </motion.div>
+        </motion.section>
       </div>
+    </motion.div>
+  );
+}
 
-      {/* Upcoming Interviews */}
-      <motion.div variants={itemVariants}>
-        <Card className="border-green-200 bg-gradient-to-r from-green-50 to-emerald-50 dark:border-green-500/30 dark:from-green-900/20 dark:to-emerald-900/20">
-          <CardContent className="p-6">
-            {appsLoading ? (
-              <div className="flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
-                <div className="flex items-center gap-4">
-                  <div className="h-14 w-14 rounded-2xl bg-green-100/80 dark:bg-green-500/20" />
-                  <div className="space-y-2">
-                    <div className="h-5 w-44 rounded bg-green-100/80 dark:bg-green-500/20" />
-                    <div className="h-4 w-64 rounded bg-green-100/70 dark:bg-green-500/10" />
-                    <div className="h-4 w-56 rounded bg-green-100/70 dark:bg-green-500/10" />
-                  </div>
-                </div>
-                <div className="flex gap-2">
-                  <div className="h-10 w-28 rounded-lg bg-green-100/80 dark:bg-green-500/20" />
-                  <div className="h-10 w-32 rounded-lg bg-green-100/80 dark:bg-green-500/20" />
-                </div>
+// =============================================================================
+// SUB-COMPONENTS
+// =============================================================================
+
+function TodaysSignal({
+  loading,
+  profileCompletion,
+  upcoming,
+  topRec,
+  topRecCompany,
+  locale,
+  t,
+}: {
+  loading: boolean;
+  profileCompletion: number;
+  upcoming: ReturnType<typeof nextUpcomingInterview>;
+  topRec: Recommendation | undefined;
+  topRecCompany: string;
+  locale: "uz" | "ru";
+  t: (k: string, p?: Record<string, string | number>) => string;
+}) {
+  if (loading) {
+    return (
+      <div className="card-aurora p-6">
+        <Skeleton className="h-5 w-32" />
+        <Skeleton className="mt-3 h-8 w-3/5" />
+        <Skeleton className="mt-2 h-4 w-2/5" />
+        <Skeleton className="mt-6 h-10 w-40 rounded-full" />
+      </div>
+    );
+  }
+
+  // Priority: upcoming interview > top match > profile completion nudge
+  if (upcoming) {
+    return (
+      <div className="relative overflow-hidden rounded-3xl border border-emerald-200/60 bg-gradient-to-br from-emerald-50 via-white to-cyan-50 p-6 dark:border-emerald-500/20 dark:from-emerald-500/10 dark:via-transparent dark:to-cyan-500/5">
+        <div className="flex flex-col gap-5 sm:flex-row sm:items-center sm:justify-between">
+          <div className="flex items-start gap-4">
+            <span className="grid h-14 w-14 place-items-center rounded-2xl bg-emerald-500/15 text-emerald-600 dark:text-emerald-300">
+              <Calendar className="h-7 w-7" />
+            </span>
+            <div>
+              <p className="text-xs font-semibold uppercase tracking-[0.18em] text-emerald-700 dark:text-emerald-300">
+                Today&apos;s signal · {t("dashboard.interview.title")}
+              </p>
+              <h2 className="mt-1 font-display text-xl font-semibold text-surface-900 dark:text-white sm:text-2xl">
+                {upcoming.job?.title || "Interview"} · {topRecCompany}
+              </h2>
+              <p className="text-sm text-surface-600 dark:text-white/70">
+                {upcoming.interview_at ? formatInterviewDateTime(upcoming.interview_at, locale) : ""}
+              </p>
+            </div>
+          </div>
+          <div className="flex flex-wrap gap-2">
+            {upcoming.meeting_link ? (
+              <Button asChild className="rounded-full bg-emerald-600 hover:bg-emerald-700">
+                <a href={upcoming.meeting_link} target="_blank" rel="noopener noreferrer">
+                  <PlayCircle className="mr-2 h-4 w-4" />
+                  {t("dashboard.interview.joinMeeting")}
+                </a>
+              </Button>
+            ) : null}
+            <Button variant="outline" className="rounded-full" asChild>
+              <Link href="/student/applications">{t("dashboard.interview.reschedule")}</Link>
+            </Button>
+          </div>
+        </div>
+      </div>
+    );
+  }
+
+  if (topRec) {
+    const score = Math.round(topRec.match_score);
+    return (
+      <div
+        className="relative overflow-hidden rounded-3xl border border-violet-200/60 bg-gradient-to-br from-violet-50 via-white to-cyan-50 p-6 shadow-[0_1px_0_0_rgba(255,255,255,0.7)_inset,0_30px_60px_-30px_rgba(124,92,255,0.35),0_12px_30px_-12px_rgba(34,211,238,0.2)] dark:border-violet-500/20 dark:from-violet-500/10 dark:via-transparent dark:to-cyan-500/5 dark:shadow-[0_1px_0_0_rgba(255,255,255,0.15)_inset,0_30px_60px_-30px_rgba(124,92,255,0.55),0_12px_30px_-12px_rgba(34,211,238,0.35)]"
+        style={{ transformStyle: "preserve-3d" }}
+      >
+        {/* Conic glow halo */}
+        <span
+          aria-hidden
+          className="pointer-events-none absolute -inset-4 -z-10 rounded-[36px] opacity-50 blur-3xl"
+          style={{
+            background:
+              "conic-gradient(from 120deg at 50% 50%, rgba(124,92,255,0.3), rgba(34,211,238,0.25), rgba(60,203,127,0.2), rgba(124,92,255,0.3))",
+          }}
+        />
+        <span
+          aria-hidden
+          className="pointer-events-none absolute -right-16 -top-16 h-56 w-56 rounded-full bg-violet-500/25 blur-3xl"
+        />
+        {/* Top accent line */}
+        <span
+          aria-hidden
+          className="pointer-events-none absolute inset-x-0 top-0 h-px bg-gradient-to-r from-transparent via-violet-400/70 to-transparent"
+        />
+        <div className="relative flex flex-col gap-5 sm:flex-row sm:items-center sm:justify-between">
+          <div style={{ transform: "translateZ(20px)" }}>
+            <p className="text-xs font-semibold uppercase tracking-[0.18em] text-violet-700 dark:text-violet-300">
+              Today&apos;s signal · Top match
+            </p>
+            <h2 className="mt-1 font-display text-2xl font-semibold tracking-tight text-surface-900 dark:text-white sm:text-3xl">
+              {topRec.job.title}
+            </h2>
+            <p className="text-sm text-surface-600 dark:text-white/70">
+              {topRecCompany} · {topRec.job.location}
+            </p>
+            <div className="mt-4 flex flex-wrap gap-2">
+              <span className="inline-flex items-center gap-1 rounded-full bg-emerald-500/10 px-2.5 py-1 text-xs font-semibold text-emerald-700 dark:text-emerald-300">
+                <CheckCircle2 className="h-3 w-3" /> {score}% match
+              </span>
+              {topRec.skill_matches.slice(0, 3).map((s) => (
+                <span key={s} className="chip">
+                  {s}
+                </span>
+              ))}
+            </div>
+          </div>
+
+          {/* Match ring */}
+          <div className="flex items-center gap-5" style={{ transform: "translateZ(40px)" }}>
+            <MatchRing score={score} />
+            <div className="hidden sm:block">
+              <Button asChild className="rounded-full bg-gradient-to-r from-violet-500 to-cyan-400">
+                <Link href={`/student/jobs/${topRec.job.id}`}>
+                  Ko&apos;rib chiqish
+                  <ArrowRight className="ml-1.5 h-4 w-4" />
+                </Link>
+              </Button>
+            </div>
+          </div>
+        </div>
+        <div className="mt-4 sm:hidden">
+          <Button asChild className="w-full rounded-full bg-gradient-to-r from-violet-500 to-cyan-400">
+            <Link href={`/student/jobs/${topRec.job.id}`}>Ko&apos;rib chiqish</Link>
+          </Button>
+        </div>
+      </div>
+    );
+  }
+
+  // Fallback — profile completion nudge
+  return (
+    <div className="relative overflow-hidden rounded-3xl border border-amber-200/60 bg-gradient-to-br from-amber-50 via-white to-orange-50 p-6 dark:border-amber-500/20 dark:from-amber-500/10 dark:via-transparent dark:to-orange-500/5">
+      <div className="flex flex-col gap-5 sm:flex-row sm:items-center sm:justify-between">
+        <div className="flex items-start gap-4">
+          <span className="grid h-14 w-14 place-items-center rounded-2xl bg-amber-500/15 text-amber-600 dark:text-amber-300">
+            <AlertCircle className="h-7 w-7" />
+          </span>
+          <div>
+            <p className="text-xs font-semibold uppercase tracking-[0.18em] text-amber-700 dark:text-amber-300">
+              Today&apos;s signal · {t("dashboard.profile.complete")}
+            </p>
+            <h2 className="mt-1 font-display text-xl font-semibold text-surface-900 dark:text-white sm:text-2xl">
+              {t("dashboard.profile.completeText")}
+            </h2>
+            <div className="mt-3 flex items-center gap-3">
+              <div className="w-48">
+                <Progress value={profileCompletion} className="h-2" />
               </div>
-            ) : upcomingInterview ? (
-              <div className="flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
-                <div className="flex items-start gap-4">
-                  <div className="flex h-14 w-14 items-center justify-center rounded-2xl bg-green-100 dark:bg-green-500/20">
-                    <Calendar className="h-7 w-7 text-green-600" />
-                  </div>
+              <span className="text-sm font-medium text-surface-700 dark:text-white/80">{profileCompletion}%</span>
+            </div>
+          </div>
+        </div>
+        <Button asChild className="rounded-full bg-amber-600 hover:bg-amber-700">
+          <Link href="/student/settings">{t("dashboard.sidebar.profileSettings")}</Link>
+        </Button>
+      </div>
+    </div>
+  );
+}
+
+function MatchRing({ score }: { score: number }) {
+  const r = 32;
+  const c = 2 * Math.PI * r;
+  const offset = c - (score / 100) * c;
+  const reduce = useReducedMotion();
+  return (
+    <div className="relative grid h-20 w-20 place-items-center" aria-label={`${score}% match`}>
+      <svg width="80" height="80" viewBox="0 0 80 80" className="-rotate-90">
+        <defs>
+          <linearGradient id="ringGrad" x1="0" x2="1">
+            <stop offset="0%" stopColor="#7C5CFF" />
+            <stop offset="100%" stopColor="#22D3EE" />
+          </linearGradient>
+        </defs>
+        <circle cx="40" cy="40" r={r} fill="none" stroke="currentColor" strokeWidth="6" className="text-surface-200 dark:text-white/10" />
+        <motion.circle
+          cx="40"
+          cy="40"
+          r={r}
+          fill="none"
+          stroke="url(#ringGrad)"
+          strokeWidth="6"
+          strokeLinecap="round"
+          strokeDasharray={c}
+          initial={reduce ? { strokeDashoffset: offset } : { strokeDashoffset: c }}
+          animate={{ strokeDashoffset: offset }}
+          transition={{ duration: 1.2, ease: [0.19, 1, 0.22, 1] }}
+        />
+      </svg>
+      <span className="absolute font-display text-lg font-semibold text-surface-900 dark:text-white">{score}%</span>
+    </div>
+  );
+}
+
+/**
+ * Pipeline count — animates from 0 to the actual value when scrolled into view.
+ * Uses a small useEffect + RAF rather than framer-motion so the count is a
+ * real string DOM node (lets the surrounding text style cleanly).
+ */
+function PipelineCount({ value, delay = 0 }: { value: number; delay?: number }) {
+  const reduce = useReducedMotion();
+  const ref = useRef<HTMLSpanElement>(null);
+  const [display, setDisplay] = useState(reduce ? value : 0);
+  const [started, setStarted] = useState(reduce);
+
+  useEffect(() => {
+    if (reduce || started || !ref.current) return;
+    const el = ref.current;
+    const obs = new IntersectionObserver(
+      (entries) => {
+        if (entries[0]?.isIntersecting) {
+          setStarted(true);
+          obs.disconnect();
+        }
+      },
+      { threshold: 0.4 }
+    );
+    obs.observe(el);
+    return () => obs.disconnect();
+  }, [reduce, started]);
+
+  useEffect(() => {
+    if (!started) return;
+    if (reduce) {
+      setDisplay(value);
+      return;
+    }
+    let raf = 0;
+    const startMs = performance.now() + delay * 1000;
+    const duration = Math.min(1000, 400 + value * 60);
+    const tick = (now: number) => {
+      if (now < startMs) {
+        raf = requestAnimationFrame(tick);
+        return;
+      }
+      const t = Math.min(1, (now - startMs) / duration);
+      const eased = 1 - Math.pow(1 - t, 4);
+      setDisplay(Math.round(value * eased));
+      if (t < 1) raf = requestAnimationFrame(tick);
+    };
+    raf = requestAnimationFrame(tick);
+    return () => cancelAnimationFrame(raf);
+  }, [started, value, delay, reduce]);
+
+  return <span ref={ref}>{display}</span>;
+}
+
+function RecCard({
+  rec,
+  index,
+  locale,
+  t,
+}: {
+  rec: Recommendation;
+  index: number;
+  locale: "uz" | "ru";
+  t: (k: string) => string;
+}) {
+  const score = Math.round(rec.match_score);
+  const tone =
+    score >= 80
+      ? "bg-emerald-500/15 text-emerald-700 dark:text-emerald-300"
+      : score >= 60
+      ? "bg-amber-500/15 text-amber-700 dark:text-amber-300"
+      : "bg-surface-200 text-surface-700 dark:bg-white/[0.06] dark:text-white/70";
+  const reduce = useReducedMotion();
+  // First card opens by default to demonstrate the explainability pattern;
+  // others stay collapsed to keep the list scannable.
+  const [expanded, setExpanded] = useState(index === 0);
+
+  const jobUrl = `/student/jobs/${rec.job.id}`;
+  const hasSalary = rec.job.salary_min || rec.job.salary_max;
+  const matches = rec.skill_matches;
+  const gaps = rec.missing_skills;
+
+  return (
+    <motion.li
+      initial={reduce ? false : { opacity: 0, y: 10 }}
+      animate={{ opacity: 1, y: 0 }}
+      transition={{ duration: 0.45, delay: index * 0.05 }}
+      className="group rounded-2xl border border-surface-200 bg-white transition hover:border-violet-200 hover:shadow-sm dark:border-white/[0.06] dark:bg-white/[0.03] dark:hover:border-violet-500/30"
+    >
+      {/* Top — clickable summary (navigates to job detail) */}
+      <Link
+        href={jobUrl}
+        className="focus-ring block rounded-2xl p-4"
+        aria-label={`${rec.job.title} — ${score}% match. Tafsilotlarni ko'rish.`}
+      >
+        <div className="flex items-start justify-between gap-3">
+          <div className="min-w-0 flex-1">
+            <p className="truncate font-semibold text-surface-900 group-hover:text-violet-600 dark:text-white dark:group-hover:text-violet-300">
+              {rec.job.title}
+            </p>
+            <p className="truncate text-sm text-surface-500 dark:text-white/55">
+              {rec.job.company?.name || t("common.company")} · {rec.job.location}
+            </p>
+            {hasSalary && (
+              <p className="mt-1 text-sm font-medium text-emerald-600 dark:text-emerald-300">
+                {formatSalaryRange(
+                  rec.job.salary_min,
+                  rec.job.salary_max,
+                  locale,
+                  rec.job.salary_currency || "USD"
+                )}
+              </p>
+            )}
+          </div>
+          <div className={`shrink-0 rounded-xl px-2.5 py-1.5 text-center ${tone}`}>
+            <span className="block text-base font-bold leading-none">{score}%</span>
+            <span className="mt-0.5 block text-[10px] font-semibold uppercase tracking-wider opacity-80">
+              match
+            </span>
+          </div>
+        </div>
+
+        {/* Animated reasoning bar — same gradient family as /demo */}
+        <div className="mt-3 h-1.5 w-full overflow-hidden rounded-full bg-surface-100 dark:bg-white/[0.06]">
+          <motion.div
+            initial={reduce ? false : { width: 0 }}
+            animate={{ width: `${score}%` }}
+            transition={{
+              duration: 1.1,
+              ease: [0.19, 1, 0.22, 1],
+              delay: 0.2 + index * 0.08,
+            }}
+            className="h-full rounded-full bg-gradient-to-r from-violet-500 via-cyan-400 to-emerald-400"
+          />
+        </div>
+      </Link>
+
+      {/* "Nega?" toggle — outside Link so it doesn't navigate */}
+      <div className="px-4 pb-3">
+        <button
+          type="button"
+          onClick={() => setExpanded((v) => !v)}
+          aria-expanded={expanded}
+          aria-controls={`rec-reasons-${rec.job.id}`}
+          className="focus-ring inline-flex items-center gap-1 rounded-full text-xs font-semibold text-violet-600 hover:text-violet-700 dark:text-violet-300 dark:hover:text-violet-200"
+        >
+          Nega?
+          <ChevronRight
+            className={`h-3 w-3 transition-transform ${expanded ? "rotate-90" : ""}`}
+            aria-hidden
+          />
+        </button>
+
+        {/* Expandable reasoning */}
+        <AnimatePresence initial={false}>
+          {expanded && (
+            <motion.div
+              id={`rec-reasons-${rec.job.id}`}
+              initial={reduce ? false : { height: 0, opacity: 0 }}
+              animate={{ height: "auto", opacity: 1 }}
+              exit={{ height: 0, opacity: 0 }}
+              transition={{ duration: 0.4, ease: [0.19, 1, 0.22, 1] }}
+              className="overflow-hidden"
+            >
+              <div className="mt-3 space-y-3 rounded-xl border border-surface-200/70 bg-surface-50 p-3 dark:border-white/[0.06] dark:bg-white/[0.03]">
+                {/* Matched skills */}
+                {matches.length > 0 && (
                   <div>
-                    <h3 className="font-display text-lg font-semibold text-surface-900 dark:text-white">
-                      {t("dashboard.interview.title")}
-                    </h3>
-                    <p className="text-surface-600 dark:text-surface-300">
-                      <strong>{upcomingInterview.job?.title || t("dashboard.interview.title")}</strong>{" "}
-                      {t("dashboard.recentActivity.at")} {upcomingInterviewCompanyName}
+                    <p className="flex items-center gap-1 text-[11px] font-semibold uppercase tracking-wider text-emerald-600 dark:text-emerald-300">
+                      <CheckCircle2 className="h-3 w-3" aria-hidden /> Sizning kuchli tomonlaringiz
                     </p>
-                    <p className="text-sm text-surface-500">
-                      {formatInterviewDateTime(upcomingInterview.interview_at as string, locale)}
-                    </p>
-                    <div className="mt-3 flex flex-wrap items-center gap-3">
-                      <Badge variant="secondary" className="bg-white/80 text-surface-700 dark:bg-surface-700 dark:text-surface-200">
-                        {formatInterviewTypeLabel(upcomingInterview.interview_type, t)}
-                      </Badge>
-                      {upcomingInterview.meeting_link ? (
-                        <Button asChild variant="outline" size="sm" className="h-8 rounded-full border-green-200 bg-white/80 px-3 text-green-700 hover:bg-green-50 dark:border-green-500/30 dark:bg-surface-800 dark:text-green-300 dark:hover:bg-surface-700">
-                          <a
-                            href={upcomingInterview.meeting_link}
-                            target="_blank"
-                            rel="noopener noreferrer"
-                          >
-                            {t("dashboard.interview.meetingLink")}
-                          </a>
-                        </Button>
-                      ) : (
-                        <span className="text-sm text-surface-500">
-                          {t("dashboard.interview.noMeetingLink")}
+                    <div className="mt-1.5 flex flex-wrap gap-1.5">
+                      {matches.slice(0, 6).map((skill: string) => (
+                        <Badge
+                          key={skill}
+                          variant="secondary"
+                          className="bg-emerald-50 text-xs text-emerald-700 dark:bg-emerald-500/10 dark:text-emerald-300"
+                        >
+                          {skill}
+                        </Badge>
+                      ))}
+                      {matches.length > 6 && (
+                        <span className="text-xs text-surface-500 dark:text-white/55">
+                          +{matches.length - 6}
                         </span>
                       )}
                     </div>
                   </div>
+                )}
+
+                {/* Gaps / what to learn */}
+                {gaps && gaps.length > 0 && (
+                  <div>
+                    <p className="flex items-center gap-1 text-[11px] font-semibold uppercase tracking-wider text-amber-600 dark:text-amber-300">
+                      <AlertCircle className="h-3 w-3" aria-hidden /> O&apos;rganish kerak
+                    </p>
+                    <div className="mt-1.5 flex flex-wrap gap-1.5">
+                      {gaps.slice(0, 4).map((skill: string) => (
+                        <Badge
+                          key={skill}
+                          variant="outline"
+                          className="border-amber-300 bg-amber-50 text-xs text-amber-700 dark:border-amber-500/30 dark:bg-amber-500/10 dark:text-amber-300"
+                        >
+                          {skill}
+                        </Badge>
+                      ))}
+                    </div>
+                  </div>
+                )}
+
+                {/* Trust signal */}
+                <div className="flex items-center gap-2 rounded-lg bg-cyan-500/10 px-2.5 py-1.5 text-xs text-cyan-700 dark:text-cyan-300">
+                  <ShieldCheck className="h-3.5 w-3.5" aria-hidden />
+                  Kompaniya verified · Trust score yuqori
                 </div>
-                <div className="flex gap-2">
-                  <Button variant="outline" onClick={() => router.push("/student/applications")}>
-                    {t("dashboard.interview.reschedule")}
-                  </Button>
-                  <Button className="bg-green-600 hover:bg-green-700" onClick={() => router.push("/student/applications")}>
-                    {t("dashboard.interview.joinMeeting")}
-                  </Button>
-                </div>
+
+                <Link
+                  href={jobUrl}
+                  className="focus-ring inline-flex items-center gap-1.5 rounded-full bg-gradient-to-r from-violet-500 to-cyan-400 px-4 py-2 text-xs font-semibold text-white shadow-lg shadow-violet-500/25 hover:shadow-violet-500/40"
+                >
+                  Vakansiyani ko&apos;rib chiqish
+                  <ChevronRight className="h-3 w-3" aria-hidden />
+                </Link>
               </div>
-            ) : (
-              <div className="flex flex-col gap-3 rounded-2xl border border-dashed border-green-200 bg-white/60 p-5 text-center dark:border-green-500/30 dark:bg-surface-900/30">
-                <div className="mx-auto flex h-14 w-14 items-center justify-center rounded-2xl bg-green-100 dark:bg-green-500/20">
-                  <Calendar className="h-7 w-7 text-green-600" />
-                </div>
-                <div>
-                  <h3 className="font-display text-lg font-semibold text-surface-900 dark:text-white">
-                    {t("dashboard.interview.title")}
-                  </h3>
-                  <p className="mt-1 text-sm text-surface-500">
-                    {t("dashboard.interview.empty")}
-                  </p>
-                </div>
-              </div>
-            )}
-          </CardContent>
-        </Card>
-      </motion.div>
-    </motion.div>
+            </motion.div>
+          )}
+        </AnimatePresence>
+      </div>
+    </motion.li>
+  );
+}
+
+function EmptyResume({ t }: { t: (k: string) => string }) {
+  return (
+    <div className="flex flex-col items-center gap-3 rounded-2xl border border-dashed border-violet-200 bg-violet-50/40 py-10 text-center dark:border-violet-500/30 dark:bg-violet-500/5">
+      <Sparkles className="h-7 w-7 text-violet-500" />
+      <p className="max-w-sm text-sm text-surface-600 dark:text-white/70">
+        {t("dashboard.recommended.noResume")}
+      </p>
+      <Link href="/student/resumes/create-ai">
+        <Button size="sm" className="rounded-full bg-gradient-to-r from-violet-500 to-cyan-400">
+          {t("dashboard.recommended.createResumeCTA")}
+        </Button>
+      </Link>
+    </div>
+  );
+}
+
+function EmptyActivity({ t }: { t: (k: string) => string }) {
+  return (
+    <div className="rounded-2xl border border-dashed border-surface-200 py-8 text-center dark:border-white/[0.08]">
+      <Send className="mx-auto h-7 w-7 text-violet-500" />
+      <p className="mt-2 text-sm text-surface-600 dark:text-white/65">{t("dashboard.recentActivity.empty")}</p>
+      <Link href="/student/jobs" className="mt-3 inline-flex">
+        <Button size="sm" variant="outline" className="rounded-full">
+          Vakansiyalarni ko&apos;rish
+        </Button>
+      </Link>
+    </div>
+  );
+}
+
+function ErrorState({ onRetry, t }: { onRetry: () => void; t: (k: string) => string }) {
+  return (
+    <div className="rounded-2xl border border-dashed border-red-200 bg-red-50/40 py-8 text-center dark:border-red-500/30 dark:bg-red-500/5">
+      <AlertCircle className="mx-auto h-7 w-7 text-red-500" />
+      <p className="mt-2 text-sm text-surface-700 dark:text-white/75">
+        Tavsiyalarni yuklab bo&apos;lmadi. Internetni tekshirib qaytadan urinib ko&apos;ring.
+      </p>
+      <Button size="sm" onClick={onRetry} className="mt-3 rounded-full" variant="outline">
+        <RefreshCw className="mr-1.5 h-3.5 w-3.5" /> Qayta urinish
+      </Button>
+      <span className="sr-only">{t("dashboard.recommended.title")}</span>
+    </div>
   );
 }

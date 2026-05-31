@@ -76,6 +76,8 @@ const nextConfig = {
       `connect-src 'self'${apiOrigin ? ` ${apiOrigin}` : ""} https://api.stripe.com https://accounts.google.com`,
       // Stripe payment iframe
       "frame-src https://js.stripe.com https://hooks.stripe.com",
+      "worker-src 'self'",
+      "manifest-src 'self'",
       "object-src 'none'",
       "base-uri 'self'",
       "form-action 'self'",

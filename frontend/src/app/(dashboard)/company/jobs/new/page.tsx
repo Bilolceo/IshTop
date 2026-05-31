@@ -284,21 +284,33 @@ export default function NewJobPage() {
   const onSubmit = async (data: JobFormData) => {
     setIsSubmitting(true);
     try {
+      // Backend JobCreate expects List[str] for requirements & benefits.
+      const requirementLines = (data.requirements || "")
+        .split(/\r?\n/)
+        .map((s) => s.replace(/^[-•\s]+/, "").trim())
+        .filter(Boolean);
+      const requirementsList = [
+        ...requirementLines,
+        ...(data.skills?.length ? [`Ko'nikmalar: ${data.skills.join(", ")}`] : []),
+      ];
+      const benefitsList = stripHtmlTags(data.benefits || "")
+        .split(/\r?\n/)
+        .map((s) => s.replace(/^[-•\s]+/, "").trim())
+        .filter(Boolean);
+
       const payload = {
         title: data.title,
         location: data.location,
         job_type: data.jobType,
         experience_level: data.experienceLevel,
         description: sanitizeRichTextHtml(data.description),
-        requirements: { text: data.requirements, skills: data.skills },
-        benefits: sanitizeRichTextHtml(data.benefits || ""),
-        salary_min: data.salaryMin,
-        salary_max: data.salaryMax,
+        requirements: requirementsList,
+        benefits: benefitsList,
+        salary_min: Number.isFinite(data.salaryMin) ? data.salaryMin : undefined,
+        salary_max: Number.isFinite(data.salaryMax) ? data.salaryMax : undefined,
         salary_currency: data.salaryCurrency,
         is_salary_visible: data.isSalaryVisible,
-        vacancies: data.vacancies,
-        deadline: data.deadline || null,
-        department: data.department,
+        expires_at: data.deadline ? new Date(data.deadline).toISOString() : undefined,
       };
 
       const res = await jobApi.create(payload);
@@ -500,7 +512,7 @@ export default function NewJobPage() {
                         id="salaryMin"
                         type="number"
                         placeholder={formData.salaryCurrency === "USD" ? "1200" : "5,000,000"}
-                        {...register("salaryMin", { valueAsNumber: true })}
+                        {...register("salaryMin", { setValueAs: (v) => v === "" || v == null ? undefined : Number(v) })}
                       />
                     </div>
 
@@ -510,7 +522,7 @@ export default function NewJobPage() {
                         id="salaryMax"
                         type="number"
                         placeholder={formData.salaryCurrency === "USD" ? "3000" : "15,000,000"}
-                        {...register("salaryMax", { valueAsNumber: true })}
+                        {...register("salaryMax", { setValueAs: (v) => v === "" || v == null ? undefined : Number(v) })}
                       />
                     </div>
 
@@ -535,7 +547,7 @@ export default function NewJobPage() {
                         id="vacancies"
                         type="number"
                         min={1}
-                        {...register("vacancies", { valueAsNumber: true })}
+                        {...register("vacancies", { setValueAs: (v) => v === "" || v == null ? 1 : Number(v) })}
                       />
                     </div>
 
@@ -768,7 +780,7 @@ export default function NewJobPage() {
                           <GraduationCap className="h-4 w-4" />
                           {experienceLevels.find((l) => l.value === formData.experienceLevel)?.label}
                         </span>
-                        {formData.isSalaryVisible && formData.salaryMin && (
+                        {formData.isSalaryVisible && Number.isFinite(formData.salaryMin) && (
                           <span className="flex items-center gap-1">
                             <DollarSign className="h-4 w-4" />
                             {formData.salaryMin?.toLocaleString()} - {formData.salaryMax?.toLocaleString()} {formData.salaryCurrency}

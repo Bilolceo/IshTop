@@ -599,7 +599,7 @@ export default function JobApplicantsPage() {
                       <div className="mt-2 flex items-center justify-between">
                         <span className="text-sm font-bold text-brand-600">{parseMatchScore(application.match_score).toFixed(0)}%</span>
                         <Link href={`/company/applicants/${application.id}`}>
-                          <button className="text-xs font-semibold text-brand-600 hover:underline">
+                          <button type="button" className="text-xs font-semibold text-brand-600 hover:underline">
                             {isRu ? "Открыть" : "Ko'rish"}
                           </button>
                         </Link>

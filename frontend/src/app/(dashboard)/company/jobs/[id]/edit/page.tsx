@@ -372,7 +372,7 @@ export default function EditJobPage() {
                   className="flex items-center gap-1 rounded-full bg-purple-100 px-3 py-1 text-sm font-medium text-purple-700"
                 >
                   {skill}
-                  <button onClick={() => removeSkill(skill)}>
+                  <button type="button" onClick={() => removeSkill(skill)}>
                     <X className="h-3 w-3" />
                   </button>
                 </span>

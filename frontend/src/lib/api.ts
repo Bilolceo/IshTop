@@ -64,15 +64,10 @@ export const api: AxiosInstance = axios.create({
 
 api.interceptors.request.use(
   (config: InternalAxiosRequestConfig) => {
-    // Get token from store
-    const accessToken = useAuthStore.getState().accessToken;
-    
-    // Attach token to request
-    if (accessToken && config.headers) {
-      config.headers.Authorization = `Bearer ${accessToken}`;
-    }
-
-    // Log request in development
+    // Stage 2 cookie-only browser auth: do NOT inject Authorization headers.
+    // withCredentials: true (set on the axios instance above) sends the
+    // httpOnly access_token cookie automatically. The backend prefers cookie
+    // auth and falls back to Bearer only for mobile/API clients.
     if (process.env.NODE_ENV === "development") {
       console.log(`🚀 [API] ${config.method?.toUpperCase()} ${config.url}`, {
         params: config.params,
@@ -94,16 +89,16 @@ api.interceptors.request.use(
 
 let isRefreshing = false;
 let failedQueue: Array<{
-  resolve: (value: string | null) => void;
+  resolve: (value: boolean) => void;
   reject: (error: unknown) => void;
 }> = [];
 
-const processQueue = (error: unknown, token: string | null = null) => {
+const processQueue = (error: unknown, ok = false) => {
   failedQueue.forEach((prom) => {
     if (error) {
       prom.reject(error);
     } else {
-      prom.resolve(token);
+      prom.resolve(ok);
     }
   });
   failedQueue = [];
@@ -136,19 +131,15 @@ api.interceptors.response.use(
       });
     }
 
-    // Handle 401 Unauthorized
+    // Handle 401 Unauthorized — cookie-only flow: call /auth/refresh, then
+    // retry the original request. The new access cookie travels with retries
+    // automatically via withCredentials.
     if (error.response?.status === 401 && !originalRequest._retry) {
       if (isRefreshing) {
-        // Wait for token refresh
-        return new Promise((resolve, reject) => {
+        return new Promise<boolean>((resolve, reject) => {
           failedQueue.push({ resolve, reject });
         })
-          .then((token) => {
-            if (originalRequest.headers) {
-              originalRequest.headers.Authorization = `Bearer ${token}`;
-            }
-            return api(originalRequest);
-          })
+          .then((ok) => (ok ? api(originalRequest) : Promise.reject(error)))
           .catch((err) => Promise.reject(err));
       }
 
@@ -156,29 +147,22 @@ api.interceptors.response.use(
       isRefreshing = true;
 
       try {
-        // Attempt to refresh token
-        const newToken = await useAuthStore.getState().refreshAccessToken();
-        
-        if (newToken) {
-          processQueue(null, newToken);
-          if (originalRequest.headers) {
-            originalRequest.headers.Authorization = `Bearer ${newToken}`;
-          }
+        const ok = await useAuthStore.getState().refreshAccessToken();
+
+        if (ok) {
+          processQueue(null, true);
           return api(originalRequest);
-        } else {
-          // Refresh failed, logout user
-          processQueue(error, null);
-          useAuthStore.getState().logout();
-          
-          // Redirect to login (if in browser)
-          if (typeof window !== "undefined") {
-            window.location.href = "/login";
-          }
-          
-          return Promise.reject(error);
         }
+
+        // Refresh failed — logout + redirect to login
+        processQueue(error, false);
+        useAuthStore.getState().logout();
+        if (typeof window !== "undefined") {
+          window.location.href = "/login";
+        }
+        return Promise.reject(error);
       } catch (refreshError) {
-        processQueue(refreshError, null);
+        processQueue(refreshError, false);
         useAuthStore.getState().logout();
         return Promise.reject(refreshError);
       } finally {
@@ -210,8 +194,7 @@ export const authApi = {
   
   logout: () => api.post("/auth/logout"),
   
-  refreshToken: (refreshToken?: string | null) =>
-    api.post("/auth/refresh", refreshToken ? { refresh_token: refreshToken } : {}),
+  refreshToken: () => api.post("/auth/refresh"),
   
   forgotPassword: (email: string) =>
     api.post("/auth/forgot-password", { email }),
@@ -581,6 +564,62 @@ function getDetailMessage(detail: unknown): {
 /**
  * Normalize API errors into user-friendly metadata
  */
+/**
+ * Coerce arbitrary backend "validation details" payloads into a readable
+ * string. Tolerates: array of strings, array of FastAPI/loc-msg objects,
+ * array of envelope {field,message} objects, Record<field, string[]>, or
+ * Record<field, string>. Returns undefined when nothing useful is found.
+ */
+export function formatValidationDetails(value: unknown): string | undefined {
+  if (value == null) return undefined;
+
+  if (typeof value === "string") return value;
+
+  if (Array.isArray(value)) {
+    const parts = value
+      .map((item) => {
+        if (item == null) return "";
+        if (typeof item === "string") return item;
+        if (typeof item === "object") {
+          const o = item as Record<string, unknown>;
+          const field =
+            (Array.isArray(o.loc) ? o.loc.filter((p) => p !== "body").join(".") : undefined) ||
+            (typeof o.field === "string" ? o.field : undefined) ||
+            (typeof o.name === "string" ? o.name : undefined);
+          const msg =
+            (typeof o.msg === "string" ? o.msg : undefined) ||
+            (typeof o.message === "string" ? o.message : undefined) ||
+            (typeof o.detail === "string" ? o.detail : undefined);
+          if (field && msg) return `${field}: ${msg}`;
+          return msg || "";
+        }
+        return "";
+      })
+      .filter(Boolean);
+    return parts.length ? parts.join("; ") : undefined;
+  }
+
+  if (typeof value === "object") {
+    const parts = Object.entries(value as Record<string, unknown>)
+      .map(([field, errors]) => {
+        if (Array.isArray(errors)) {
+          const inner = errors
+            .map((e) => (typeof e === "string" ? e : formatValidationDetails(e)))
+            .filter(Boolean)
+            .join(", ");
+          return inner ? `${field}: ${inner}` : "";
+        }
+        if (typeof errors === "string") return `${field}: ${errors}`;
+        const inner = formatValidationDetails(errors);
+        return inner ? `${field}: ${inner}` : "";
+      })
+      .filter(Boolean);
+    return parts.length ? parts.join("; ") : undefined;
+  }
+
+  return undefined;
+}
+
 export function getApiErrorInfo(error: unknown): ApiErrorInfo {
   if (!axios.isAxiosError(error)) {
     return {
@@ -591,18 +630,30 @@ export function getApiErrorInfo(error: unknown): ApiErrorInfo {
   const status = error.response?.status;
   const data = error.response?.data as {
     detail?: unknown;
-    error?: { message?: string; details?: Record<string, string[]> };
+    details?: unknown;
+    error?: { message?: string; details?: unknown };
+    errors?: unknown;
     message?: string;
     detail_message?: string;
   } | undefined;
 
-  if (data?.error?.details) {
-    const details = data.error.details;
-    const messages = Object.entries(details)
-      .map(([field, errors]) => `${field}: ${(errors as string[]).join(", ")}`)
-      .join("; ");
-    return { message: messages, status };
+  // Project envelope: { error: { details: [...] | {...} } }
+  const envelopeDetails = formatValidationDetails(data?.error?.details);
+  if (envelopeDetails) {
+    return { message: envelopeDetails, status };
   }
+
+  // FastAPI native 422: { detail: [{loc,msg,type}, ...] }
+  if (Array.isArray(data?.detail)) {
+    const formatted = formatValidationDetails(data!.detail);
+    if (formatted) return { message: formatted, status };
+  }
+
+  // Generic top-level details / errors fields
+  const topDetails = formatValidationDetails(data?.details);
+  if (topDetails) return { message: topDetails, status };
+  const topErrors = formatValidationDetails(data?.errors);
+  if (topErrors) return { message: topErrors, status };
 
   const detailInfo = getDetailMessage(data?.detail);
   const explicitMessage =

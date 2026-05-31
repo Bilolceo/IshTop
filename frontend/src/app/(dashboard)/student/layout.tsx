@@ -45,6 +45,7 @@ import { Avatar } from "@/components/ui/avatar";
 import { Badge } from "@/components/ui/badge";
 import { LanguageSwitcher } from "@/components/ui/language-switcher";
 import { ThemeToggle } from "@/components/ui/theme-toggle";
+import MobileBottomNav from "@/components/pwa/MobileBottomNav";
 import { cn } from "@/lib/utils";
 
 // =============================================================================
@@ -645,8 +646,11 @@ export default function StudentDashboardLayout({
         </header>
 
         {/* Page Content */}
-        <main className="flex-1 overflow-y-auto p-4 lg:p-8">{children}</main>
+        <main className="flex-1 overflow-y-auto p-4 pb-24 lg:p-8 lg:pb-8">{children}</main>
       </div>
+
+      {/* Mobile bottom nav (PWA native feel) */}
+      <MobileBottomNav />
     </div>
   );
 }

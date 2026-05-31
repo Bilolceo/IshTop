@@ -57,3 +57,35 @@ def get_redis() -> Optional["Redis"]:
         return None
 
 
+def ping_redis() -> bool:
+    """
+    Live liveness probe for Redis.
+
+    Unlike get_redis() (which is lru_cached at process start and can return
+    a stale client that raises on every call), this performs an actual PING
+    and returns True/False. Use for /health endpoints and degraded-state
+    detection — do NOT use on the hot path.
+
+    Returns False when Redis is disabled, not configured, or unreachable.
+    Never raises; never leaks REDIS_URL.
+    """
+    redis_url = getattr(settings, "REDIS_URL", "") or ""
+    enabled = bool(getattr(settings, "REDIS_ENABLED", False))
+    if not enabled or not redis_url:
+        return False
+
+    try:
+        import redis  # type: ignore
+
+        # Build a short-lived client so we don't poison the cached one.
+        probe = redis.Redis.from_url(
+            redis_url,
+            decode_responses=True,
+            socket_connect_timeout=1,
+            socket_timeout=1,
+        )
+        return bool(probe.ping())
+    except Exception:
+        return False
+
+

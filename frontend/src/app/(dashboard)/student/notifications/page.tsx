@@ -24,6 +24,7 @@ import { Skeleton } from "@/components/ui/skeleton";
 import { api } from "@/lib/api";
 import { formatRelativeTime, cn } from "@/lib/utils";
 import { toast } from "sonner";
+import PushNotificationCard from "@/components/pwa/PushNotificationCard";
 
 interface NotificationItem {
   id: string;
@@ -116,6 +117,7 @@ export default function NotificationsPage() {
 
   return (
     <div className="mx-auto max-w-3xl space-y-6 p-4 md:p-6">
+      <PushNotificationCard />
       {/* Header */}
       <motion.div
         initial={{ opacity: 0, y: -10 }}

@@ -215,30 +215,31 @@ class TimestampMixin:
     def created_at(cls):
         """
         Timestamp when the record was created.
-        
-        Automatically set by the database on INSERT.
-        Indexed for efficient sorting and filtering.
+
+        Belt-and-braces: server_default tells the DB to fill it in, but if a
+        migration ever created the column without that default (e.g. saved_jobs
+        in migration 006), the Python-side `default=` callable still provides
+        a value at INSERT time. Additive — no effect when the DB default is
+        present.
         """
         return Column(
-            DateTime(timezone=True),      # Store with timezone info
-            server_default=func.now(),    # Database sets the time (not Python)
-            nullable=False,               # Always required
-            index=True,                   # Index for sorting by date
+            DateTime(timezone=True),                          # Store with timezone info
+            default=lambda: datetime.now(timezone.utc),       # Python-side fallback
+            server_default=func.now(),                        # DB sets the time when default exists
+            nullable=False,                                   # Always required
+            index=True,                                       # Index for sorting by date
             comment="Timestamp when record was created (UTC)"
         )
-    
+
     @declared_attr
     def updated_at(cls):
-        """
-        Timestamp when the record was last updated.
-        
-        Automatically set on INSERT and UPDATE.
-        """
+        """Same belt-and-braces story as created_at."""
         return Column(
-            DateTime(timezone=True),      # Store with timezone info
-            server_default=func.now(),    # Set on creation
-            onupdate=func.now(),          # Auto-update on any change
-            nullable=False,               # Always required
+            DateTime(timezone=True),
+            default=lambda: datetime.now(timezone.utc),
+            server_default=func.now(),
+            onupdate=func.now(),
+            nullable=False,
             comment="Timestamp when record was last modified (UTC)"
         )
 

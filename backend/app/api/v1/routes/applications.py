@@ -822,12 +822,29 @@ async def apply_to_job(
         )
 
         db.add(application)
-        
+
         # Increment job application count
         job.increment_application_count()
-        
-        db.commit()
-        db.refresh(application)
+
+        try:
+            db.commit()
+            db.refresh(application)
+        except IntegrityError:
+            # Race: another request inserted (user_id, job_id) between our
+            # pre-check above and this commit. The DB unique constraint
+            # uq_user_job is the only realistic source on this commit path
+            # (FKs were validated earlier in the request), so convert to the
+            # same 409 the pre-check returns instead of a 500. Do not surface
+            # raw DB error text to the client.
+            db.rollback()
+            logger.warning(
+                f"[{request_id}] Apply race: IntegrityError on commit for "
+                f"user={student.id} job={job.id} — returning 409"
+            )
+            raise HTTPException(
+                status_code=status.HTTP_409_CONFLICT,
+                detail="You have already applied to this job",
+            )
 
         logger.info(f"[{request_id}] Application created: {application.id}")
 

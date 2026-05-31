@@ -208,7 +208,9 @@ def blacklist_token(token: str) -> None:
     ttl_seconds = _get_token_exp_seconds(token)
 
     # Prefer Redis in production
-    if settings.TOKEN_BLACKLIST_USE_REDIS:
+    redis_expected = bool(settings.TOKEN_BLACKLIST_USE_REDIS)
+    redis_failed = False
+    if redis_expected:
         redis_client = get_redis()
         if redis_client:
             try:
@@ -220,10 +222,24 @@ def blacklist_token(token: str) -> None:
                 logger.info("Token blacklisted (redis)")
                 return
             except Exception as e:
+                redis_failed = True
                 logger.warning(f"Redis blacklist failed (fallback to memory): {e}")
+        else:
+            redis_failed = True
 
     _token_blacklist_jti.add(jti)
-    logger.info(f"Token blacklisted (memory). Blacklist size: {len(_token_blacklist_jti)}")
+    # In production, falling back to per-worker in-memory means logout does
+    # not actually revoke the token across replicas — surface a stable,
+    # alertable log line so SRE can wire an alarm without parsing text.
+    if redis_expected and redis_failed and not settings.DEBUG:
+        logger.error(
+            "BLACKLIST_REDIS_UNAVAILABLE: token blacklist fell back to "
+            "per-worker memory; logout does not propagate across replicas "
+            "(blacklist size on this worker: %d)",
+            len(_token_blacklist_jti),
+        )
+    else:
+        logger.info(f"Token blacklisted (memory). Blacklist size: {len(_token_blacklist_jti)}")
 
 
 def is_token_blacklisted(token: str) -> bool:
@@ -246,7 +262,15 @@ def is_token_blacklisted(token: str) -> bool:
             try:
                 return bool(redis_client.exists(f"bl:jti:{jti}"))
             except Exception as e:
-                logger.warning(f"Redis blacklist check failed (fallback): {e}")
+                if not settings.DEBUG:
+                    logger.error(
+                        "BLACKLIST_REDIS_UNAVAILABLE: blacklist check fell "
+                        "back to per-worker memory; tokens revoked on other "
+                        "workers will be accepted here: %s",
+                        e,
+                    )
+                else:
+                    logger.warning(f"Redis blacklist check failed (fallback): {e}")
 
     return jti in _token_blacklist_jti
 
