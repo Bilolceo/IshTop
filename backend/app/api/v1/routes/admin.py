@@ -30,7 +30,7 @@ from typing import Optional, List, Dict, Any
 from uuid import UUID
 
 from fastapi import APIRouter, Depends, HTTPException, status, Query
-from sqlalchemy.orm import Session
+from sqlalchemy.orm import Session, joinedload
 from sqlalchemy import func, or_, text
 from pydantic import BaseModel, Field, field_validator
 
@@ -953,10 +953,11 @@ async def admin_delete_job(
     if not job:
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Job not found")
 
+    job_title = getattr(job, 'title', str(job_id))
     job.is_deleted = True
     job.deleted_at = datetime.now(timezone.utc)
-    write_audit(db, admin.id, "job_delete", "job", job.id, getattr(job, 'title', str(job.id)))
     db.commit()
+    write_audit(db, admin.id, "job_delete", "job", job_id, job_title)
     logger.info(f"Admin {admin.email} soft-deleted job {job.id}")
 
     return {"success": True, "message": "Job deleted", "data": {"id": str(job.id)}}
@@ -1319,7 +1320,7 @@ async def list_audit_logs(
     _current_admin: User = Depends(get_current_super_admin),
 ):
     """Paginated list of admin audit log entries."""
-    q = db.query(AuditLog).order_by(AuditLog.created_at.desc())
+    q = db.query(AuditLog).options(joinedload(AuditLog.admin)).order_by(AuditLog.created_at.desc())
 
     if admin_id:
         q = q.filter(AuditLog.admin_id == admin_id)
