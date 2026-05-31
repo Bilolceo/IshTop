@@ -220,9 +220,13 @@ export default function AdminJobsPage() {
   };
 
   const handleBulkAction = async (action: string) => {
-    await adminApi.bulkJobs(Array.from(selected), action);
-    setSelected(new Set());
-    await load();
+    try {
+      await adminApi.bulkJobs(Array.from(selected), action);
+      setSelected(new Set());
+      await load();
+    } catch (err) {
+      setError(getErrorMessage(err));
+    }
   };
 
   const changeStatus = async (job: AdminJob, next: string) => {
@@ -339,6 +343,7 @@ export default function AdminJobsPage() {
             <div className="mb-2 flex items-center gap-2 pb-2 border-b border-surface-100 dark:border-surface-800">
               <input
                 type="checkbox"
+                title="Faqat yuklangan yozuvlarni tanlaydi"
                 checked={selected.size === jobs.length && jobs.length > 0}
                 onChange={toggleAll}
                 className="h-4 w-4 rounded border-surface-300 accent-brand-500"

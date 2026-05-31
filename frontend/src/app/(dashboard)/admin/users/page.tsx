@@ -192,9 +192,13 @@ export default function AdminUsersPage() {
   };
 
   const handleBulkAction = async (action: string) => {
-    await adminApi.bulkUsers(Array.from(selected), action);
-    setSelected(new Set());
-    await fetchUsers(false);
+    try {
+      await adminApi.bulkUsers(Array.from(selected), action);
+      setSelected(new Set());
+      await fetchUsers(false);
+    } catch (err) {
+      setLoadError(getErrorMessage(err));
+    }
   };
 
   const handleSearchSubmit = () => {
@@ -358,6 +362,7 @@ export default function AdminUsersPage() {
             <div className="mb-2 flex items-center gap-2 pb-2 border-b border-surface-100 dark:border-surface-800">
               <input
                 type="checkbox"
+                title="Faqat yuklangan yozuvlarni tanlaydi"
                 checked={selected.size === users.length && users.length > 0}
                 onChange={toggleAll}
                 className="h-4 w-4 rounded border-surface-300 accent-brand-500"
