@@ -260,7 +260,7 @@ export function DashboardLayout({ children }: DashboardLayoutProps) {
                 IshTop
               </span>
               {isAdmin && (
-                <span className="ml-1 inline-flex h-2 w-2 rounded-full bg-emerald-500 shadow-[0_0_0_3px_rgba(16,185,129,0.2)] motion-safe:animate-pulse" aria-label="Admin live" />
+                <span className="ml-1 inline-flex h-2 w-2 rounded-full bg-emerald-500 shadow-[0_0_0_3px_rgba(16,185,129,0.2)] motion-safe:animate-pulse" aria-hidden="true" />
               )}
             </Link>
             <button
