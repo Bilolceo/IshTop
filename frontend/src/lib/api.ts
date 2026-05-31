@@ -564,6 +564,62 @@ function getDetailMessage(detail: unknown): {
 /**
  * Normalize API errors into user-friendly metadata
  */
+/**
+ * Coerce arbitrary backend "validation details" payloads into a readable
+ * string. Tolerates: array of strings, array of FastAPI/loc-msg objects,
+ * array of envelope {field,message} objects, Record<field, string[]>, or
+ * Record<field, string>. Returns undefined when nothing useful is found.
+ */
+export function formatValidationDetails(value: unknown): string | undefined {
+  if (value == null) return undefined;
+
+  if (typeof value === "string") return value;
+
+  if (Array.isArray(value)) {
+    const parts = value
+      .map((item) => {
+        if (item == null) return "";
+        if (typeof item === "string") return item;
+        if (typeof item === "object") {
+          const o = item as Record<string, unknown>;
+          const field =
+            (Array.isArray(o.loc) ? o.loc.filter((p) => p !== "body").join(".") : undefined) ||
+            (typeof o.field === "string" ? o.field : undefined) ||
+            (typeof o.name === "string" ? o.name : undefined);
+          const msg =
+            (typeof o.msg === "string" ? o.msg : undefined) ||
+            (typeof o.message === "string" ? o.message : undefined) ||
+            (typeof o.detail === "string" ? o.detail : undefined);
+          if (field && msg) return `${field}: ${msg}`;
+          return msg || "";
+        }
+        return "";
+      })
+      .filter(Boolean);
+    return parts.length ? parts.join("; ") : undefined;
+  }
+
+  if (typeof value === "object") {
+    const parts = Object.entries(value as Record<string, unknown>)
+      .map(([field, errors]) => {
+        if (Array.isArray(errors)) {
+          const inner = errors
+            .map((e) => (typeof e === "string" ? e : formatValidationDetails(e)))
+            .filter(Boolean)
+            .join(", ");
+          return inner ? `${field}: ${inner}` : "";
+        }
+        if (typeof errors === "string") return `${field}: ${errors}`;
+        const inner = formatValidationDetails(errors);
+        return inner ? `${field}: ${inner}` : "";
+      })
+      .filter(Boolean);
+    return parts.length ? parts.join("; ") : undefined;
+  }
+
+  return undefined;
+}
+
 export function getApiErrorInfo(error: unknown): ApiErrorInfo {
   if (!axios.isAxiosError(error)) {
     return {
@@ -574,18 +630,30 @@ export function getApiErrorInfo(error: unknown): ApiErrorInfo {
   const status = error.response?.status;
   const data = error.response?.data as {
     detail?: unknown;
-    error?: { message?: string; details?: Record<string, string[]> };
+    details?: unknown;
+    error?: { message?: string; details?: unknown };
+    errors?: unknown;
     message?: string;
     detail_message?: string;
   } | undefined;
 
-  if (data?.error?.details) {
-    const details = data.error.details;
-    const messages = Object.entries(details)
-      .map(([field, errors]) => `${field}: ${(errors as string[]).join(", ")}`)
-      .join("; ");
-    return { message: messages, status };
+  // Project envelope: { error: { details: [...] | {...} } }
+  const envelopeDetails = formatValidationDetails(data?.error?.details);
+  if (envelopeDetails) {
+    return { message: envelopeDetails, status };
   }
+
+  // FastAPI native 422: { detail: [{loc,msg,type}, ...] }
+  if (Array.isArray(data?.detail)) {
+    const formatted = formatValidationDetails(data!.detail);
+    if (formatted) return { message: formatted, status };
+  }
+
+  // Generic top-level details / errors fields
+  const topDetails = formatValidationDetails(data?.details);
+  if (topDetails) return { message: topDetails, status };
+  const topErrors = formatValidationDetails(data?.errors);
+  if (topErrors) return { message: topErrors, status };
 
   const detailInfo = getDetailMessage(data?.detail);
   const explicitMessage =
