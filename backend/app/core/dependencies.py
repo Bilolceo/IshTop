@@ -74,6 +74,7 @@ from app.core.security import (
     TokenBlacklistedError,
 )
 from app.config import settings
+from app.core.redis_client import get_redis
 
 # =============================================================================
 # LOGGING
@@ -553,34 +554,92 @@ from datetime import timedelta
 def rate_limit(max_requests: int = 100, window_seconds: int = 60):
     """
     Rate limiting dependency factory.
-    
+
     Usage:
         @app.post("/login")
         async def login(
             _: None = Depends(rate_limit(max_requests=5, window_seconds=60))
         ):
             ...
+
+    Implementation (Stage 2 — R3 follow-up):
+    - Identity is resolved from a Bearer token, the project's httpOnly
+      access_token cookie, or — last resort — the client IP. This keeps
+      cookie-authenticated browser sessions out of the "anonymous" bucket.
+    - Buckets are scoped by request path so two endpoints with the same
+      (max_requests, window_seconds) budget do not share counters.
+    - When settings.RATE_LIMIT_USE_REDIS is true and Redis is healthy, the
+      shared RedisRateLimiter is used so limits are consistent across
+      gunicorn workers and replicas. Otherwise we fall back to the
+      per-process sliding window; in production that fallback emits the
+      alertable RATE_LIMIT_REDIS_UNAVAILABLE log (see R3).
     """
+
     async def rate_limit_dependency(
-        credentials: Optional[HTTPAuthorizationCredentials] = Depends(oauth2_scheme_optional)
+        request: Request,
+        credentials: Optional[HTTPAuthorizationCredentials] = Depends(oauth2_scheme_optional),
     ):
-        # Use token subject or "anonymous" as key
-        if credentials:
+        # ---- 1. Resolve caller identity ------------------------------------
+        identity: Optional[str] = None
+        if credentials and credentials.credentials:
             try:
                 payload = verify_token(credentials.credentials)
-                key = f"user:{payload.user_id}"
+                identity = f"user:{payload.user_id}"
             except TokenError:
-                key = "anonymous"
+                identity = None
+
+        if identity is None:
+            # Cookie-only browser auth: the project uses an httpOnly
+            # access_token cookie, not Authorization headers, for the web UI.
+            cookie_name = getattr(settings, "AUTH_ACCESS_COOKIE_NAME", "access_token")
+            cookie_token = request.cookies.get(cookie_name)
+            if cookie_token:
+                try:
+                    payload = verify_token(cookie_token)
+                    identity = f"user:{payload.user_id}"
+                except TokenError:
+                    identity = None
+
+        if identity is None:
+            client_ip = request.client.host if request.client else "unknown"
+            # Per-IP key (not literal "anonymous") so attackers cannot starve
+            # all other anonymous callers from one source.
+            identity = f"ip:{client_ip}"
+
+        # ---- 2. Per-route scope (avoid cross-endpoint bucket sharing) ------
+        # request.url.path includes the api prefix, e.g. /api/v1/ai/match-job
+        route_scope = request.url.path or "unscoped"
+        composite_key = f"{route_scope}:{identity}"
+
+        # ---- 3. Redis when available, in-memory otherwise -----------------
+        retry_after: Optional[int] = None
+        if settings.RATE_LIMIT_USE_REDIS and get_redis():
+            from app.core.rate_limiter import redis_rate_limiter
+
+            allowed, retry_after = redis_rate_limiter.check_rate_limit(
+                identifier=composite_key,
+                max_requests=max_requests,
+                window_seconds=window_seconds,
+                key_prefix="dep",
+            )
         else:
-            key = "anonymous"
-        
-        allowed = await check_rate_limit(key, max_requests, window_seconds)
+            from app.core.rate_limiter import _warn_rate_limit_fallback
+
+            _warn_rate_limit_fallback("dep")
+            allowed = await check_rate_limit(
+                composite_key, max_requests, window_seconds
+            )
+
         if not allowed:
+            headers = {}
+            if retry_after and retry_after > 0:
+                headers["Retry-After"] = str(retry_after)
             raise HTTPException(
                 status_code=status.HTTP_429_TOO_MANY_REQUESTS,
                 detail=f"Rate limit exceeded. Max {max_requests} requests per {window_seconds} seconds.",
+                headers=headers or None,
             )
-    
+
     return rate_limit_dependency
 
 
