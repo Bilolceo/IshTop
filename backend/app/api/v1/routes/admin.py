@@ -48,6 +48,7 @@ from app.models import (
     AdminSubRole,
     ADMIN_PERMISSION_MATRIX,
 )
+from app.models.audit_log import AuditLog
 from app.services.error_logging_service import (
     error_logger,
     ErrorCategory,
@@ -67,6 +68,32 @@ logger = logging.getLogger(__name__)
 # =============================================================================
 
 router = APIRouter()
+
+
+# =============================================================================
+# AUDIT LOG HELPER
+# =============================================================================
+
+def write_audit(
+    db: Session,
+    admin_id,
+    action: str,
+    target_type: str,
+    target_id=None,
+    target_label: str = None,
+    notes: str = None,
+) -> None:
+    """Write an audit log entry after a successful admin action."""
+    entry = AuditLog(
+        admin_id=admin_id,
+        action=action,
+        target_type=target_type,
+        target_id=str(target_id) if target_id else None,
+        target_label=target_label,
+        notes=notes,
+    )
+    db.add(entry)
+    db.commit()
 
 
 # =============================================================================
@@ -401,21 +428,23 @@ async def resolve_error(
     error_id: str,
     request: ResolveRequest,
     admin: User = Depends(require_admin_permission("admin.errors.resolve")),
+    db: Session = Depends(get_db),
 ):
     """Mark error as resolved."""
-    
+
     error = error_logger.resolve_error(
         error_id=error_id,
         resolved_by=str(admin.id),
         resolution_notes=request.resolution_notes,
     )
-    
+
     if not error:
         raise HTTPException(
             status_code=status.HTTP_404_NOT_FOUND,
             detail="Error topilmadi"
         )
-    
+
+    write_audit(db, admin.id, "error_resolve", "error", error_id)
     return ErrorDetailResponse(
         error=error.model_dump(),
     )
@@ -757,6 +786,7 @@ async def update_user_status(
 
     user.is_active_account = request.is_active
     db.commit()
+    write_audit(db, admin.id, "user_activate" if request.is_active else "user_deactivate", "user", user.id, user.email)
 
     action = "activated" if request.is_active else "blocked"
     logger.info(f"User {user.email} (ID: {user.id}) {action} by admin {admin.id}")
@@ -897,6 +927,7 @@ async def admin_update_job_status(
     job.status = payload.status
     db.commit()
     db.refresh(job)
+    write_audit(db, admin.id, f"job_{payload.status}", "job", job.id, getattr(job, 'title', str(job.id)))
     logger.info(f"Admin {admin.email} changed job {job.id} status: {previous} -> {job.status}")
 
     return {
@@ -924,6 +955,7 @@ async def admin_delete_job(
 
     job.is_deleted = True
     job.deleted_at = datetime.now(timezone.utc)
+    write_audit(db, admin.id, "job_delete", "job", job.id, getattr(job, 'title', str(job.id)))
     db.commit()
     logger.info(f"Admin {admin.email} soft-deleted job {job.id}")
 
@@ -1041,6 +1073,7 @@ async def admin_verify_company(
 
     company.is_verified = payload.is_verified
     db.commit()
+    write_audit(db, admin.id, "company_verify" if payload.is_verified else "company_unverify", "company", company.id, getattr(company, 'company_name', None) or company.email)
     logger.info(
         f"Admin {admin.email} set company {company.id} verified={payload.is_verified}"
     )
@@ -1204,6 +1237,7 @@ async def bulk_action_users(
         u.is_active_account = payload.action == "activate"
 
     db.commit()
+    write_audit(db, current_admin.id, f"bulk_{payload.action}_users", "user", notes=f"{len(users)} users")
     return {"success": True, "affected": len(users), "action": payload.action}
 
 
@@ -1233,6 +1267,7 @@ async def bulk_action_jobs(
             j.status = status_map[payload.action]
 
     db.commit()
+    write_audit(db, current_admin.id, f"bulk_{payload.action}_jobs", "job", notes=f"{len(jobs)} jobs")
     return {"success": True, "affected": len(jobs), "action": payload.action}
 
 
@@ -1264,4 +1299,62 @@ async def bulk_action_companies(
             c.is_active_account = False
 
     db.commit()
+    write_audit(db, current_admin.id, f"bulk_{payload.action}_companies", "company", notes=f"{len(companies)} companies")
     return {"success": True, "affected": len(companies), "action": payload.action}
+
+
+# =============================================================================
+# AUDIT LOG ENDPOINT
+# =============================================================================
+
+@router.get("/audit-logs")
+async def list_audit_logs(
+    admin_id: Optional[str] = Query(None),
+    action: Optional[str] = Query(None),
+    from_date: Optional[str] = Query(None),
+    to_date: Optional[str] = Query(None),
+    page: int = Query(1, ge=1),
+    limit: int = Query(50, ge=1, le=200),
+    db: Session = Depends(get_db),
+    _current_admin: User = Depends(get_current_super_admin),
+):
+    """Paginated list of admin audit log entries."""
+    q = db.query(AuditLog).order_by(AuditLog.created_at.desc())
+
+    if admin_id:
+        q = q.filter(AuditLog.admin_id == admin_id)
+    if action:
+        q = q.filter(AuditLog.action == action)
+    if from_date:
+        try:
+            q = q.filter(AuditLog.created_at >= datetime.fromisoformat(from_date))
+        except ValueError:
+            raise HTTPException(status_code=400, detail="Invalid from_date format")
+    if to_date:
+        try:
+            q = q.filter(AuditLog.created_at <= datetime.fromisoformat(to_date))
+        except ValueError:
+            raise HTTPException(status_code=400, detail="Invalid to_date format")
+
+    total = q.count()
+    logs = q.offset((page - 1) * limit).limit(limit).all()
+
+    return {
+        "success": True,
+        "total": total,
+        "page": page,
+        "logs": [
+            {
+                "id": str(log.id),
+                "admin_id": str(log.admin_id) if log.admin_id else None,
+                "admin_name": log.admin.full_name if log.admin else "Unknown",
+                "action": log.action,
+                "target_type": log.target_type,
+                "target_id": log.target_id,
+                "target_label": log.target_label,
+                "notes": log.notes,
+                "created_at": log.created_at.isoformat(),
+            }
+            for log in logs
+        ],
+    }

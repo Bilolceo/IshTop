@@ -163,6 +163,8 @@ from app.models.landing_content import (
     LandingContent,
 )
 
+from app.models.audit_log import AuditLog
+
 # =============================================================================
 # EXPORT ALL (for `from app.models import *`)
 # =============================================================================
@@ -219,6 +221,7 @@ __all__ = [
     "Notification",           # User notifications
     "SavedSearch",           # Saved search filters
     "LandingContent",
+    "AuditLog",
 ]
 
 # =============================================================================
