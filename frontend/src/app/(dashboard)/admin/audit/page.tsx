@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { useCallback, useEffect, useState } from "react";
 import { ScrollText, RefreshCw, Search } from "lucide-react";
 import { adminApi, getErrorMessage } from "@/lib/api";
 import { AuditTimeline } from "@/components/admin/AuditTimeline";
@@ -31,7 +31,7 @@ export default function AuditLogPage() {
   const [error, setError] = useState<string | null>(null);
   const [search, setSearch] = useState("");
 
-  const load = async (silent = false) => {
+  const load = useCallback(async (silent = false) => {
     if (silent) setRefreshing(true);
     else setLoading(true);
     setError(null);
@@ -45,16 +45,16 @@ export default function AuditLogPage() {
       setLoading(false);
       setRefreshing(false);
     }
-  };
+  }, []);
 
   useEffect(() => {
     void load();
-  }, []);
+  }, [load]);
 
   const filtered = search
     ? logs.filter(
         (l) =>
-          l.action.includes(search.toLowerCase()) ||
+          l.action.toLowerCase().includes(search.toLowerCase()) ||
           l.target_label?.toLowerCase().includes(search.toLowerCase()) ||
           l.admin_name.toLowerCase().includes(search.toLowerCase()),
       )
