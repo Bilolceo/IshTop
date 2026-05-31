@@ -224,6 +224,15 @@ def admin_token(test_admin: User) -> str:
     )
 
 
+@pytest.fixture
+def super_admin_token(test_admin: User) -> str:
+    """Create access token for test super admin (alias for admin_token)."""
+    return create_access_token(
+        subject=str(test_admin.id),
+        additional_claims={"role": test_admin.role.value}
+    )
+
+
 # =============================================================================
 # AUTH HEADERS FIXTURES
 # =============================================================================

@@ -1130,3 +1130,42 @@ async def admin_list_applications(
         )
 
     return {"success": True, "data": {"applications": out, "total": total, "offset": offset, "limit": limit}}
+
+
+@router.get("/stats/timeseries")
+async def get_stats_timeseries(
+    metric: str = Query(..., regex="^(users|jobs|applications)$"),
+    days: int = Query(30, ge=7, le=90),
+    db: Session = Depends(get_db),
+    _current_admin=Depends(get_current_super_admin),
+):
+    """Return daily counts for a metric over the past N days."""
+    from datetime import date
+
+    today = date.today()
+    result = []
+
+    for i in range(days - 1, -1, -1):
+        day = today - timedelta(days=i)
+        day_start = datetime(day.year, day.month, day.day, tzinfo=timezone.utc)
+        day_end = day_start + timedelta(days=1)
+
+        if metric == "users":
+            count = db.query(func.count(User.id)).filter(
+                User.created_at >= day_start,
+                User.created_at < day_end,
+            ).scalar() or 0
+        elif metric == "jobs":
+            count = db.query(func.count(Job.id)).filter(
+                Job.created_at >= day_start,
+                Job.created_at < day_end,
+            ).scalar() or 0
+        else:  # applications
+            count = db.query(func.count(Application.id)).filter(
+                Application.applied_at >= day_start,
+                Application.applied_at < day_end,
+            ).scalar() or 0
+
+        result.append({"date": day.isoformat(), "value": count})
+
+    return {"metric": metric, "days": days, "data": result}
