@@ -4,7 +4,7 @@
 
 "use client";
 
-import { useEffect, useMemo, useState } from "react";
+import { useCallback, useEffect, useMemo, useState } from "react";
 import Link from "next/link";
 import { motion } from "framer-motion";
 import {
@@ -129,6 +129,13 @@ const adminCopy = {
     cancel: "Bekor qilish",
     resolving: "Yopilmoqda",
     markResolved: "Yopilgan deb belgilash",
+    trendsEyebrow: "Trendlar",
+    trendsTitle: "Platforma dinamikasi",
+    trendsDescription: "So'nggi 30 kundagi yangi ro'yxatlar, vakansiyalar va arizalar.",
+    trendsUsers: "Foydalanuvchi o'sishi",
+    trendsJobs: "Yangi vakansiyalar",
+    trendsFunnel: "Arizalar funnel",
+    noData: "Ma'lumot yo'q",
     status: { healthy: "Sog'lom", unhealthy: "Nosoz", warning: "Ogohlantirish" },
     healthComponents: {
       database: "Ma'lumotlar bazasi",
@@ -198,6 +205,13 @@ const adminCopy = {
     cancel: "Отмена",
     resolving: "Закрываем",
     markResolved: "Отметить как закрытую",
+    trendsEyebrow: "Тренды",
+    trendsTitle: "Динамика платформы",
+    trendsDescription: "Новые регистрации, вакансии и отклики за последние 30 дней.",
+    trendsUsers: "Рост пользователей",
+    trendsJobs: "Новые вакансии",
+    trendsFunnel: "Воронка откликов",
+    noData: "Нет данных",
     status: { healthy: "Исправно", unhealthy: "Неисправно", warning: "Предупреждение" },
     healthComponents: {
       database: "База данных",
@@ -316,7 +330,7 @@ export default function AdminDashboardPage() {
   const [userSeries, setUserSeries] = useState<{ date: string; value: number }[]>([]);
   const [jobSeries, setJobSeries] = useState<{ date: string; value: number }[]>([]);
 
-  const loadAdminData = async (silent = false) => {
+  const loadAdminData = useCallback(async (silent = false) => {
     if (silent) setRefreshing(true); else setLoadState("loading");
     setLoadError(null);
 
@@ -352,10 +366,9 @@ export default function AdminDashboardPage() {
     } finally {
       setRefreshing(false);
     }
-  };
+  }, [copy.partialEndpointWarning]);
 
-  // eslint-disable-next-line react-hooks/exhaustive-deps
-  useEffect(() => { void loadAdminData(); }, []);
+  useEffect(() => { void loadAdminData(); }, [loadAdminData]);
 
   const overviewCards = useMemo(() => [
     {
@@ -461,30 +474,30 @@ export default function AdminDashboardPage() {
 
       <motion.section variants={itemVariants} className="space-y-4">
         <SectionTitle
-          eyebrow={locale === "ru" ? "Тренды" : "Trendlar"}
-          title={locale === "ru" ? "Динамика платформы" : "Platforma dinamikasi"}
-          description={locale === "ru" ? "Новые регистрации, вакансии и отклики за последние 30 дней." : "So'nggi 30 kundagi yangi ro'yxatlar, vakansiyalar va arizalar."}
+          eyebrow={copy.trendsEyebrow}
+          title={copy.trendsTitle}
+          description={copy.trendsDescription}
         />
         <div className="grid gap-6 lg:grid-cols-2">
           <Card>
-            <CardHeader><CardTitle className="text-base">{locale === "ru" ? "Рост пользователей" : "Foydalanuvchi o'sishi"}</CardTitle></CardHeader>
+            <CardHeader><CardTitle className="text-base">{copy.trendsUsers}</CardTitle></CardHeader>
             <CardContent>
               {loadState === "loading" ? <Skeleton className="h-[200px] rounded-xl" /> : <UserGrowthChart data={userSeries} />}
             </CardContent>
           </Card>
           <Card>
-            <CardHeader><CardTitle className="text-base">{locale === "ru" ? "Новые вакансии" : "Yangi vakansiyalar"}</CardTitle></CardHeader>
+            <CardHeader><CardTitle className="text-base">{copy.trendsJobs}</CardTitle></CardHeader>
             <CardContent>
               {loadState === "loading" ? <Skeleton className="h-[200px] rounded-xl" /> : <JobsActivityChart data={jobSeries} />}
             </CardContent>
           </Card>
           <Card className="lg:col-span-2">
-            <CardHeader><CardTitle className="text-base">{locale === "ru" ? "Воронка откликов" : "Arizalar funnel"}</CardTitle></CardHeader>
+            <CardHeader><CardTitle className="text-base">{copy.trendsFunnel}</CardTitle></CardHeader>
             <CardContent>
               {loadState === "loading" ? <Skeleton className="h-[200px] rounded-xl" /> : (
                 data.dashboard
-                  ? <ApplicationsFunnelChart data={(data.dashboard as unknown as { applications_by_status?: Record<string, number> }).applications_by_status ?? {}} />
-                  : <p className="text-sm text-surface-500 py-8 text-center">{locale === "ru" ? "Нет данных" : "Ma'lumot yo'q"}</p>
+                  ? <ApplicationsFunnelChart data={data.dashboard.applications_by_status ?? {}} />
+                  : <p className="text-sm text-surface-500 py-8 text-center">{copy.noData}</p>
               )}
             </CardContent>
           </Card>
