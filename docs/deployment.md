@@ -285,3 +285,17 @@ The startup validator (`backend/app/config.py`) already refuses to boot in
 production if `REDIS_ENABLED=false` but any consumer expects Redis, so the
 only way to hit these runtime degradations is an actual Redis outage —
 treat any `*_REDIS_UNAVAILABLE` log line as a real incident.
+
+### Access-token TTL (production hard cap)
+
+`ACCESS_TOKEN_EXPIRE_MINUTES` is **enforced ≤ 10 in production** by the
+startup validator. The local dev default of 30 is fine; deployments with
+`DEBUG=false` and a longer value refuse to boot.
+
+Why: token blacklist falls back to per-worker memory during a Redis outage
+(see fail-open trade-off above). A 10-minute access-token TTL bounds the
+window where a token revoked on one worker is still accepted on another to
+at most 10 minutes — instead of the previous 30. Refresh tokens
+(7 days) are unchanged: refresh exchange goes through the same blacklist
+check, so a stolen refresh token has the same outage-window exposure as
+an access token plus its own normal TTL.

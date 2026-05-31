@@ -42,3 +42,72 @@ def test_settings_normalize_loose_bool_env_values(monkeypatch):
     assert settings.REDIS_ENABLED is True
     assert settings.SMTP_USE_TLS is False
     assert settings.EMAIL_TRANSPORT == "disabled"
+
+
+# -----------------------------------------------------------------------------
+# Access-token TTL — production hard cap (R3 follow-up)
+# -----------------------------------------------------------------------------
+
+
+def _set_prod_env(monkeypatch, **overrides):
+    """Minimal env that passes every existing production validator clause.
+
+    Pinning DEBUG=false flips the validator on; the rest satisfies the
+    REDIS_ENABLED / SECRET_KEY / DATABASE_URL / CORS rules so the TTL check
+    is isolated.
+    """
+    # The prod validator (_validate_production_environment) short-circuits
+    # when PYTEST_CURRENT_TEST is set so the rest of the suite can keep using
+    # relaxed envs. Delete it here so the validator actually runs.
+    monkeypatch.delenv("PYTEST_CURRENT_TEST", raising=False)
+    monkeypatch.setenv("DEBUG", "false")
+    monkeypatch.setenv("SECRET_KEY", "prod-strong-secret-0123456789abcdef0123456789")
+    monkeypatch.setenv("DATABASE_URL", "postgresql://u:p@localhost/db")
+    monkeypatch.setenv("RATE_LIMIT_ENABLED", "true")
+    monkeypatch.setenv("REDIS_ENABLED", "true")
+    monkeypatch.setenv("RATE_LIMIT_USE_REDIS", "true")
+    monkeypatch.setenv("TOKEN_BLACKLIST_USE_REDIS", "true")
+    monkeypatch.setenv("REDIS_URL", "redis://localhost:6379/0")
+    monkeypatch.setenv("CORS_ORIGINS", "https://example.com")
+    for key, value in overrides.items():
+        monkeypatch.setenv(key, value)
+
+
+def test_production_rejects_access_token_ttl_above_10_minutes(monkeypatch):
+    """A 30-minute access TTL in prod must refuse to boot."""
+    import pytest
+
+    _set_prod_env(monkeypatch, ACCESS_TOKEN_EXPIRE_MINUTES="30")
+    with pytest.raises(ValueError) as excinfo:
+        _build_settings()
+    msg = str(excinfo.value)
+    assert "ACCESS_TOKEN_EXPIRE_MINUTES" in msg
+    assert "<= 10" in msg
+
+
+def test_production_accepts_access_token_ttl_at_cap(monkeypatch):
+    """Exactly 10 minutes is the documented cap and must boot."""
+    _set_prod_env(monkeypatch, ACCESS_TOKEN_EXPIRE_MINUTES="10")
+    settings = _build_settings()
+    assert settings.ACCESS_TOKEN_EXPIRE_MINUTES == 10
+    assert settings.DEBUG is False
+
+
+def test_production_rejects_zero_or_negative_access_token_ttl(monkeypatch):
+    """Bad config (e.g. operator typo "0") must not silently disable auth."""
+    import pytest
+
+    _set_prod_env(monkeypatch, ACCESS_TOKEN_EXPIRE_MINUTES="0")
+    with pytest.raises(ValueError) as excinfo:
+        _build_settings()
+    assert "ACCESS_TOKEN_EXPIRE_MINUTES" in str(excinfo.value)
+
+
+def test_development_still_allows_30_minute_access_token_ttl(monkeypatch):
+    """Local dev must not be tightened — 30 minutes (the existing default)
+    must remain valid when DEBUG=true."""
+    monkeypatch.setenv("DEBUG", "true")
+    monkeypatch.setenv("ACCESS_TOKEN_EXPIRE_MINUTES", "30")
+    settings = _build_settings()
+    assert settings.ACCESS_TOKEN_EXPIRE_MINUTES == 30
+    assert settings.DEBUG is True
