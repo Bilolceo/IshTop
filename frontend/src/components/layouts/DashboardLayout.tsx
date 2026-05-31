@@ -26,6 +26,7 @@ import {
   Server,
   KeyRound,
   Building2,
+  ScrollText,
 } from "lucide-react";
 import { useAuth } from "@/hooks/useAuth";
 import { UserAvatar } from "@/components/ui/avatar";
@@ -123,6 +124,11 @@ const adminNavItems: NavItem[] = [
     labelKey: "dashboard.sidebar.access",
     href: "/admin/access",
     icon: KeyRound,
+  },
+  {
+    labelKey: "dashboard.sidebar.auditLog",
+    href: "/admin/audit",
+    icon: ScrollText,
   },
   {
     labelKey: "dashboard.sidebar.landing",
@@ -253,6 +259,9 @@ export function DashboardLayout({ children }: DashboardLayoutProps) {
               <span className="font-display text-xl font-bold text-surface-900 dark:text-white">
                 IshTop
               </span>
+              {isAdmin && (
+                <span className="ml-1 inline-flex h-2 w-2 rounded-full bg-emerald-500 shadow-[0_0_0_3px_rgba(16,185,129,0.2)] motion-safe:animate-pulse" aria-label="Admin live" />
+              )}
             </Link>
             <button
               className="lg:hidden"
