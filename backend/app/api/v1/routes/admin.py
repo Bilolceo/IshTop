@@ -1168,3 +1168,91 @@ async def get_stats_timeseries(
         result.append({"date": day.isoformat(), "value": count})
 
     return {"success": True, "metric": metric, "days": days, "data": result}
+
+
+# ---------------------------------------------------------------------------
+# BULK ACTION MODELS
+# ---------------------------------------------------------------------------
+
+class BulkActionRequest(BaseModel):
+    ids: List[str] = Field(..., min_length=1, max_length=200)
+    action: str
+
+
+# ---------------------------------------------------------------------------
+# BULK ACTION ENDPOINTS
+# ---------------------------------------------------------------------------
+
+@router.post("/users/bulk-action")
+async def bulk_action_users(
+    payload: BulkActionRequest,
+    db: Session = Depends(get_db),
+    current_admin: User = Depends(require_admin_permission("manage_users")),
+):
+    """Bulk activate or deactivate users."""
+    valid_actions = {"activate", "deactivate"}
+    if payload.action not in valid_actions:
+        raise HTTPException(status_code=400, detail=f"Action must be one of {valid_actions}")
+
+    uuids = [UUID(id_) for id_ in payload.ids]
+    users = db.query(User).filter(User.id.in_(uuids)).all()
+
+    for u in users:
+        u.is_active_account = payload.action == "activate"
+
+    db.commit()
+    return {"affected": len(users), "action": payload.action}
+
+
+@router.post("/jobs/bulk-action")
+async def bulk_action_jobs(
+    payload: BulkActionRequest,
+    db: Session = Depends(get_db),
+    current_admin: User = Depends(require_admin_permission("moderate_jobs")),
+):
+    """Bulk approve, pause, close, or delete jobs."""
+    valid_actions = {"approve", "pause", "close", "delete"}
+    if payload.action not in valid_actions:
+        raise HTTPException(status_code=400, detail=f"Action must be one of {valid_actions}")
+
+    uuids = [UUID(id_) for id_ in payload.ids]
+    jobs = db.query(Job).filter(Job.id.in_(uuids)).all()
+
+    if payload.action == "delete":
+        for j in jobs:
+            db.delete(j)
+    else:
+        status_map = {"approve": "active", "pause": "paused", "close": "closed"}
+        for j in jobs:
+            j.status = status_map[payload.action]
+
+    db.commit()
+    return {"affected": len(jobs), "action": payload.action}
+
+
+@router.post("/companies/bulk-action")
+async def bulk_action_companies(
+    payload: BulkActionRequest,
+    db: Session = Depends(get_db),
+    current_admin: User = Depends(require_admin_permission("moderate_companies")),
+):
+    """Bulk verify or deactivate companies."""
+    valid_actions = {"verify", "deactivate"}
+    if payload.action not in valid_actions:
+        raise HTTPException(status_code=400, detail=f"Action must be one of {valid_actions}")
+
+    uuids = [UUID(id_) for id_ in payload.ids]
+    companies = db.query(User).filter(
+        User.id.in_(uuids),
+        User.role == UserRole.COMPANY,
+    ).all()
+
+    if payload.action == "verify":
+        for c in companies:
+            c.is_verified = True
+    else:
+        for c in companies:
+            c.is_active_account = False
+
+    db.commit()
+    return {"affected": len(companies), "action": payload.action}
