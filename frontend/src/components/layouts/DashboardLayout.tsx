@@ -361,7 +361,7 @@ export function DashboardLayout({ children }: DashboardLayoutProps) {
         {/* Top navbar */}
         <header className="sticky top-0 z-30 flex h-16 items-center justify-between gap-4 border-b border-surface-200 bg-white/80 px-4 backdrop-blur-xl dark:border-surface-800 dark:bg-surface-900/80 sm:px-6">
           {/* Mobile menu button */}
-          <button className="lg:hidden" onClick={() => setIsSidebarOpen(true)}>
+          <button type="button" className="lg:hidden" onClick={() => setIsSidebarOpen(true)}>
             <Menu className="h-6 w-6 text-surface-600" />
           </button>
 

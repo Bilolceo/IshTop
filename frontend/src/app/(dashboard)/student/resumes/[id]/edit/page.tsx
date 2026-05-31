@@ -361,7 +361,7 @@ export default function ResumeEditPage() {
                 <div className="space-y-5">
                   {(content.experience || []).map((experience, index) => (
                     <div key={index} className="relative rounded-2xl border border-slate-200 bg-slate-50/70 p-4">
-                      <button onClick={() => removeExperience(index)} className="absolute right-3 top-3 text-slate-400 hover:text-red-500">
+                      <button type="button" onClick={() => removeExperience(index)} className="absolute right-3 top-3 text-slate-400 hover:text-red-500">
                         <Trash2 className="h-4 w-4" />
                       </button>
                       <div className="grid gap-3 sm:grid-cols-2">
@@ -399,7 +399,7 @@ export default function ResumeEditPage() {
                 <div className="space-y-5">
                   {(content.education || []).map((education, index) => (
                     <div key={index} className="relative rounded-2xl border border-slate-200 bg-slate-50/70 p-4">
-                      <button onClick={() => removeEducation(index)} className="absolute right-3 top-3 text-slate-400 hover:text-red-500">
+                      <button type="button" onClick={() => removeEducation(index)} className="absolute right-3 top-3 text-slate-400 hover:text-red-500">
                         <Trash2 className="h-4 w-4" />
                       </button>
                       <div className="grid gap-3 sm:grid-cols-2">
@@ -442,7 +442,7 @@ export default function ResumeEditPage() {
                     <div key={index} className="flex gap-3">
                       <Input value={language.name} onChange={(event) => updateLanguage(index, "name", event.target.value)} placeholder="Til nomi" />
                       <Input value={language.proficiency} onChange={(event) => updateLanguage(index, "proficiency", event.target.value)} placeholder="Daraja" />
-                      <button onClick={() => setContent((previous) => ({ ...previous, languages: (previous.languages || []).filter((_, itemIndex) => itemIndex !== index) }))} className="text-slate-400 hover:text-red-500">
+                      <button type="button" onClick={() => setContent((previous) => ({ ...previous, languages: (previous.languages || []).filter((_, itemIndex) => itemIndex !== index) }))} className="text-slate-400 hover:text-red-500">
                         <Trash2 className="h-4 w-4" />
                       </button>
                     </div>
@@ -457,7 +457,7 @@ export default function ResumeEditPage() {
                 <div className="space-y-4">
                   {(content.certifications || []).map((certification, index) => (
                     <div key={index} className="relative rounded-2xl border border-slate-200 bg-slate-50/70 p-4">
-                      <button onClick={() => setContent((previous) => ({ ...previous, certifications: (previous.certifications || []).filter((_, itemIndex) => itemIndex !== index) }))} className="absolute right-3 top-3 text-slate-400 hover:text-red-500">
+                      <button type="button" onClick={() => setContent((previous) => ({ ...previous, certifications: (previous.certifications || []).filter((_, itemIndex) => itemIndex !== index) }))} className="absolute right-3 top-3 text-slate-400 hover:text-red-500">
                         <Trash2 className="h-4 w-4" />
                       </button>
                       <div className="grid gap-3 sm:grid-cols-3">
