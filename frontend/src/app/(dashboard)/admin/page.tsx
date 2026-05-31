@@ -45,6 +45,9 @@ import { Skeleton } from "@/components/ui/skeleton";
 import { Textarea } from "@/components/ui/textarea";
 import { cn, formatRelativeTime } from "@/lib/utils";
 import { useTranslation } from "@/hooks/useTranslation";
+import { UserGrowthChart } from "@/components/admin/charts/UserGrowthChart";
+import { ApplicationsFunnelChart } from "@/components/admin/charts/ApplicationsFunnelChart";
+import { JobsActivityChart } from "@/components/admin/charts/JobsActivityChart";
 
 type LoadState = "loading" | "ready" | "error";
 
@@ -310,18 +313,22 @@ export default function AdminDashboardPage() {
   const [selectedError, setSelectedError] = useState<AdminErrorLog | null>(null);
   const [resolutionNotes, setResolutionNotes] = useState("");
   const [resolving, setResolving] = useState(false);
+  const [userSeries, setUserSeries] = useState<{ date: string; value: number }[]>([]);
+  const [jobSeries, setJobSeries] = useState<{ date: string; value: number }[]>([]);
 
   const loadAdminData = async (silent = false) => {
     if (silent) setRefreshing(true); else setLoadState("loading");
     setLoadError(null);
 
     try {
-      const [dashboardResult, healthResult, usersResult, statsResult, errorsResult] = await Promise.allSettled([
+      const [dashboardResult, healthResult, usersResult, statsResult, errorsResult, userSeriesResult, jobSeriesResult] = await Promise.allSettled([
         adminApi.dashboard(),
         adminApi.systemHealth(),
         adminApi.userStats(),
         adminApi.errorStats(24),
         adminApi.errors({ limit: 10, resolved: false }),
+        adminApi.timeseries("users", 30),
+        adminApi.timeseries("jobs", 30),
       ]);
 
       const nextData: LoadedData = { dashboard: null, health: null, userStats: null, errorStats: null, errors: [] };
@@ -332,6 +339,9 @@ export default function AdminDashboardPage() {
       if (errorsResult.status === "fulfilled") nextData.errors = errorsResult.value.data.errors;
       if (!nextData.errors.length && nextData.dashboard?.errors.recent?.length) nextData.errors = nextData.dashboard.errors.recent;
       setData(nextData);
+
+      if (userSeriesResult.status === "fulfilled") setUserSeries(userSeriesResult.value.data.data);
+      if (jobSeriesResult.status === "fulfilled") setJobSeries(jobSeriesResult.value.data.data);
 
       const failedCount = [dashboardResult, healthResult, usersResult, statsResult, errorsResult].filter((r) => r.status === "rejected").length;
       if (failedCount > 0) setLoadError(copy.partialEndpointWarning);
@@ -344,6 +354,7 @@ export default function AdminDashboardPage() {
     }
   };
 
+  // eslint-disable-next-line react-hooks/exhaustive-deps
   useEffect(() => { void loadAdminData(); }, []);
 
   const overviewCards = useMemo(() => [
@@ -445,6 +456,38 @@ export default function AdminDashboardPage() {
           <SectionTitle eyebrow={copy.overview} title={copy.overviewTitle} description={copy.overviewDescription} />
         <div className="grid gap-4 md:grid-cols-2 xl:grid-cols-4">
           {loadState === "loading" ? Array.from({ length: 4 }).map((_, index) => <Skeleton key={index} className="h-36 rounded-2xl" />) : overviewCards.map((card) => <MetricCard key={card.title} title={card.title} value={card.value} subtitle={card.subtitle} icon={card.icon} color={card.color} trend={card.trend} />)}
+        </div>
+      </motion.section>
+
+      <motion.section variants={itemVariants} className="space-y-4">
+        <SectionTitle
+          eyebrow={locale === "ru" ? "Тренды" : "Trendlar"}
+          title={locale === "ru" ? "Динамика платформы" : "Platforma dinamikasi"}
+          description={locale === "ru" ? "Новые регистрации, вакансии и отклики за последние 30 дней." : "So'nggi 30 kundagi yangi ro'yxatlar, vakansiyalar va arizalar."}
+        />
+        <div className="grid gap-6 lg:grid-cols-2">
+          <Card>
+            <CardHeader><CardTitle className="text-base">{locale === "ru" ? "Рост пользователей" : "Foydalanuvchi o'sishi"}</CardTitle></CardHeader>
+            <CardContent>
+              {loadState === "loading" ? <Skeleton className="h-[200px] rounded-xl" /> : <UserGrowthChart data={userSeries} />}
+            </CardContent>
+          </Card>
+          <Card>
+            <CardHeader><CardTitle className="text-base">{locale === "ru" ? "Новые вакансии" : "Yangi vakansiyalar"}</CardTitle></CardHeader>
+            <CardContent>
+              {loadState === "loading" ? <Skeleton className="h-[200px] rounded-xl" /> : <JobsActivityChart data={jobSeries} />}
+            </CardContent>
+          </Card>
+          <Card className="lg:col-span-2">
+            <CardHeader><CardTitle className="text-base">{locale === "ru" ? "Воронка откликов" : "Arizalar funnel"}</CardTitle></CardHeader>
+            <CardContent>
+              {loadState === "loading" ? <Skeleton className="h-[200px] rounded-xl" /> : (
+                data.dashboard
+                  ? <ApplicationsFunnelChart data={(data.dashboard as unknown as { applications_by_status?: Record<string, number> }).applications_by_status ?? {}} />
+                  : <p className="text-sm text-surface-500 py-8 text-center">{locale === "ru" ? "Нет данных" : "Ma'lumot yo'q"}</p>
+              )}
+            </CardContent>
+          </Card>
         </div>
       </motion.section>
 

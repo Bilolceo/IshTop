@@ -388,6 +388,11 @@ export const adminApi = {
   listApplications: (params?: { status?: string; search?: string; offset?: number; limit?: number }) =>
     api.get("/admin/applications", { params }),
 
+  timeseries: (metric: "users" | "jobs" | "applications", days = 30) =>
+    api.get<{ success: boolean; metric: string; days: number; data: { date: string; value: number }[] }>(
+      `/admin/stats/timeseries?metric=${metric}&days=${days}`
+    ),
+
   getLandingContent: (locale: "uz" | "ru") => api.get<LandingContentResponse>(`/landing/admin/content?locale=${locale}`),
   upsertLandingContent: (data: { locale: "uz" | "ru"; payload: Record<string, unknown>; is_published: boolean }) =>
     api.put<LandingContentResponse>("/landing/admin/content", data),
