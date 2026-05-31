@@ -25,7 +25,7 @@ VERSION: 1.0.0
 """
 
 import logging
-from datetime import datetime, timezone, timedelta
+from datetime import date, datetime, timezone, timedelta
 from typing import Optional, List, Dict, Any
 from uuid import UUID
 
@@ -1140,10 +1140,9 @@ async def get_stats_timeseries(
     _current_admin=Depends(get_current_super_admin),
 ):
     """Return daily counts for a metric over the past N days."""
-    from datetime import date
-
     today = date.today()
     result = []
+    # One COUNT query per day — acceptable for admin-only, small-usage endpoint
 
     for i in range(days - 1, -1, -1):
         day = today - timedelta(days=i)
@@ -1168,4 +1167,4 @@ async def get_stats_timeseries(
 
         result.append({"date": day.isoformat(), "value": count})
 
-    return {"metric": metric, "days": days, "data": result}
+    return {"success": True, "metric": metric, "days": days, "data": result}
