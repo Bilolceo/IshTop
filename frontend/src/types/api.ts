@@ -539,6 +539,7 @@ export interface AdminDashboardData {
   overview: AdminDashboardOverview;
   errors: AdminDashboardErrorSummary;
   timestamp: string;
+  applications_by_status?: Record<string, number>;
 }
 
 export interface AdminDashboardResponse {

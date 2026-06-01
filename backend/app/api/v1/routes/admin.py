@@ -25,12 +25,12 @@ VERSION: 1.0.0
 """
 
 import logging
-from datetime import datetime, timezone, timedelta
+from datetime import date, datetime, timezone, timedelta
 from typing import Optional, List, Dict, Any
 from uuid import UUID
 
 from fastapi import APIRouter, Depends, HTTPException, status, Query
-from sqlalchemy.orm import Session
+from sqlalchemy.orm import Session, joinedload
 from sqlalchemy import func, or_, text
 from pydantic import BaseModel, Field, field_validator
 
@@ -50,7 +50,8 @@ from app.models import (
     AdminSubRole,
     ADMIN_PERMISSION_MATRIX,
 )
-from app.services.trust_engine import calculate_job_trust
+from app.models.audit_log import AuditLog
+from app.models.admin_notification import AdminNotification
 from app.services.error_logging_service import (
     error_logger,
     ErrorCategory,
@@ -70,6 +71,50 @@ logger = logging.getLogger(__name__)
 # =============================================================================
 
 router = APIRouter()
+
+
+# =============================================================================
+# AUDIT LOG HELPER
+# =============================================================================
+
+def write_audit(
+    db: Session,
+    admin_id,
+    action: str,
+    target_type: str,
+    target_id=None,
+    target_label: str = None,
+    notes: str = None,
+) -> None:
+    """Write an audit log entry after a successful admin action."""
+    entry = AuditLog(
+        admin_id=admin_id,
+        action=action,
+        target_type=target_type,
+        target_id=str(target_id) if target_id else None,
+        target_label=target_label,
+        notes=notes,
+    )
+    db.add(entry)
+    db.commit()
+
+
+def create_admin_notification(
+    db: Session,
+    type_: str,
+    message: str,
+    link: str = None,
+    admin_id=None,
+) -> None:
+    """Create a notification for a specific admin or all admins (admin_id=None for broadcast)."""
+    notif = AdminNotification(
+        admin_id=admin_id,
+        type=type_,
+        message=message,
+        link=link,
+    )
+    db.add(notif)
+    db.commit()
 
 
 # =============================================================================
@@ -430,21 +475,23 @@ async def resolve_error(
     error_id: str,
     request: ResolveRequest,
     admin: User = Depends(require_admin_permission("admin.errors.resolve")),
+    db: Session = Depends(get_db),
 ):
     """Mark error as resolved."""
-    
+
     error = error_logger.resolve_error(
         error_id=error_id,
         resolved_by=str(admin.id),
         resolution_notes=request.resolution_notes,
     )
-    
+
     if not error:
         raise HTTPException(
             status_code=status.HTTP_404_NOT_FOUND,
             detail="Error topilmadi"
         )
-    
+
+    write_audit(db, admin.id, "error_resolve", "error", error_id)
     return ErrorDetailResponse(
         error=error.model_dump(),
     )
@@ -882,6 +929,7 @@ async def update_user_status(
 
     user.is_active_account = request.is_active
     db.commit()
+    write_audit(db, admin.id, "user_activate" if request.is_active else "user_deactivate", "user", user.id, user.email)
 
     action = "activated" if request.is_active else "blocked"
     logger.info(f"User {user.email} (ID: {user.id}) {action} by admin {admin.id}")
@@ -1124,6 +1172,7 @@ async def admin_update_job_status(
     job.status = payload.status
     db.commit()
     db.refresh(job)
+    write_audit(db, admin.id, f"job_{payload.status}", "job", job.id, getattr(job, 'title', str(job.id)))
     logger.info(f"Admin {admin.email} changed job {job.id} status: {previous} -> {job.status}")
 
     return {
@@ -1149,9 +1198,11 @@ async def admin_delete_job(
     if not job:
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Job not found")
 
+    job_title = getattr(job, 'title', str(job_id))
     job.is_deleted = True
     job.deleted_at = datetime.now(timezone.utc)
     db.commit()
+    write_audit(db, admin.id, "job_delete", "job", job_id, job_title)
     logger.info(f"Admin {admin.email} soft-deleted job {job.id}")
 
     return {"success": True, "message": "Job deleted", "data": {"id": str(job.id)}}
@@ -1274,6 +1325,7 @@ async def admin_verify_company(
     company.verification_reviewed_at = datetime.now(timezone.utc)
     company.verification_reviewed_by = str(admin.id)
     db.commit()
+    write_audit(db, admin.id, "company_verify" if payload.is_verified else "company_unverify", "company", company.id, getattr(company, 'company_name', None) or company.email)
     logger.info(
         f"Admin {admin.email} set company {company.id} verified={payload.is_verified}"
     )
@@ -1367,3 +1419,293 @@ async def admin_list_applications(
         )
 
     return {"success": True, "data": {"applications": out, "total": total, "offset": offset, "limit": limit}}
+
+
+@router.get("/stats/timeseries")
+async def get_stats_timeseries(
+    metric: str = Query(..., regex="^(users|jobs|applications)$"),
+    days: int = Query(30, ge=7, le=90),
+    db: Session = Depends(get_db),
+    _current_admin=Depends(get_current_super_admin),
+):
+    """Return daily counts for a metric over the past N days."""
+    today = date.today()
+    result = []
+    # One COUNT query per day — acceptable for admin-only, small-usage endpoint
+
+    for i in range(days - 1, -1, -1):
+        day = today - timedelta(days=i)
+        day_start = datetime(day.year, day.month, day.day, tzinfo=timezone.utc)
+        day_end = day_start + timedelta(days=1)
+
+        if metric == "users":
+            count = db.query(func.count(User.id)).filter(
+                User.created_at >= day_start,
+                User.created_at < day_end,
+            ).scalar() or 0
+        elif metric == "jobs":
+            count = db.query(func.count(Job.id)).filter(
+                Job.created_at >= day_start,
+                Job.created_at < day_end,
+            ).scalar() or 0
+        else:  # applications
+            count = db.query(func.count(Application.id)).filter(
+                Application.applied_at >= day_start,
+                Application.applied_at < day_end,
+            ).scalar() or 0
+
+        result.append({"date": day.isoformat(), "value": count})
+
+    return {"success": True, "metric": metric, "days": days, "data": result}
+
+
+# ---------------------------------------------------------------------------
+# BULK ACTION MODELS
+# ---------------------------------------------------------------------------
+
+class BulkActionRequest(BaseModel):
+    ids: List[str] = Field(..., min_length=1, max_length=200)
+    action: str
+
+
+# ---------------------------------------------------------------------------
+# BULK ACTION ENDPOINTS
+# ---------------------------------------------------------------------------
+
+@router.post("/users/bulk-action")
+async def bulk_action_users(
+    payload: BulkActionRequest,
+    db: Session = Depends(get_db),
+    current_admin: User = Depends(require_admin_permission("admin.users.write")),
+):
+    """Bulk activate or deactivate users."""
+    valid_actions = {"activate", "deactivate"}
+    if payload.action not in valid_actions:
+        raise HTTPException(status_code=400, detail=f"Action must be one of {valid_actions}")
+
+    try:
+        uuids = [UUID(id_) for id_ in payload.ids]
+    except ValueError:
+        raise HTTPException(status_code=400, detail="One or more IDs are not valid UUIDs")
+    users = db.query(User).filter(User.id.in_(uuids)).all()
+
+    for u in users:
+        u.is_active_account = payload.action == "activate"
+
+    db.commit()
+    write_audit(db, current_admin.id, f"bulk_{payload.action}_users", "user", notes=f"{len(users)} users")
+    return {"success": True, "affected": len(users), "action": payload.action}
+
+
+@router.post("/jobs/bulk-action")
+async def bulk_action_jobs(
+    payload: BulkActionRequest,
+    db: Session = Depends(get_db),
+    current_admin: User = Depends(require_admin_permission("admin.jobs.write")),
+):
+    """Bulk approve, pause, close, or delete jobs."""
+    valid_actions = {"approve", "pause", "close", "delete"}
+    if payload.action not in valid_actions:
+        raise HTTPException(status_code=400, detail=f"Action must be one of {valid_actions}")
+
+    try:
+        uuids = [UUID(id_) for id_ in payload.ids]
+    except ValueError:
+        raise HTTPException(status_code=400, detail="One or more IDs are not valid UUIDs")
+    jobs = db.query(Job).filter(Job.id.in_(uuids)).all()
+
+    if payload.action == "delete":
+        for j in jobs:
+            j.is_deleted = True
+            j.deleted_at = datetime.now(timezone.utc)
+    else:
+        status_map = {"approve": "active", "pause": "paused", "close": "closed"}
+        for j in jobs:
+            j.status = status_map[payload.action]
+
+    db.commit()
+    write_audit(db, current_admin.id, f"bulk_{payload.action}_jobs", "job", notes=f"{len(jobs)} jobs")
+    return {"success": True, "affected": len(jobs), "action": payload.action}
+
+
+@router.post("/companies/bulk-action")
+async def bulk_action_companies(
+    payload: BulkActionRequest,
+    db: Session = Depends(get_db),
+    current_admin: User = Depends(require_admin_permission("admin.companies.write")),
+):
+    """Bulk verify or deactivate companies."""
+    valid_actions = {"verify", "deactivate"}
+    if payload.action not in valid_actions:
+        raise HTTPException(status_code=400, detail=f"Action must be one of {valid_actions}")
+
+    try:
+        uuids = [UUID(id_) for id_ in payload.ids]
+    except ValueError:
+        raise HTTPException(status_code=400, detail="One or more IDs are not valid UUIDs")
+    companies = db.query(User).filter(
+        User.id.in_(uuids),
+        User.role == UserRole.COMPANY,
+    ).all()
+
+    if payload.action == "verify":
+        for c in companies:
+            c.is_verified = True
+    else:
+        for c in companies:
+            c.is_active_account = False
+
+    db.commit()
+    write_audit(db, current_admin.id, f"bulk_{payload.action}_companies", "company", notes=f"{len(companies)} companies")
+    return {"success": True, "affected": len(companies), "action": payload.action}
+
+
+# =============================================================================
+# AUDIT LOG ENDPOINT
+# =============================================================================
+
+@router.get("/audit-logs")
+async def list_audit_logs(
+    admin_id: Optional[str] = Query(None),
+    action: Optional[str] = Query(None),
+    from_date: Optional[str] = Query(None),
+    to_date: Optional[str] = Query(None),
+    page: int = Query(1, ge=1),
+    limit: int = Query(50, ge=1, le=200),
+    db: Session = Depends(get_db),
+    _current_admin: User = Depends(get_current_super_admin),
+):
+    """Paginated list of admin audit log entries."""
+    q = db.query(AuditLog).options(joinedload(AuditLog.admin)).order_by(AuditLog.created_at.desc())
+
+    if admin_id:
+        q = q.filter(AuditLog.admin_id == admin_id)
+    if action:
+        q = q.filter(AuditLog.action == action)
+    if from_date:
+        try:
+            q = q.filter(AuditLog.created_at >= datetime.fromisoformat(from_date))
+        except ValueError:
+            raise HTTPException(status_code=400, detail="Invalid from_date format")
+    if to_date:
+        try:
+            q = q.filter(AuditLog.created_at <= datetime.fromisoformat(to_date))
+        except ValueError:
+            raise HTTPException(status_code=400, detail="Invalid to_date format")
+
+    total = q.count()
+    logs = q.offset((page - 1) * limit).limit(limit).all()
+
+    return {
+        "success": True,
+        "total": total,
+        "page": page,
+        "logs": [
+            {
+                "id": str(log.id),
+                "admin_id": str(log.admin_id) if log.admin_id else None,
+                "admin_name": log.admin.full_name if log.admin else "Unknown",
+                "action": log.action,
+                "target_type": log.target_type,
+                "target_id": log.target_id,
+                "target_label": log.target_label,
+                "notes": log.notes,
+                "created_at": log.created_at.isoformat(),
+            }
+            for log in logs
+        ],
+    }
+
+
+# =============================================================================
+# ADMIN NOTIFICATIONS
+# =============================================================================
+
+@router.get("/admin-notifications")
+async def list_admin_notifications(
+    unread: bool = Query(False),
+    limit: int = Query(20, ge=1, le=100),
+    db: Session = Depends(get_db),
+    current_admin: User = Depends(get_current_super_admin),
+):
+    """List notifications for the current admin (targeted + broadcasts)."""
+    q = (
+        db.query(AdminNotification)
+        .filter(
+            or_(
+                AdminNotification.admin_id == current_admin.id,
+                AdminNotification.admin_id.is_(None),
+            )
+        )
+        .order_by(AdminNotification.created_at.desc())
+    )
+
+    if unread:
+        q = q.filter(AdminNotification.is_read == False)  # noqa: E712
+
+    notifications = q.limit(limit).all()
+    unread_count = (
+        db.query(func.count(AdminNotification.id))
+        .filter(
+            or_(
+                AdminNotification.admin_id == current_admin.id,
+                AdminNotification.admin_id.is_(None),
+            ),
+            AdminNotification.is_read == False,  # noqa: E712
+        )
+        .scalar()
+        or 0
+    )
+
+    return {
+        "success": True,
+        "unread_count": unread_count,
+        "notifications": [
+            {
+                "id": str(n.id),
+                "type": n.type,
+                "message": n.message,
+                "link": n.link,
+                "is_read": n.is_read,
+                "created_at": n.created_at.isoformat(),
+            }
+            for n in notifications
+        ],
+    }
+
+
+@router.post("/admin-notifications/read-all")
+async def mark_all_notifications_read(
+    db: Session = Depends(get_db),
+    current_admin: User = Depends(get_current_super_admin),
+):
+    """Mark all notifications for the current admin as read."""
+    db.query(AdminNotification).filter(
+        or_(
+            AdminNotification.admin_id == current_admin.id,
+            AdminNotification.admin_id.is_(None),
+        ),
+        AdminNotification.is_read == False,  # noqa: E712
+    ).update({"is_read": True}, synchronize_session=False)
+    db.commit()
+    return {"success": True}
+
+
+@router.post("/admin-notifications/{notification_id}/read")
+async def mark_notification_read(
+    notification_id: str,
+    db: Session = Depends(get_db),
+    current_admin: User = Depends(get_current_super_admin),
+):
+    """Mark a single notification as read."""
+    try:
+        nid = UUID(notification_id)
+    except ValueError:
+        raise HTTPException(status_code=400, detail="Invalid notification ID")
+
+    notif = db.query(AdminNotification).filter(AdminNotification.id == nid).first()
+    if not notif:
+        raise HTTPException(status_code=404, detail="Notification not found")
+    notif.is_read = True
+    db.commit()
+    return {"success": True}

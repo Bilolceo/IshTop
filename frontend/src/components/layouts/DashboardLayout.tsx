@@ -27,14 +27,17 @@ import {
   Server,
   KeyRound,
   Building2,
+  ScrollText,
 } from "lucide-react";
 import { useAuth } from "@/hooks/useAuth";
 import { UserAvatar } from "@/components/ui/avatar";
 import { cn } from "@/lib/utils";
 import { ThemeToggle } from "@/components/ui/theme-toggle";
 import { NotificationBell } from "@/components/NotificationBell";
+import { AdminNotificationBell } from "@/components/admin/AdminNotificationBell";
 import { useTranslation } from "@/hooks/useTranslation";
 import { LanguageSwitcher } from "@/components/ui/language-switcher";
+import { CommandPalette } from "@/components/admin/CommandPalette";
 
 interface NavItem {
   labelKey: string;
@@ -131,6 +134,11 @@ const adminNavItems: NavItem[] = [
     icon: KeyRound,
   },
   {
+    labelKey: "dashboard.sidebar.auditLog",
+    href: "/admin/audit",
+    icon: ScrollText,
+  },
+  {
     labelKey: "dashboard.sidebar.landing",
     href: "/admin/landing",
     icon: Zap,
@@ -161,6 +169,7 @@ export function DashboardLayout({ children }: DashboardLayoutProps) {
   const [isSidebarOpen, setIsSidebarOpen] = useState(false);
   const [isUserMenuOpen, setIsUserMenuOpen] = useState(false);
   const [currentHash, setCurrentHash] = useState("");
+  const [cmdOpen, setCmdOpen] = useState(false);
 
   useEffect(() => {
     if (typeof window === "undefined") {
@@ -172,6 +181,18 @@ export function DashboardLayout({ children }: DashboardLayoutProps) {
     window.addEventListener("hashchange", updateHash);
     return () => window.removeEventListener("hashchange", updateHash);
   }, []);
+
+  useEffect(() => {
+    if (!isAdmin) return;
+    const handler = (e: KeyboardEvent) => {
+      if ((e.metaKey || e.ctrlKey) && e.key === "k") {
+        e.preventDefault();
+        setCmdOpen((prev) => !prev);
+      }
+    };
+    window.addEventListener("keydown", handler);
+    return () => window.removeEventListener("keydown", handler);
+  }, [isAdmin]);
 
   const navItems = isAdmin
     ? adminNavItems
@@ -259,6 +280,9 @@ export function DashboardLayout({ children }: DashboardLayoutProps) {
               <span className="font-display text-xl font-bold text-surface-900 dark:text-white">
                 IshTop
               </span>
+              {isAdmin && (
+                <span className="ml-1 inline-flex h-2 w-2 rounded-full bg-emerald-500 shadow-[0_0_0_3px_rgba(16,185,129,0.2)] motion-safe:animate-pulse" aria-hidden="true" />
+              )}
             </Link>
             <button
               className="lg:hidden"
@@ -382,7 +406,7 @@ export function DashboardLayout({ children }: DashboardLayoutProps) {
             <ThemeToggle />
 
             {/* Notifications */}
-            <NotificationBell />
+            {isAdmin ? <AdminNotificationBell /> : <NotificationBell />}
 
             {/* User menu */}
             <div className="relative">
@@ -454,41 +478,9 @@ export function DashboardLayout({ children }: DashboardLayoutProps) {
         </main>
       </div>
 
-      {(isCompany || isAdmin) && (() => {
-        // Admin sidebar has 9 routes; bottom nav keeps the 5 most frequent.
-        const mobileItems = isAdmin ? adminNavItems.slice(0, 5) : companyNavItems;
-        const cols = mobileItems.length === 5 ? "grid-cols-5" : "grid-cols-4";
-        return (
-          <nav
-            aria-label="Mobile navigation"
-            className="fixed inset-x-0 bottom-0 z-30 border-t border-surface-200 bg-white/95 px-2 py-2 backdrop-blur lg:hidden dark:border-surface-700 dark:bg-surface-900/95"
-            style={{ paddingBottom: "calc(env(safe-area-inset-bottom, 0px) + 0.5rem)" }}
-          >
-            <div className={cn("grid gap-1", cols)}>
-              {mobileItems.map((item) => {
-                const isActive = isNavItemActive(item);
-                return (
-                  <Link
-                    key={item.href}
-                    href={item.href}
-                    aria-current={isActive ? "page" : undefined}
-                    className={cn(
-                      "inline-flex items-center justify-center rounded-xl p-3 transition-colors",
-                      isActive
-                        ? "bg-brand-50 text-brand-700 dark:bg-brand-500/20 dark:text-brand-300"
-                        : "text-surface-600 hover:bg-surface-100 dark:text-surface-300 dark:hover:bg-surface-800",
-                    )}
-                    aria-label={t(item.labelKey)}
-                  >
-                    <item.icon className="h-5 w-5" />
-                    <span className="sr-only">{t(item.labelKey)}</span>
-                  </Link>
-                );
-              })}
-            </div>
-          </nav>
-        );
-      })()}
+      {isAdmin && (
+        <CommandPalette open={cmdOpen} onOpenChange={setCmdOpen} />
+      )}
     </div>
   );
 }

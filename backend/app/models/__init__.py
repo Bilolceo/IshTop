@@ -163,13 +163,8 @@ from app.models.landing_content import (
     LandingContent,
 )
 
-from app.models.verification_audit_log import (
-    VerificationAuditLog,
-)
-
-from app.models.funnel_event import (
-    FunnelEvent,
-)
+from app.models.audit_log import AuditLog
+from app.models.admin_notification import AdminNotification
 
 # =============================================================================
 # EXPORT ALL (for `from app.models import *`)
@@ -227,8 +222,8 @@ __all__ = [
     "Notification",           # User notifications
     "SavedSearch",           # Saved search filters
     "LandingContent",
-    "VerificationAuditLog",
-    "FunnelEvent",
+    "AuditLog",
+    "AdminNotification",
 ]
 
 # =============================================================================

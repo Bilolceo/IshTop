@@ -4,7 +4,7 @@
 
 "use client";
 
-import { useEffect, useMemo, useState } from "react";
+import { useCallback, useEffect, useMemo, useState } from "react";
 import Link from "next/link";
 import { motion } from "framer-motion";
 import {
@@ -45,6 +45,9 @@ import { Skeleton } from "@/components/ui/skeleton";
 import { Textarea } from "@/components/ui/textarea";
 import { cn, formatRelativeTime } from "@/lib/utils";
 import { useTranslation } from "@/hooks/useTranslation";
+import { UserGrowthChart } from "@/components/admin/charts/UserGrowthChart";
+import { ApplicationsFunnelChart } from "@/components/admin/charts/ApplicationsFunnelChart";
+import { JobsActivityChart } from "@/components/admin/charts/JobsActivityChart";
 
 type LoadState = "loading" | "ready" | "error";
 
@@ -126,6 +129,13 @@ const adminCopy = {
     cancel: "Bekor qilish",
     resolving: "Yopilmoqda",
     markResolved: "Yopilgan deb belgilash",
+    trendsEyebrow: "Trendlar",
+    trendsTitle: "Platforma dinamikasi",
+    trendsDescription: "So'nggi 30 kundagi yangi ro'yxatlar, vakansiyalar va arizalar.",
+    trendsUsers: "Foydalanuvchi o'sishi",
+    trendsJobs: "Yangi vakansiyalar",
+    trendsFunnel: "Arizalar funnel",
+    noData: "Ma'lumot yo'q",
     status: { healthy: "Sog'lom", unhealthy: "Nosoz", warning: "Ogohlantirish" },
     healthComponents: {
       database: "Ma'lumotlar bazasi",
@@ -195,6 +205,13 @@ const adminCopy = {
     cancel: "Отмена",
     resolving: "Закрываем",
     markResolved: "Отметить как закрытую",
+    trendsEyebrow: "Тренды",
+    trendsTitle: "Динамика платформы",
+    trendsDescription: "Новые регистрации, вакансии и отклики за последние 30 дней.",
+    trendsUsers: "Рост пользователей",
+    trendsJobs: "Новые вакансии",
+    trendsFunnel: "Воронка откликов",
+    noData: "Нет данных",
     status: { healthy: "Исправно", unhealthy: "Неисправно", warning: "Предупреждение" },
     healthComponents: {
       database: "База данных",
@@ -310,18 +327,22 @@ export default function AdminDashboardPage() {
   const [selectedError, setSelectedError] = useState<AdminErrorLog | null>(null);
   const [resolutionNotes, setResolutionNotes] = useState("");
   const [resolving, setResolving] = useState(false);
+  const [userSeries, setUserSeries] = useState<{ date: string; value: number }[]>([]);
+  const [jobSeries, setJobSeries] = useState<{ date: string; value: number }[]>([]);
 
-  const loadAdminData = async (silent = false) => {
+  const loadAdminData = useCallback(async (silent = false) => {
     if (silent) setRefreshing(true); else setLoadState("loading");
     setLoadError(null);
 
     try {
-      const [dashboardResult, healthResult, usersResult, statsResult, errorsResult] = await Promise.allSettled([
+      const [dashboardResult, healthResult, usersResult, statsResult, errorsResult, userSeriesResult, jobSeriesResult] = await Promise.allSettled([
         adminApi.dashboard(),
         adminApi.systemHealth(),
         adminApi.userStats(),
         adminApi.errorStats(24),
         adminApi.errors({ limit: 10, resolved: false }),
+        adminApi.timeseries("users", 30),
+        adminApi.timeseries("jobs", 30),
       ]);
 
       const nextData: LoadedData = { dashboard: null, health: null, userStats: null, errorStats: null, errors: [] };
@@ -333,6 +354,9 @@ export default function AdminDashboardPage() {
       if (!nextData.errors.length && nextData.dashboard?.errors.recent?.length) nextData.errors = nextData.dashboard.errors.recent;
       setData(nextData);
 
+      if (userSeriesResult.status === "fulfilled") setUserSeries(userSeriesResult.value.data.data);
+      if (jobSeriesResult.status === "fulfilled") setJobSeries(jobSeriesResult.value.data.data);
+
       const failedCount = [dashboardResult, healthResult, usersResult, statsResult, errorsResult].filter((r) => r.status === "rejected").length;
       if (failedCount > 0) setLoadError(copy.partialEndpointWarning);
       setLoadState("ready");
@@ -342,9 +366,9 @@ export default function AdminDashboardPage() {
     } finally {
       setRefreshing(false);
     }
-  };
+  }, [copy.partialEndpointWarning]);
 
-  useEffect(() => { void loadAdminData(); }, []);
+  useEffect(() => { void loadAdminData(); }, [loadAdminData]);
 
   const overviewCards = useMemo(() => [
     {
@@ -445,6 +469,38 @@ export default function AdminDashboardPage() {
           <SectionTitle eyebrow={copy.overview} title={copy.overviewTitle} description={copy.overviewDescription} />
         <div className="grid gap-4 md:grid-cols-2 xl:grid-cols-4">
           {loadState === "loading" ? Array.from({ length: 4 }).map((_, index) => <Skeleton key={index} className="h-36 rounded-2xl" />) : overviewCards.map((card) => <MetricCard key={card.title} title={card.title} value={card.value} subtitle={card.subtitle} icon={card.icon} color={card.color} trend={card.trend} />)}
+        </div>
+      </motion.section>
+
+      <motion.section variants={itemVariants} className="space-y-4">
+        <SectionTitle
+          eyebrow={copy.trendsEyebrow}
+          title={copy.trendsTitle}
+          description={copy.trendsDescription}
+        />
+        <div className="grid gap-6 lg:grid-cols-2">
+          <Card>
+            <CardHeader><CardTitle className="text-base">{copy.trendsUsers}</CardTitle></CardHeader>
+            <CardContent>
+              {loadState === "loading" ? <Skeleton className="h-[200px] rounded-xl" /> : <UserGrowthChart data={userSeries} />}
+            </CardContent>
+          </Card>
+          <Card>
+            <CardHeader><CardTitle className="text-base">{copy.trendsJobs}</CardTitle></CardHeader>
+            <CardContent>
+              {loadState === "loading" ? <Skeleton className="h-[200px] rounded-xl" /> : <JobsActivityChart data={jobSeries} />}
+            </CardContent>
+          </Card>
+          <Card className="lg:col-span-2">
+            <CardHeader><CardTitle className="text-base">{copy.trendsFunnel}</CardTitle></CardHeader>
+            <CardContent>
+              {loadState === "loading" ? <Skeleton className="h-[200px] rounded-xl" /> : (
+                data.dashboard
+                  ? <ApplicationsFunnelChart data={data.dashboard.applications_by_status ?? {}} />
+                  : <p className="text-sm text-surface-500 py-8 text-center">{copy.noData}</p>
+              )}
+            </CardContent>
+          </Card>
         </div>
       </motion.section>
 
