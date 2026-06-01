@@ -45,6 +45,59 @@ export function JobDetailPanel({
   const safeDescriptionHtml = sanitizeRichTextHtml(job.description || "");
   const hasDescription = stripHtmlTags(job.description || "").length > 0;
 
+  // Localized labels for backend-supplied enums / codes. Keep keys aligned
+  // with the values the backend returns; unknown values fall back to the
+  // raw value humanised (Title Case).
+  const jobTypeLabel = (() => {
+    const map: Record<string, [string, string]> = {
+      full_time:  ["To'liq stavka",   "Полная занятость"],
+      part_time:  ["Yarim stavka",    "Частичная занятость"],
+      contract:   ["Shartnoma",       "Контракт"],
+      internship: ["Amaliyot",        "Стажировка"],
+      remote:     ["Masofaviy",       "Удалённо"],
+      hybrid:     ["Gibrid",          "Гибрид"],
+    };
+    const pair = map[job.job_type];
+    return pair ? (isRu ? pair[1] : pair[0]) : job.job_type.replace(/_/g, " ");
+  })();
+
+  const experienceLabel = (() => {
+    const map: Record<string, [string, string]> = {
+      entry:     ["Boshlang'ich",        "Начинающий"],
+      junior:    ["Boshlovchi (0-2 yil)", "Начинающий (0-2 года)"],
+      mid:       ["O'rta (2-5 yil)",     "Средний (2-5 лет)"],
+      senior:    ["Katta (5+ yil)",      "Старший (5+ лет)"],
+      lead:      ["Rahbar (7+ yil)",     "Руководитель (7+ лет)"],
+      executive: ["Direktor",            "Директор"],
+    };
+    const pair = map[job.experience_level];
+    return pair ? (isRu ? pair[1] : pair[0]) : job.experience_level;
+  })();
+
+  const trustBadgeLabel = (code: string): string => {
+    const map: Record<string, [string, string]> = {
+      verified_employer:  ["tasdiqlangan ish beruvchi", "проверенный работодатель"],
+      transparent_salary: ["aniq maosh",                 "прозрачная зарплата"],
+      fresh_listing:      ["yangi e'lon",                "свежая вакансия"],
+      fast_responder:     ["tez javob beradi",           "быстро отвечает"],
+      high_trust:         ["yuqori ishonch",             "высокое доверие"],
+    };
+    const pair = map[code];
+    return pair ? (isRu ? pair[1] : pair[0]) : code.replace(/_/g, " ");
+  };
+
+  const trustFactorLabel = (code: string, fallback: string): string => {
+    const map: Record<string, [string, string]> = {
+      verification:        ["Ish beruvchi tasdig'i",     "Проверка работодателя"],
+      salary_transparency: ["Maosh ochiqligi",            "Прозрачность зарплаты"],
+      freshness:           ["E'lon yangiligi",            "Свежесть вакансии"],
+      responsiveness:      ["Ish beruvchi javobi",        "Отзывчивость работодателя"],
+      risk:                ["Firibgarlik xavfi",          "Риск мошенничества"],
+    };
+    const pair = map[code];
+    return pair ? (isRu ? pair[1] : pair[0]) : fallback;
+  };
+
   return (
     <motion.div
       initial={{ opacity: 0, x: 20 }}
@@ -77,8 +130,8 @@ export function JobDetailPanel({
                 <MapPin className="h-3.5 w-3.5" />
                 {job.location}
               </span>
-              <Badge variant={job.job_type as any} className="rounded-full capitalize">
-                {job.job_type.replace("_", " ")}
+              <Badge variant={job.job_type as any} className="rounded-full">
+                {jobTypeLabel}
               </Badge>
               {job.matchScore ? (
                 <Badge
@@ -194,8 +247,8 @@ export function JobDetailPanel({
               <p className="text-xs text-surface-500">
                 {isRu ? "Опыт" : "Tajriba"}
               </p>
-              <p className="font-medium text-surface-900 dark:text-white capitalize">
-                {job.experience_level}
+              <p className="font-medium text-surface-900 dark:text-white">
+                {experienceLabel}
               </p>
             </div>
           </div>
@@ -223,7 +276,7 @@ export function JobDetailPanel({
               <div className="mb-3 flex flex-wrap gap-2">
                 {job.trust_badges.map((badge) => (
                   <Badge key={badge} variant="secondary" className="rounded-full">
-                    {badge.replace(/_/g, " ")}
+                    {trustBadgeLabel(badge)}
                   </Badge>
                 ))}
               </div>
@@ -232,7 +285,7 @@ export function JobDetailPanel({
               <div className="space-y-2">
                 {job.trust_factors.slice(0, 5).map((factor) => (
                   <div key={factor.code} className="flex items-center justify-between text-sm">
-                    <span className="text-surface-600 dark:text-surface-300">{factor.label}</span>
+                    <span className="text-surface-600 dark:text-surface-300">{trustFactorLabel(factor.code, factor.label)}</span>
                     <span className="font-medium text-surface-900 dark:text-white">{Math.round((factor.score || 0) * 100)}%</span>
                   </div>
                 ))}

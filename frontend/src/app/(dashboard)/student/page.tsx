@@ -129,6 +129,7 @@ export default function StudentDashboardPage() {
   const router = useRouter();
   const { user } = useAuth();
   const { t, locale } = useTranslation();
+  const isRu = locale === "ru";
   const reduceMotion = useReducedMotion();
 
   const { resumes, isLoading: resumesLoading, fetchResumes } = useResume();
@@ -316,7 +317,7 @@ export default function StudentDashboardPage() {
         <AuroraGreeting
           eyebrow={greeting()}
           name={user?.full_name?.split(" ")[0] || t("common.student")}
-          question="ready for what's next?"
+          question={isRu ? "что делаем дальше?" : "keyingi qadam tayyormi?"}
           subtitle={t("dashboard.subtitle")}
           profileCompletion={profileCompletion}
           ctaHref="/student/resumes/create-ai"
@@ -418,10 +419,10 @@ export default function StudentDashboardPage() {
             <CardHeader className="flex flex-row items-center justify-between border-b border-surface-200/60 pb-4 dark:border-white/[0.06]">
               <CardTitle className="flex items-center gap-2 text-lg">
                 <Lightbulb className="h-5 w-5 text-amber-500" />
-                Skill gap plan
+                {isRu ? "План закрытия пробелов" : "Ko'nikma rejasi"}
               </CardTitle>
               <Link href="/student/resumes" className="focus-ring rounded-full text-sm font-medium text-violet-600 hover:underline dark:text-violet-300">
-                Boost
+                {isRu ? "Улучшить" : "Yaxshilash"}
               </Link>
             </CardHeader>
             <CardContent className="p-5">
@@ -655,7 +656,7 @@ export default function StudentDashboardPage() {
             <CardHeader className="flex flex-row items-center justify-between border-b border-surface-200/60 pb-4 dark:border-white/[0.06]">
               <CardTitle className="flex items-center gap-2 text-lg">
                 <Bookmark className="h-5 w-5 text-violet-600 dark:text-violet-300" />
-                Saved jobs
+                {isRu ? "Сохранённые вакансии" : "Saqlangan ishlar"}
               </CardTitle>
               <Link href="/student/saved-jobs" className="focus-ring rounded-full text-sm font-medium text-violet-600 hover:underline dark:text-violet-300">
                 {t("dashboard.recentActivity.viewAll")}
@@ -705,6 +706,9 @@ function TodaysSignal({
   locale: "uz" | "ru";
   t: (k: string, p?: Record<string, string | number>) => string;
 }) {
+  const isRu = locale === "ru";
+  const signalKicker = isRu ? "Сегодняшний сигнал" : "Bugungi signal";
+  const reviewCta = isRu ? "Посмотреть" : "Ko'rib chiqish";
   if (loading) {
     return (
       <div className="card-aurora p-6">
@@ -727,7 +731,7 @@ function TodaysSignal({
             </span>
             <div>
               <p className="text-xs font-semibold uppercase tracking-[0.18em] text-emerald-700 dark:text-emerald-300">
-                Today&apos;s signal · {t("dashboard.interview.title")}
+                {signalKicker} · {t("dashboard.interview.title")}
               </p>
               <h2 className="mt-1 font-display text-xl font-semibold text-surface-900 dark:text-white sm:text-2xl">
                 {upcoming.job?.title || "Interview"} · {topRecCompany}
@@ -783,7 +787,7 @@ function TodaysSignal({
         <div className="relative flex flex-col gap-5 sm:flex-row sm:items-center sm:justify-between">
           <div style={{ transform: "translateZ(20px)" }}>
             <p className="text-xs font-semibold uppercase tracking-[0.18em] text-violet-700 dark:text-violet-300">
-              Today&apos;s signal · Top match
+              {signalKicker} · {isRu ? "Лучшее совпадение" : "Eng yaxshi moslik"}
             </p>
             <h2 className="mt-1 font-display text-2xl font-semibold tracking-tight text-surface-900 dark:text-white sm:text-3xl">
               {topRec.job.title}
@@ -793,7 +797,7 @@ function TodaysSignal({
             </p>
             <div className="mt-4 flex flex-wrap gap-2">
               <span className="inline-flex items-center gap-1 rounded-full bg-emerald-500/10 px-2.5 py-1 text-xs font-semibold text-emerald-700 dark:text-emerald-300">
-                <CheckCircle2 className="h-3 w-3" /> {score}% match
+                <CheckCircle2 className="h-3 w-3" /> {score}% {isRu ? "совпадение" : "moslik"}
               </span>
               {topRec.skill_matches.slice(0, 3).map((s) => (
                 <span key={s} className="chip">
@@ -809,7 +813,7 @@ function TodaysSignal({
             <div className="hidden sm:block">
               <Button asChild className="rounded-full bg-gradient-to-r from-violet-500 to-cyan-400">
                 <Link href={`/student/jobs/${topRec.job.id}`}>
-                  Ko&apos;rib chiqish
+                  {reviewCta}
                   <ArrowRight className="ml-1.5 h-4 w-4" />
                 </Link>
               </Button>
@@ -818,7 +822,7 @@ function TodaysSignal({
         </div>
         <div className="mt-4 sm:hidden">
           <Button asChild className="w-full rounded-full bg-gradient-to-r from-violet-500 to-cyan-400">
-            <Link href={`/student/jobs/${topRec.job.id}`}>Ko&apos;rib chiqish</Link>
+            <Link href={`/student/jobs/${topRec.job.id}`}>{reviewCta}</Link>
           </Button>
         </div>
       </div>
@@ -835,7 +839,7 @@ function TodaysSignal({
           </span>
           <div>
             <p className="text-xs font-semibold uppercase tracking-[0.18em] text-amber-700 dark:text-amber-300">
-              Today&apos;s signal · {t("dashboard.profile.complete")}
+              {signalKicker} · {t("dashboard.profile.complete")}
             </p>
             <h2 className="mt-1 font-display text-xl font-semibold text-surface-900 dark:text-white sm:text-2xl">
               {t("dashboard.profile.completeText")}
