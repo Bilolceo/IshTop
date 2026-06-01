@@ -36,6 +36,7 @@ import { NotificationBell } from "@/components/NotificationBell";
 import { AdminNotificationBell } from "@/components/admin/AdminNotificationBell";
 import { useTranslation } from "@/hooks/useTranslation";
 import { LanguageSwitcher } from "@/components/ui/language-switcher";
+import { CommandPalette } from "@/components/admin/CommandPalette";
 
 interface NavItem {
   labelKey: string;
@@ -162,6 +163,7 @@ export function DashboardLayout({ children }: DashboardLayoutProps) {
   const [isSidebarOpen, setIsSidebarOpen] = useState(false);
   const [isUserMenuOpen, setIsUserMenuOpen] = useState(false);
   const [currentHash, setCurrentHash] = useState("");
+  const [cmdOpen, setCmdOpen] = useState(false);
 
   useEffect(() => {
     if (typeof window === "undefined") {
@@ -173,6 +175,18 @@ export function DashboardLayout({ children }: DashboardLayoutProps) {
     window.addEventListener("hashchange", updateHash);
     return () => window.removeEventListener("hashchange", updateHash);
   }, []);
+
+  useEffect(() => {
+    if (!isAdmin) return;
+    const handler = (e: KeyboardEvent) => {
+      if ((e.metaKey || e.ctrlKey) && e.key === "k") {
+        e.preventDefault();
+        setCmdOpen((prev) => !prev);
+      }
+    };
+    window.addEventListener("keydown", handler);
+    return () => window.removeEventListener("keydown", handler);
+  }, [isAdmin]);
 
   const navItems = isAdmin
     ? adminNavItems
@@ -450,6 +464,10 @@ export function DashboardLayout({ children }: DashboardLayoutProps) {
         {/* Page content */}
         <main className="p-4 sm:p-6 lg:p-8">{children}</main>
       </div>
+
+      {isAdmin && (
+        <CommandPalette open={cmdOpen} onOpenChange={setCmdOpen} />
+      )}
     </div>
   );
 }
