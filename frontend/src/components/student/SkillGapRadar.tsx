@@ -28,8 +28,12 @@ export interface SkillGapRow {
   gap: number;
 }
 
+import { useTranslation } from "@/contexts/TranslationContext";
+
 export function SkillGapRadar({ data }: { data: SkillGapRow[] }) {
   const [mounted, setMounted] = useState(false);
+  const { locale } = useTranslation();
+  const yourLevelLabel = locale === "ru" ? "Ваш уровень" : "Sizning daraja";
   useEffect(() => {
     setMounted(true);
   }, []);
@@ -88,7 +92,7 @@ export function SkillGapRadar({ data }: { data: SkillGapRow[] }) {
 
           {/* Current level — gradient brand fill */}
           <Radar
-            name="Sizning daraja"
+            name={yourLevelLabel}
             dataKey="level"
             stroke="url(#radarStrokeBrand)"
             strokeWidth={2}

@@ -108,8 +108,31 @@ export function ResumePreview({ content, title, className, isPlaceholder, locale
   const certifications = asArray<LooseRecord>(rawContent.certifications);
   const languages = asArray<LooseRecord>(rawContent.languages);
   const skills = asRecord(rawContent.skills);
-  const technicalSkills = asArray<string>(skills.technical || skills.technical_skills || skills.tools_technologies);
-  const softSkills = asArray<string>(skills.soft || skills.soft_skills);
+  // Skills payloads in the wild come in two shapes:
+  //   1. string[]                                  — already flat
+  //   2. Array<{ category: string; skills: string[] }>  — nested by category
+  // Render-time SkillGroup expects plain strings, so flatten upstream.
+  const flattenSkillList = (value: unknown): string[] => {
+    const arr = asArray<unknown>(value);
+    const out: string[] = [];
+    for (const item of arr) {
+      if (typeof item === "string") {
+        if (item.trim()) out.push(item.trim());
+      } else if (item && typeof item === "object") {
+        const inner = (item as Record<string, unknown>).skills;
+        if (Array.isArray(inner)) {
+          for (const s of inner) {
+            if (typeof s === "string" && s.trim()) out.push(s.trim());
+          }
+        }
+      }
+    }
+    return out;
+  };
+  const technicalSkills = flattenSkillList(
+    skills.technical || skills.technical_skills || skills.tools_technologies,
+  );
+  const softSkills = flattenSkillList(skills.soft || skills.soft_skills);
 
   return (
     <article className={cn("relative min-h-[297mm] overflow-hidden bg-[#f8fafc] text-slate-900", className)}>

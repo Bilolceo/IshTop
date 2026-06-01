@@ -12,7 +12,7 @@
 
 "use client";
 
-import { useEffect, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import { useRouter } from "next/navigation";
 import { useForm } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
@@ -64,30 +64,48 @@ import { plainTextToRichHtml, sanitizeRichTextHtml, stripHtmlTags } from "@/lib/
 // VALIDATION SCHEMA
 // =============================================================================
 
-const jobSchema = z.object({
-  title: z.string().min(3, "Lavozim nomi kamida 3 ta belgi bo'lishi kerak"),
-  department: z.string().optional(),
-  location: z.string().min(2, "Joylashuv kiritilishi shart"),
-  jobType: z.enum(["full_time", "part_time", "contract", "internship", "remote"]),
-  experienceLevel: z.enum(["entry", "junior", "mid", "senior", "lead", "executive"]),
-  salaryMin: z.number().min(0).optional(),
-  salaryMax: z.number().min(0).optional(),
-  salaryCurrency: z.enum(["UZS", "USD"]).default("UZS"),
-  isSalaryVisible: z.boolean().default(true),
-  description: z
-    .string()
-    .refine(
-      (value) => stripHtmlTags(value).length >= 100,
-      "Tavsif kamida 100 ta belgi bo'lishi kerak",
-    ),
-  requirements: z.string().min(50, "Talablar kamida 50 ta belgi bo'lishi kerak"),
-  benefits: z.string().optional(),
-  skills: z.array(z.string()).min(1, "Kamida 1 ta ko'nikma kiriting"),
-  deadline: z.string().optional(),
-  vacancies: z.number().min(1).default(1),
-});
+// Validation messages: factory so we instantiate per-locale inside the
+// component. Zod captures the message string at schema-creation time, so a
+// module-level schema would lock all users to one language.
+function buildJobSchema(isRu: boolean) {
+  const m = isRu
+    ? {
+        titleMin: "Название должности должно содержать не менее 3 символов",
+        locationReq: "Местоположение обязательно",
+        descriptionMin: "Описание должно содержать не менее 100 символов",
+        requirementsMin: "Требования должны содержать не менее 50 символов",
+        skillsMin: "Добавьте хотя бы один навык",
+      }
+    : {
+        titleMin: "Lavozim nomi kamida 3 ta belgi bo'lishi kerak",
+        locationReq: "Joylashuv kiritilishi shart",
+        descriptionMin: "Tavsif kamida 100 ta belgi bo'lishi kerak",
+        requirementsMin: "Talablar kamida 50 ta belgi bo'lishi kerak",
+        skillsMin: "Kamida 1 ta ko'nikma kiriting",
+      };
 
-type JobFormData = z.infer<typeof jobSchema>;
+  return z.object({
+    title: z.string().min(3, m.titleMin),
+    department: z.string().optional(),
+    location: z.string().min(2, m.locationReq),
+    jobType: z.enum(["full_time", "part_time", "contract", "internship", "remote"]),
+    experienceLevel: z.enum(["entry", "junior", "mid", "senior", "lead", "executive"]),
+    salaryMin: z.number().min(0).optional(),
+    salaryMax: z.number().min(0).optional(),
+    salaryCurrency: z.enum(["UZS", "USD"]).default("UZS"),
+    isSalaryVisible: z.boolean().default(true),
+    description: z
+      .string()
+      .refine((value) => stripHtmlTags(value).length >= 100, m.descriptionMin),
+    requirements: z.string().min(50, m.requirementsMin),
+    benefits: z.string().optional(),
+    skills: z.array(z.string()).min(1, m.skillsMin),
+    deadline: z.string().optional(),
+    vacancies: z.number().min(1).default(1),
+  });
+}
+
+type JobFormData = z.infer<ReturnType<typeof buildJobSchema>>;
 
 // =============================================================================
 // CONSTANTS
@@ -138,6 +156,8 @@ export default function NewJobPage() {
   const [aiLocale, setAiLocale] = useState<"uz" | "ru" | "en">(locale === "ru" ? "ru" : "uz");
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [skillInput, setSkillInput] = useState("");
+
+  const jobSchema = useMemo(() => buildJobSchema(isRu), [isRu]);
 
   const {
     register,
