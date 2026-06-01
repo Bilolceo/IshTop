@@ -61,7 +61,7 @@ export function Nav() {
             <li key={item.href}>
               <a
                 href={item.href}
-                className="focus-ring rounded-full px-3 py-2 text-sm font-medium text-white/70 transition hover:text-white"
+                className="focus-ring rounded-full px-3 py-2 text-sm font-medium text-white/85 transition hover:text-white"
               >
                 {label(item)}
               </a>
@@ -69,16 +69,19 @@ export function Nav() {
           ))}
         </ul>
 
-        <div className="hidden items-center gap-2 md:flex">
-          <div className="rounded-full border border-white/10 bg-white/[0.03] p-0.5">
+        <div className="hidden items-center gap-1.5 md:flex">
+          {/* Language + theme toggles are utility controls — tone them down so
+              the primary "Bepul boshlash" CTA is the dominant visual target.
+              No bordered chip, no background pill — same compact size, less weight. */}
+          <div className="opacity-75 transition hover:opacity-100">
             <LanguageSwitcher />
           </div>
-          <div className="rounded-full border border-white/10 bg-white/[0.03] p-0.5">
+          <div className="opacity-75 transition hover:opacity-100">
             <ThemeToggle />
           </div>
           <Link
             href="/login"
-            className="focus-ring rounded-full px-4 py-2 text-sm font-semibold text-white/80 hover:text-white"
+            className="focus-ring rounded-full px-4 py-2 text-sm font-semibold text-white/90 hover:text-white"
           >
             {locale === "ru" ? "Войти" : locale === "en" ? "Sign in" : "Kirish"}
           </Link>

@@ -37,7 +37,7 @@ const COPY: Record<Locale, {
   trust: string;
 }> = {
   uz: {
-    eyebrow: "AI-quvvatli karyera platformasi",
+    eyebrow: "Talabalar va junior mutaxassislar uchun AI-karyera",
     title: (h) => (
       <>
         Birinchi ishingizni{" "}
@@ -46,14 +46,15 @@ const COPY: Record<Locale, {
       </>
     ),
     subtitle:
-      "IshTop AI sizning ko'nikmalaringizni tahlil qiladi, eng mos vakansiyalarni tushuntirib taklif etadi va arizalarni soniyalar ichida yuboradi. Talabalar va junior mutaxassislar uchun.",
-    primary: "AI'ni sinab ko'rish",
-    secondary: "Bepul ro'yxatdan o'tish",
+      "O'zbekiston talabalari, bitiruvchilari va junior mutaxassislari uchun. AI rezyumengizni tahlil qiladi, mos internship va junior vakansiyalarni taklif etadi va arizani soniyalar ichida yuboradi.",
+    // primary = signup (conversion), secondary = demo (exploration)
+    primary: "Bepul boshlash",
+    secondary: "AI demo ko'rish",
     badges: ["AI Resume", "Explainable Match", "Auto-apply"],
     trust: "10 000+ talaba allaqachon foydalanmoqda",
   },
   ru: {
-    eyebrow: "AI-платформа для карьеры",
+    eyebrow: "AI-карьера для студентов и junior-специалистов",
     title: (h) => (
       <>
         Найди первую работу — {h("осознанно")}
@@ -61,23 +62,23 @@ const COPY: Record<Locale, {
       </>
     ),
     subtitle:
-      "IshTop AI анализирует твои навыки, объясняет, почему вакансия подходит, и помогает откликаться за секунды. Создано для студентов и junior-специалистов.",
-    primary: "Попробовать AI",
-    secondary: "Регистрация",
+      "Для студентов, выпускников и junior-специалистов Узбекистана. AI анализирует ваши навыки, подбирает стажировки и junior-вакансии и помогает откликаться за секунды.",
+    primary: "Начать бесплатно",
+    secondary: "Посмотреть AI демо",
     badges: ["AI Resume", "Explainable Match", "Auto-apply"],
     trust: "Более 10 000 студентов уже с нами",
   },
   en: {
-    eyebrow: "AI-powered career platform",
+    eyebrow: "AI career platform for students & juniors",
     title: (h) => (
       <>
         Land your first job — {h("with confidence")}.
       </>
     ),
     subtitle:
-      "IshTop AI reads your skills, explains why a job fits, and applies in seconds. Built for students and early-career talent in Uzbekistan.",
-    primary: "Try the AI",
-    secondary: "Sign up free",
+      "For students, graduates and junior talent in Uzbekistan. AI reads your skills, matches you to internships and entry-level roles and applies in seconds.",
+    primary: "Get started free",
+    secondary: "Watch AI demo",
     badges: ["AI Resume", "Explainable Match", "Auto-apply"],
     trust: "10,000+ students already onboard",
   },
@@ -198,7 +199,7 @@ export function Hero({ cms }: { cms?: HeroCmsPayload }) {
           className="pointer-events-none absolute -right-32 top-40 h-[480px] w-[480px] rounded-full bg-gradient-to-br from-cyan-400/40 to-blue-500/0 blur-[120px]"
         />
 
-        <div className="section-shell perspective-1600 relative grid items-center gap-10 pb-16 sm:gap-12 sm:pb-24 lg:grid-cols-[1.05fr_0.95fr] lg:gap-16 lg:pb-32">
+        <div className="section-shell perspective-1600 relative grid items-center gap-10 pb-16 sm:gap-12 sm:pb-24 lg:grid-cols-[1fr_1.15fr] lg:gap-14 lg:pb-32">
           {/* Left: copy with scroll parallax */}
           <motion.div style={{ y: heroYSpring, opacity: heroOpacity }}>
             <motion.span
@@ -235,17 +236,16 @@ export function Hero({ cms }: { cms?: HeroCmsPayload }) {
               transition={{ duration: 0.6, delay: 0.22 }}
               className="mt-8 flex flex-col gap-3 sm:flex-row sm:items-center"
             >
-              {/* Primary: scroll to live AI demo — visitors play the product
-                  before being asked to register. Higher conversion funnel.
-                  Local text is used because the CMS label predates this behavior. */}
-              <a href="#live-demo" className="btn-aurora focus-ring group">
-                <PlayCircle className="h-4 w-4" aria-hidden />
+              {/* Primary: signup — direct conversion. Secondary: jump to the
+                  live AI demo for visitors who want to see the product first. */}
+              <Link href="/register" className="btn-aurora focus-ring group">
                 {c.primary}
                 <ArrowRight className="h-4 w-4 transition group-hover:translate-x-0.5" aria-hidden />
-              </a>
-              <Link href="/register" className="btn-ghost-dark focus-ring">
-                {c.secondary}
               </Link>
+              <a href="#live-demo" className="btn-ghost-dark focus-ring group">
+                <PlayCircle className="h-4 w-4" aria-hidden />
+                {c.secondary}
+              </a>
             </motion.div>
 
             <motion.div
@@ -291,10 +291,14 @@ export function Hero({ cms }: { cms?: HeroCmsPayload }) {
             </div>
           </motion.div>
 
-          {/* Right: 3D tiltable hero mock with scroll parallax */}
+          {/* Right: 3D tiltable hero mock with scroll parallax.
+              On desktop, pin to the right edge of the grid cell so the right
+              ambient orb fills what used to look like dead space. The card
+              itself is allowed to grow up to lg:max-w-xl, and the floating
+              side-cards extend slightly past it for depth. */}
           <motion.div
             style={{ y: cardYSpring, rotateX: cardRxSpring, transformStyle: "preserve-3d" }}
-            className="perspective-1600 relative mx-auto w-full max-w-md lg:max-w-none"
+            className="perspective-1600 relative mx-auto w-full max-w-md lg:ml-auto lg:mr-0 lg:max-w-xl"
             aria-hidden
           >
             {/* Conic halo */}
@@ -318,7 +322,7 @@ export function Hero({ cms }: { cms?: HeroCmsPayload }) {
                       <p className="text-sm font-semibold leading-tight text-white">
                         Junior Frontend Developer
                       </p>
-                      <p className="mt-0.5 text-xs leading-snug text-white/60">
+                      <p className="mt-0.5 text-xs leading-snug text-white/75">
                         Uzum Market · Toshkent
                       </p>
                     </div>
@@ -332,10 +336,10 @@ export function Hero({ cms }: { cms?: HeroCmsPayload }) {
                   className="mt-5 rounded-2xl border border-white/10 bg-white/[0.03] p-4"
                   style={{ transform: "translateZ(20px)" }}
                 >
-                  <p className="text-[11px] font-semibold uppercase tracking-[0.18em] text-white/50">
+                  <p className="text-[11px] font-semibold uppercase tracking-[0.18em] text-white/70">
                     Nega mos keladi
                   </p>
-                  <ul className="mt-2 space-y-2 text-sm text-white/80">
+                  <ul className="mt-2 space-y-2 text-sm text-white/90">
                     <li className="flex items-start gap-2">
                       <CheckCircle2 className="mt-0.5 h-4 w-4 text-emerald-300" />
                       React, TypeScript va Tailwind portfolio'da topildi
@@ -355,7 +359,7 @@ export function Hero({ cms }: { cms?: HeroCmsPayload }) {
                   className="mt-4 flex items-center justify-between rounded-2xl border border-white/10 bg-white/[0.03] p-3"
                   style={{ transform: "translateZ(40px)" }}
                 >
-                  <div className="flex items-center gap-2 text-xs text-white/70">
+                  <div className="flex items-center gap-2 text-xs text-white/85">
                     <Sparkles className="h-3.5 w-3.5 text-amber-300" />
                     AI auto-apply tayyor
                   </div>
@@ -373,18 +377,24 @@ export function Hero({ cms }: { cms?: HeroCmsPayload }) {
               </div>
             </Tilt>
 
-            {/* Floating side cards — 3D z-translated */}
+            {/* Floating side cards — 3D z-translated. Positioned OUTSIDE
+                the main job card boundaries so they never cover its title,
+                checklist, or footer:
+                 - Resume score peeks above-left of the card top edge
+                 - Pipeline peeks below-right of the card bottom edge
+                Both are hidden on mobile (sm:block) — mobile uses the natural
+                vertical stack from the parent grid, no absolute overlap. */}
             <motion.div
               initial={reduce ? false : { y: 0 }}
               animate={reduce ? undefined : { y: [0, -8, 0] }}
               transition={{ duration: 6, repeat: Infinity, ease: "easeInOut" }}
-              className="absolute -left-6 top-12 hidden rounded-2xl border border-white/10 bg-white/[0.06] p-3 shadow-2xl backdrop-blur sm:block"
+              className="absolute -left-6 -top-24 hidden rounded-2xl border border-white/10 bg-white/[0.06] p-3 shadow-2xl backdrop-blur sm:block"
               style={{ transform: "translateZ(60px) rotateZ(-4deg)" }}
             >
-              <p className="text-[10px] font-semibold uppercase tracking-wider text-white/50">
+              <p className="text-[10px] font-semibold uppercase tracking-wider text-white/70">
                 Resume score
               </p>
-              <p className="text-2xl font-bold text-white">87<span className="text-base text-white/60">/100</span></p>
+              <p className="text-2xl font-bold text-white">87<span className="text-base text-white/75">/100</span></p>
               <div className="mt-1 h-1.5 w-28 overflow-hidden rounded-full bg-white/10">
                 <div className="h-full w-[87%] rounded-full bg-gradient-to-r from-violet-400 to-cyan-300" />
               </div>
@@ -394,14 +404,14 @@ export function Hero({ cms }: { cms?: HeroCmsPayload }) {
               initial={reduce ? false : { y: 0 }}
               animate={reduce ? undefined : { y: [0, 8, 0] }}
               transition={{ duration: 7, repeat: Infinity, ease: "easeInOut" }}
-              className="absolute -right-4 bottom-6 hidden min-w-[180px] whitespace-nowrap rounded-2xl border border-white/10 bg-white/[0.06] p-3 shadow-2xl backdrop-blur sm:block"
+              className="absolute -bottom-24 -right-6 hidden min-w-[180px] whitespace-nowrap rounded-2xl border border-white/10 bg-white/[0.06] p-3 shadow-2xl backdrop-blur sm:block"
               style={{ transform: "translateZ(80px) rotateZ(4deg)" }}
             >
-              <p className="flex items-center gap-1 text-[10px] font-semibold uppercase tracking-wider text-white/50">
+              <p className="flex items-center gap-1 text-[10px] font-semibold uppercase tracking-wider text-white/70">
                 <TrendingUp className="h-3 w-3" /> Pipeline
               </p>
               <p className="mt-0.5 text-sm font-semibold text-white">+3 ariza bugun</p>
-              <p className="text-[11px] text-emerald-300">2 ta suhbat tayinlandi</p>
+              <p className="text-[11px] font-medium text-emerald-200">2 ta suhbat tayinlandi</p>
             </motion.div>
 
             <motion.div

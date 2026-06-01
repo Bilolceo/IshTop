@@ -41,8 +41,12 @@ export function FinalCTA() {
   const c = COPY[L];
 
   return (
-    <section className="relative overflow-hidden py-24 sm:py-32" aria-labelledby="cta-heading">
-      <div className="aurora-bg absolute inset-x-4 inset-y-0 rounded-[40px] sm:inset-x-8 lg:inset-x-12" />
+    // Full-bleed dark gradient — matches Hero / AIFeatures / LiveDemoSection
+    // pattern (aurora-bg on the section itself). The earlier `absolute inset-x-4
+    // sm:inset-x-8 lg:inset-x-12 rounded-[40px]` wrapper left visible page
+    // background as side margins, which looked like the section was a floating
+    // card instead of an intentional full-width hero.
+    <section className="aurora-bg grain relative overflow-hidden py-24 sm:py-32" aria-labelledby="cta-heading">
       <div className="section-shell relative">
         <div className="mx-auto max-w-3xl rounded-[32px] border border-white/10 bg-white/[0.04] p-8 text-center backdrop-blur-xl sm:p-14">
           <span className="h-eyebrow !border-white/15 !bg-white/[0.06] !text-white/85">
