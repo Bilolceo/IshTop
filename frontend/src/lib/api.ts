@@ -422,6 +422,24 @@ export const adminApi = {
         created_at: string;
       }[];
     }>("/admin/audit-logs", { params }),
+
+  adminNotifications: (unread?: boolean) =>
+    api.get<{
+      success: boolean;
+      unread_count: number;
+      notifications: {
+        id: string;
+        type: string;
+        message: string;
+        link: string | null;
+        is_read: boolean;
+        created_at: string;
+      }[];
+    }>(`/admin/admin-notifications${unread ? "?unread=true" : ""}`),
+  markNotificationRead: (id: string) =>
+    api.post<{ success: boolean }>(`/admin/admin-notifications/${id}/read`),
+  markAllNotificationsRead: () =>
+    api.post<{ success: boolean }>("/admin/admin-notifications/read-all"),
 };
 
 export const landingApi = {

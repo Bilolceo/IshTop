@@ -33,6 +33,7 @@ import { UserAvatar } from "@/components/ui/avatar";
 import { cn } from "@/lib/utils";
 import { ThemeToggle } from "@/components/ui/theme-toggle";
 import { NotificationBell } from "@/components/NotificationBell";
+import { AdminNotificationBell } from "@/components/admin/AdminNotificationBell";
 import { useTranslation } from "@/hooks/useTranslation";
 import { LanguageSwitcher } from "@/components/ui/language-switcher";
 
@@ -385,7 +386,7 @@ export function DashboardLayout({ children }: DashboardLayoutProps) {
             <ThemeToggle />
 
             {/* Notifications */}
-            <NotificationBell />
+            {isAdmin ? <AdminNotificationBell /> : <NotificationBell />}
 
             {/* User menu */}
             <div className="relative">
