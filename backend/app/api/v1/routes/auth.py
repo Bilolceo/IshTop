@@ -549,7 +549,20 @@ async def register(
         db.refresh(user)
         
         logger.info(f"User registered successfully: {user.id}")
-        
+
+        # Notify admins when a company registers
+        if user.role == UserRole.COMPANY:
+            try:
+                from app.api.v1.routes.admin import create_admin_notification
+                create_admin_notification(
+                    db,
+                    type_="company_pending_verification",
+                    message=f"New company registered: {user.company_name or user.email}",
+                    link="/admin/companies",
+                )
+            except Exception as e:
+                logger.error(f"Failed to create admin notification for company registration: {e}")
+
         # Send welcome email (background)
         try:
             from app.services.email_service import email_service

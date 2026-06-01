@@ -49,6 +49,7 @@ from app.models import (
     ADMIN_PERMISSION_MATRIX,
 )
 from app.models.audit_log import AuditLog
+from app.models.admin_notification import AdminNotification
 from app.services.error_logging_service import (
     error_logger,
     ErrorCategory,
@@ -93,6 +94,24 @@ def write_audit(
         notes=notes,
     )
     db.add(entry)
+    db.commit()
+
+
+def create_admin_notification(
+    db: Session,
+    type_: str,
+    message: str,
+    link: str = None,
+    admin_id=None,
+) -> None:
+    """Create a notification for a specific admin or all admins (admin_id=None for broadcast)."""
+    notif = AdminNotification(
+        admin_id=admin_id,
+        type=type_,
+        message=message,
+        link=link,
+    )
+    db.add(notif)
     db.commit()
 
 
@@ -1359,3 +1378,97 @@ async def list_audit_logs(
             for log in logs
         ],
     }
+
+
+# =============================================================================
+# ADMIN NOTIFICATIONS
+# =============================================================================
+
+@router.get("/admin-notifications")
+async def list_admin_notifications(
+    unread: bool = Query(False),
+    limit: int = Query(20, ge=1, le=100),
+    db: Session = Depends(get_db),
+    current_admin: User = Depends(get_current_super_admin),
+):
+    """List notifications for the current admin (targeted + broadcasts)."""
+    q = (
+        db.query(AdminNotification)
+        .filter(
+            or_(
+                AdminNotification.admin_id == current_admin.id,
+                AdminNotification.admin_id.is_(None),
+            )
+        )
+        .order_by(AdminNotification.created_at.desc())
+    )
+
+    if unread:
+        q = q.filter(AdminNotification.is_read == False)  # noqa: E712
+
+    notifications = q.limit(limit).all()
+    unread_count = (
+        db.query(func.count(AdminNotification.id))
+        .filter(
+            or_(
+                AdminNotification.admin_id == current_admin.id,
+                AdminNotification.admin_id.is_(None),
+            ),
+            AdminNotification.is_read == False,  # noqa: E712
+        )
+        .scalar()
+        or 0
+    )
+
+    return {
+        "success": True,
+        "unread_count": unread_count,
+        "notifications": [
+            {
+                "id": str(n.id),
+                "type": n.type,
+                "message": n.message,
+                "link": n.link,
+                "is_read": n.is_read,
+                "created_at": n.created_at.isoformat(),
+            }
+            for n in notifications
+        ],
+    }
+
+
+@router.post("/admin-notifications/read-all")
+async def mark_all_notifications_read(
+    db: Session = Depends(get_db),
+    current_admin: User = Depends(get_current_super_admin),
+):
+    """Mark all notifications for the current admin as read."""
+    db.query(AdminNotification).filter(
+        or_(
+            AdminNotification.admin_id == current_admin.id,
+            AdminNotification.admin_id.is_(None),
+        ),
+        AdminNotification.is_read == False,  # noqa: E712
+    ).update({"is_read": True}, synchronize_session=False)
+    db.commit()
+    return {"success": True}
+
+
+@router.post("/admin-notifications/{notification_id}/read")
+async def mark_notification_read(
+    notification_id: str,
+    db: Session = Depends(get_db),
+    current_admin: User = Depends(get_current_super_admin),
+):
+    """Mark a single notification as read."""
+    try:
+        nid = UUID(notification_id)
+    except ValueError:
+        raise HTTPException(status_code=400, detail="Invalid notification ID")
+
+    notif = db.query(AdminNotification).filter(AdminNotification.id == nid).first()
+    if not notif:
+        raise HTTPException(status_code=404, detail="Notification not found")
+    notif.is_read = True
+    db.commit()
+    return {"success": True}
