@@ -43,7 +43,12 @@ export function CommandPalette({ open, onOpenChange }: Props) {
 
   const navigate = (href: string) => {
     onOpenChange(false);
-    router.push(href);
+    // Hash routes need window.location for anchor scrolling; router.push doesn't scroll to hash in App Router
+    if (href.includes("#")) {
+      window.location.href = href;
+    } else {
+      router.push(href);
+    }
   };
 
   return (
