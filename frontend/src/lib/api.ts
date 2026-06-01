@@ -668,10 +668,74 @@ export function formatValidationDetails(value: unknown): string | undefined {
   return undefined;
 }
 
+/**
+ * Read the user's selected locale without a React context.
+ * Mirrors getPreferredLocale() in lib/i18n but kept tiny here so api.ts
+ * stays usable from non-React modules (axios interceptors, hooks, SSR).
+ */
+type UiLocale = "uz" | "ru";
+
+function getActiveLocale(): UiLocale {
+  if (typeof window === "undefined") return "uz";
+  try {
+    const stored = window.localStorage.getItem("locale");
+    if (stored === "ru" || stored === "uz") return stored;
+  } catch {
+    // localStorage may be unavailable (Safari private mode, SSR rehydrate);
+    // fall through to default.
+  }
+  return "uz";
+}
+
+/** Localized fallback message tables for known HTTP statuses. */
+const STATUS_MESSAGES: Record<UiLocale, Record<number | "generic" | "non_axios", string>> = {
+  uz: {
+    400: "Noto'g'ri so'rov. Iltimos, ma'lumotlarni tekshirib qayta urinib ko'ring.",
+    401: "Tizimga kirishingiz kerak.",
+    403: "Bu amalni bajarishga ruxsatingiz yo'q.",
+    404: "So'ralgan ma'lumot topilmadi.",
+    409: "Bu allaqachon mavjud.",
+    422: "Kiritilgan ma'lumotlar noto'g'ri.",
+    429: "Juda ko'p so'rov yuborildi. Iltimos, biroz kutib turing.",
+    500: "Kutilmagan xatolik yuz berdi. Iltimos, qayta urinib ko'ring.",
+    generic: "Xatolik yuz berdi. Iltimos, qayta urinib ko'ring.",
+    non_axios: "Kutilmagan xatolik yuz berdi.",
+  },
+  ru: {
+    400: "Неверный запрос. Пожалуйста, проверьте введённые данные.",
+    401: "Пожалуйста, войдите в систему.",
+    403: "У вас нет прав на это действие.",
+    404: "Запрашиваемый ресурс не найден.",
+    409: "Этот ресурс уже существует.",
+    422: "Введённые данные недопустимы.",
+    429: "Слишком много запросов. Пожалуйста, попробуйте позже.",
+    500: "Произошла непредвиденная ошибка. Пожалуйста, попробуйте ещё раз.",
+    generic: "Произошла ошибка. Пожалуйста, попробуйте ещё раз.",
+    non_axios: "Произошла непредвиденная ошибка.",
+  },
+};
+
+/** "Upgrade at …" copy for 402/Premium gate, localized. */
+function premiumGateText(locale: UiLocale, baseMessage: string, upgradeUrl: string): string {
+  if (locale === "ru") {
+    return `${baseMessage} Перейдите по ссылке ${upgradeUrl}, чтобы продолжить.`;
+  }
+  return `${baseMessage} Davom etish uchun ${upgradeUrl} sahifasiga o'ting.`;
+}
+
+function defaultPremiumBase(locale: UiLocale): string {
+  return locale === "ru"
+    ? "Эта функция доступна только в Premium или Enterprise подписке."
+    : "Bu funksiya faqat Premium yoki Enterprise obunada mavjud.";
+}
+
 export function getApiErrorInfo(error: unknown): ApiErrorInfo {
+  const locale = getActiveLocale();
+  const msgs = STATUS_MESSAGES[locale];
+
   if (!axios.isAxiosError(error)) {
     return {
-      message: error instanceof Error ? error.message : "An unexpected error occurred.",
+      message: error instanceof Error ? error.message : msgs.non_axios,
     };
   }
 
@@ -712,45 +776,24 @@ export function getApiErrorInfo(error: unknown): ApiErrorInfo {
 
   if (status === 402) {
     const upgradeUrl = detailInfo.upgradeUrl || "/pricing";
-    const baseMessage =
-      explicitMessage ||
-      "This feature requires an active Premium or Enterprise subscription.";
-
+    const baseMessage = explicitMessage || defaultPremiumBase(locale);
     return {
-      message: `${baseMessage} Upgrade at ${upgradeUrl} to continue.`,
+      message: premiumGateText(locale, baseMessage, upgradeUrl),
       status,
       upgradeUrl,
       isPremiumRequired: true,
     };
   }
 
+  // Backend's explicit message wins — it may already be localized, and we
+  // never want to silently swallow a server-supplied human-readable error.
   if (explicitMessage) {
     return { message: explicitMessage, status };
   }
 
-  switch (status) {
-    case 400:
-      return { message: "Invalid request. Please check your input.", status };
-    case 401:
-      return { message: "Please log in to continue.", status };
-    case 403:
-      return { message: "You don't have permission to perform this action.", status };
-    case 404:
-      return { message: "The requested resource was not found.", status };
-    case 409:
-      return { message: "This resource already exists.", status };
-    case 422:
-      return { message: "The provided data is invalid.", status };
-    case 429:
-      return { message: "Too many requests. Please try again later.", status };
-    case 500:
-      return { message: "An unexpected error occurred. Please try again.", status };
-    default:
-      return {
-        message: error instanceof Error ? error.message : "An error occurred.",
-        status,
-      };
-  }
+  // No backend message → fall back to localized status-code default.
+  const fallback = (status !== undefined && msgs[status]) || msgs.generic;
+  return { message: fallback, status };
 }
 
 /**
