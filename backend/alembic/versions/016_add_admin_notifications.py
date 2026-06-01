@@ -7,6 +7,7 @@ Create Date: 2026-05-31
 
 from alembic import op
 import sqlalchemy as sa
+from sqlalchemy.dialects import postgresql
 
 revision = "016_add_admin_notifications"
 down_revision = "015_add_audit_log"
@@ -14,13 +15,24 @@ branch_labels = None
 depends_on = None
 
 
+def _uuid_type():
+    """UUID column type matching users.id (GUID): native UUID on Postgres, CHAR(36) on SQLite.
+
+    admin_notifications.admin_id is a foreign key to users.id, which is a native
+    UUID column on Postgres. Declaring it as String makes the FK unimplementable
+    (DatatypeMismatch). SQLite has no native UUID, so fall back to String(36).
+    """
+    return sa.String(36) if op.get_bind().dialect.name == "sqlite" else postgresql.UUID(as_uuid=True)
+
+
 def upgrade():
+    uuid_type = _uuid_type()
     op.create_table(
         "admin_notifications",
-        sa.Column("id", sa.String(36), primary_key=True),
+        sa.Column("id", uuid_type, primary_key=True),
         sa.Column(
             "admin_id",
-            sa.String(36),
+            uuid_type,
             sa.ForeignKey("users.id", ondelete="CASCADE"),
             nullable=True,
         ),
