@@ -165,6 +165,8 @@ from app.models.landing_content import (
 
 from app.models.audit_log import AuditLog
 from app.models.admin_notification import AdminNotification
+from app.models.verification_audit_log import VerificationAuditLog
+from app.models.funnel_event import FunnelEvent
 
 # =============================================================================
 # EXPORT ALL (for `from app.models import *`)
@@ -224,6 +226,8 @@ __all__ = [
     "LandingContent",
     "AuditLog",
     "AdminNotification",
+    "VerificationAuditLog",
+    "FunnelEvent",
 ]
 
 # =============================================================================
