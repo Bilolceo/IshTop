@@ -64,5 +64,13 @@ export default async function LandingPage() {
   const cmsPayloadUz = await fetchLanding("uz");
   const cmsPayloadRu = await fetchLanding("ru");
 
-  return <LandingPageClient cmsPayload={cmsPayloadUz || cmsPayloadRu} />;
+  // Pass both locale payloads so Hero/LandingPageClient can render the
+  // matching one once the user's locale is known on the client. Previously
+  // only the UZ payload was passed, so a RU visitor saw UZ CMS text.
+  return (
+    <LandingPageClient
+      cmsPayload={cmsPayloadUz || cmsPayloadRu}
+      cmsPayloads={{ uz: cmsPayloadUz, ru: cmsPayloadRu }}
+    />
+  );
 }

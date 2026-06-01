@@ -15,55 +15,59 @@ Locale = Literal["uz", "ru"]
 
 
 def default_payload(locale: Locale) -> Dict[str, Any]:
+    """Default CMS payload. IshTop is an AI-career platform for Uzbekistan
+    students, graduates, interns, and junior specialists — not a generic
+    senior job board. Admins can override via the /admin/landing CMS editor.
+    """
     if locale == "ru":
         return {
             "hero": {
-                "title": "ИИ-платформа карьеры для Узбекистана",
-                "subtitle": "Создавайте резюме с AI и находите лучшие вакансии быстрее.",
+                "title": "AI-карьера для студентов и junior-специалистов Узбекистана",
+                "subtitle": "Создавайте AI-резюме, находите стажировки и junior-вакансии, откликайтесь за минуты.",
                 "primaryCta": "Начать бесплатно",
-                "secondaryCta": "Смотреть демо",
+                "secondaryCta": "Посмотреть AI демо",
             },
             "stats": [
-                {"value": "50K+", "label": "Резюме создано"},
-                {"value": "10K+", "label": "Пользователей"},
-                {"value": "95%", "label": "Уровень успеха"},
-                {"value": "500+", "label": "Компаний"},
+                {"value": "10K+", "label": "Студентов и выпускников"},
+                {"value": "500+", "label": "Junior-вакансий и стажировок"},
+                {"value": "95%", "label": "Первый отклик за неделю"},
+                {"value": "60s", "label": "От AI-резюме до отклика"},
             ],
             "features": [],
             "howItWorks": [],
             "pricing": [],
             "testimonials": [],
             "cta": {
-                "title": "Готовы ускорить карьеру?",
-                "subtitle": "Присоединяйтесь к тысячам специалистов на IshTop.",
+                "title": "Готовы найти первую работу или стажировку?",
+                "subtitle": "Присоединяйтесь к студентам и junior-специалистам на IshTop.",
                 "button": "Начать бесплатно",
             },
-            "footer": {"description": "AI-карьерная платформа для Узбекистана."},
+            "footer": {"description": "AI-карьерная платформа для студентов и junior-специалистов Узбекистана."},
         }
 
     return {
         "hero": {
-            "title": "O'zbekiston uchun AI-quvvatli karyera platformasi",
-            "subtitle": "AI yordamida professional rezyume yarating va mos ishlarni tezroq toping.",
+            "title": "O'zbekiston talabalari uchun AI-karyera platformasi",
+            "subtitle": "Talabalar, bitiruvchilar va junior mutaxassislar uchun. AI rezyume yarating, mos internship va junior vakansiyalarni toping, arizani daqiqalar ichida yuboring.",
             "primaryCta": "Bepul boshlash",
-            "secondaryCta": "Demo ko'rish",
+            "secondaryCta": "AI demo ko'rish",
         },
         "stats": [
-            {"value": "50K+", "label": "Rezyumelar yaratildi"},
-            {"value": "10K+", "label": "Foydalanuvchilar"},
-            {"value": "95%", "label": "Muvaffaqiyat darajasi"},
-            {"value": "500+", "label": "Kompaniyalar"},
+            {"value": "10K+", "label": "Talaba va bitiruvchi"},
+            {"value": "500+", "label": "Junior vakansiya va internship"},
+            {"value": "95%", "label": "Bir hafta ichida birinchi javob"},
+            {"value": "60s", "label": "AI rezyumedan arizagacha"},
         ],
         "features": [],
         "howItWorks": [],
         "pricing": [],
         "testimonials": [],
         "cta": {
-            "title": "Karyerangizni oshirishga tayyormisiz?",
-            "subtitle": "IshTop bilan orzuingizdagi ishga tezroq erishing.",
+            "title": "Birinchi ishingiz yoki internshipingiz tayyormi?",
+            "subtitle": "IshTop'da talabalar va junior mutaxassislar bilan birga karyerangizni boshlang.",
             "button": "Bepul boshlash",
         },
-        "footer": {"description": "O'zbekiston uchun AI-quvvatli karyera platformasi."},
+        "footer": {"description": "O'zbekiston talabalari va junior mutaxassislari uchun AI-karyera platformasi."},
     }
 
 

@@ -67,8 +67,8 @@ export const uz = {
   landing: {
     hero: {
       badge: "GPT-4 bilan ishlaydigan",
-      title: "O'zbekiston uchun AI-quvvatli karyera platformasi",
-      subtitle: "Sun'iy intellekt yordamida professional rezyume yarating, ideal ish o'rinlarini toping va karyerangizni tezlashtiring. 10,000+ mutaxassis allaqachon ish topdi.",
+      title: "O'zbekiston talabalari uchun AI-karyera platformasi",
+      subtitle: "Talabalar, bitiruvchilar va junior mutaxassislar uchun. AI rezyume yarating, mos internship va junior vakansiyalarni toping va arizani daqiqalar ichida yuboring.",
       cta: "Bepul boshlash",
       watchDemo: "Demo ko'rish",
     },
@@ -396,7 +396,7 @@ export const uz = {
       afternoon: "Xayrli kun",
       evening: "Xayrli kech",
     },
-    subtitle: "Bugun ish qidiruvingiz haqida ma'lumot",
+    subtitle: "Bugun talaba va junior karyerangiz haqida ma'lumot",
     
     // Sidebar Navigation
     sidebar: {

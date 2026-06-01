@@ -18,6 +18,7 @@ import { Nav } from "./sections/Nav";
 import { Hero } from "./sections/Hero";
 import { TrustLayer } from "./sections/TrustLayer";
 import { ScrollProgressBar } from "./sections/primitives";
+import { useTranslation } from "@/hooks/useTranslation";
 
 // Below-fold sections — deferred so they don't block first paint.
 // SSR enabled for SEO crawlers; client hydration is split into chunks.
@@ -54,10 +55,16 @@ type CmsPayload =
 
 interface LandingPageClientProps {
   cmsPayload?: CmsPayload;
+  cmsPayloads?: { uz?: CmsPayload; ru?: CmsPayload };
 }
 
-export default function LandingPageClient({ cmsPayload }: LandingPageClientProps) {
-  const hero = cmsPayload?.hero;
+export default function LandingPageClient({ cmsPayload, cmsPayloads }: LandingPageClientProps) {
+  const { locale } = useTranslation();
+  // Prefer the per-locale payload so an RU visitor sees the RU CMS hero.
+  // Fall back to the legacy single payload for callers that haven't been
+  // updated.
+  const activePayload = cmsPayloads?.[locale as "uz" | "ru"] ?? cmsPayload;
+  const hero = activePayload?.hero;
 
   return (
     <main className="relative flex min-h-screen flex-col bg-white text-surface-900 antialiased dark:bg-[#0B1020] dark:text-white">
