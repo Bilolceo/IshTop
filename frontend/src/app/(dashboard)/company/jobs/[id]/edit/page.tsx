@@ -11,6 +11,9 @@ import {
   X,
   AlertCircle,
   Briefcase,
+  BarChart3,
+  Eye,
+  TrendingUp,
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -24,9 +27,38 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@/components/ui/select";
-import { jobApi, getErrorMessage } from "@/lib/api";
+import { api, jobApi, applicationApi, getErrorMessage } from "@/lib/api";
 import type { Job } from "@/types/api";
 import { toast } from "sonner";
+import {
+  ResponsiveContainer,
+  LineChart,
+  Line,
+  CartesianGrid,
+  XAxis,
+  YAxis,
+  Tooltip,
+  BarChart,
+  Bar,
+} from "recharts";
+
+type JobAnalytics = {
+  summary: {
+    views: number;
+    applications: number;
+    conversion_pct: number;
+  };
+  daily_views: Array<{ date: string; count: number }>;
+  daily_applications: Array<{ date: string; count: number }>;
+  funnel: {
+    views: number;
+    applications: number;
+    screened: number;
+    interview: number;
+    hired: number;
+  };
+  source_breakdown: Array<{ source: string; count: number; share_pct: number }>;
+};
 
 export default function EditJobPage() {
   const router = useRouter();
@@ -45,10 +77,14 @@ export default function EditJobPage() {
   const [experienceLevel, setExperienceLevel] = useState("junior");
   const [salaryMin, setSalaryMin] = useState("");
   const [salaryMax, setSalaryMax] = useState("");
+  const [salaryCurrency, setSalaryCurrency] = useState<"UZS" | "USD">("UZS");
   const [skills, setSkills] = useState<string[]>([]);
   const [skillInput, setSkillInput] = useState("");
   const [education, setEducation] = useState("");
   const [experience, setExperience] = useState("");
+  const [analytics, setAnalytics] = useState<JobAnalytics | null>(null);
+  const [analyticsDays, setAnalyticsDays] = useState<7 | 30 | 90>(30);
+  const [analyticsLoading, setAnalyticsLoading] = useState(false);
 
   useEffect(() => {
     const fetchJob = async () => {
@@ -64,6 +100,8 @@ export default function EditJobPage() {
         setExperienceLevel(data.experience_level || "junior");
         setSalaryMin(data.salary_min?.toString() || "");
         setSalaryMax(data.salary_max?.toString() || "");
+        const normalizedCurrency = String(data.salary_currency || "").toUpperCase();
+        setSalaryCurrency(normalizedCurrency === "USD" ? "USD" : "UZS");
         setSkills(data.requirements?.skills || []);
         setEducation(data.requirements?.education || "");
         setExperience(data.requirements?.experience || "");
@@ -75,6 +113,34 @@ export default function EditJobPage() {
     };
     if (jobId) fetchJob();
   }, [jobId]);
+
+  useEffect(() => {
+    if (job) return;
+    api
+      .get("/users/me/notification-preferences")
+      .then((res) => {
+        const preferred = String(res.data?.data?.preferred_salary_currency || "UZS").toUpperCase();
+        setSalaryCurrency(preferred === "USD" ? "USD" : "UZS");
+      })
+      .catch(() => {});
+  }, [job]);
+
+  useEffect(() => {
+    const loadAnalytics = async () => {
+      if (!jobId) return;
+      try {
+        setAnalyticsLoading(true);
+        const response = await applicationApi.jobAnalytics(jobId, { days: analyticsDays });
+        const payload = response.data as { data?: JobAnalytics };
+        setAnalytics(payload.data || null);
+      } catch {
+        setAnalytics(null);
+      } finally {
+        setAnalyticsLoading(false);
+      }
+    };
+    void loadAnalytics();
+  }, [analyticsDays, jobId]);
 
   const addSkill = () => {
     const trimmed = skillInput.trim();
@@ -103,6 +169,7 @@ export default function EditJobPage() {
         experience_level: experienceLevel,
         salary_min: salaryMin ? Number(salaryMin) : undefined,
         salary_max: salaryMax ? Number(salaryMax) : undefined,
+        salary_currency: salaryCurrency,
         requirements: {
           skills,
           education: education || undefined,
@@ -233,22 +300,37 @@ export default function EditJobPage() {
           <h2 className="font-bold text-surface-900">Maosh (ixtiyoriy)</h2>
           <div className="grid gap-4 sm:grid-cols-2">
             <div>
-              <Label>Minimal maosh ($)</Label>
+              <Label>Valyuta</Label>
+              <Select
+                value={salaryCurrency}
+                onValueChange={(value) => setSalaryCurrency(value === "USD" ? "USD" : "UZS")}
+              >
+                <SelectTrigger className="mt-1">
+                  <SelectValue />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="UZS">UZS</SelectItem>
+                  <SelectItem value="USD">USD</SelectItem>
+                </SelectContent>
+              </Select>
+            </div>
+            <div>
+              <Label>Minimal maosh ({salaryCurrency})</Label>
               <Input
                 type="number"
                 value={salaryMin}
                 onChange={(e) => setSalaryMin(e.target.value)}
-                placeholder="500"
+                placeholder={salaryCurrency === "USD" ? "1200" : "5,000,000"}
                 className="mt-1"
               />
             </div>
             <div>
-              <Label>Maksimal maosh ($)</Label>
+              <Label>Maksimal maosh ({salaryCurrency})</Label>
               <Input
                 type="number"
                 value={salaryMax}
                 onChange={(e) => setSalaryMax(e.target.value)}
-                placeholder="2000"
+                placeholder={salaryCurrency === "USD" ? "3000" : "15,000,000"}
                 className="mt-1"
               />
             </div>
@@ -290,7 +372,7 @@ export default function EditJobPage() {
                   className="flex items-center gap-1 rounded-full bg-purple-100 px-3 py-1 text-sm font-medium text-purple-700"
                 >
                   {skill}
-                  <button onClick={() => removeSkill(skill)}>
+                  <button type="button" onClick={() => removeSkill(skill)}>
                     <X className="h-3 w-3" />
                   </button>
                 </span>
@@ -330,6 +412,134 @@ export default function EditJobPage() {
           O'zgarishlarni saqlash
         </Button>
       </div>
+
+      <motion.div
+        initial={{ opacity: 0, y: 20 }}
+        animate={{ opacity: 1, y: 0 }}
+        className="space-y-4 rounded-2xl border border-surface-200 bg-white p-6 shadow-sm dark:border-surface-700 dark:bg-surface-800"
+      >
+        <div className="flex flex-wrap items-center justify-between gap-3">
+          <h2 className="flex items-center gap-2 font-bold text-surface-900">
+            <BarChart3 className="h-5 w-5 text-brand-600" />
+            Analitika
+          </h2>
+          <div className="inline-flex rounded-lg border border-surface-200 p-1 dark:border-surface-700">
+            {[7, 30, 90].map((d) => (
+              <button
+                key={d}
+                onClick={() => setAnalyticsDays(d as 7 | 30 | 90)}
+                className={`rounded-md px-3 py-1 text-xs font-semibold ${
+                  analyticsDays === d
+                    ? "bg-brand-600 text-white"
+                    : "text-surface-600 hover:bg-surface-100 dark:text-surface-300 dark:hover:bg-surface-700"
+                }`}
+              >
+                {d} kun
+              </button>
+            ))}
+          </div>
+        </div>
+
+        <div className="grid gap-3 sm:grid-cols-3">
+          <div className="rounded-xl border border-surface-200 p-3 dark:border-surface-700">
+            <p className="text-xs text-surface-500">Ko'rishlar soni</p>
+            <p className="mt-1 flex items-center gap-2 text-2xl font-bold">
+              <Eye className="h-5 w-5 text-surface-400" />
+              {analyticsLoading ? "..." : analytics?.summary.views ?? 0}
+            </p>
+          </div>
+          <div className="rounded-xl border border-surface-200 p-3 dark:border-surface-700">
+            <p className="text-xs text-surface-500">Arizalar soni</p>
+            <p className="mt-1 text-2xl font-bold">{analyticsLoading ? "..." : analytics?.summary.applications ?? 0}</p>
+          </div>
+          <div className="rounded-xl border border-surface-200 p-3 dark:border-surface-700">
+            <p className="text-xs text-surface-500">Konversiya</p>
+            <p className="mt-1 flex items-center gap-2 text-2xl font-bold">
+              <TrendingUp className="h-5 w-5 text-surface-400" />
+              {analyticsLoading ? "..." : `${analytics?.summary.conversion_pct ?? 0}%`}
+            </p>
+          </div>
+        </div>
+
+        {analyticsLoading ? (
+          <Skeleton className="h-72 rounded-xl" />
+        ) : analytics ? (
+          <>
+            <div className="grid gap-4 lg:grid-cols-2">
+              <div className="h-64 rounded-xl border border-surface-200 p-2 dark:border-surface-700">
+                <ResponsiveContainer width="100%" height="100%">
+                  <LineChart
+                    data={analytics.daily_views.map((item) => ({
+                      date: item.date.slice(5),
+                      value: item.count,
+                    }))}
+                  >
+                    <CartesianGrid strokeDasharray="3 3" />
+                    <XAxis dataKey="date" />
+                    <YAxis />
+                    <Tooltip />
+                    <Line type="monotone" dataKey="value" stroke="#06b6d4" strokeWidth={2} dot={false} />
+                  </LineChart>
+                </ResponsiveContainer>
+              </div>
+              <div className="h-64 rounded-xl border border-surface-200 p-2 dark:border-surface-700">
+                <ResponsiveContainer width="100%" height="100%">
+                  <LineChart
+                    data={analytics.daily_applications.map((item) => ({
+                      date: item.date.slice(5),
+                      value: item.count,
+                    }))}
+                  >
+                    <CartesianGrid strokeDasharray="3 3" />
+                    <XAxis dataKey="date" />
+                    <YAxis />
+                    <Tooltip />
+                    <Line type="monotone" dataKey="value" stroke="#6366f1" strokeWidth={2} dot={false} />
+                  </LineChart>
+                </ResponsiveContainer>
+              </div>
+            </div>
+
+            <div className="h-64 rounded-xl border border-surface-200 p-2 dark:border-surface-700">
+              <ResponsiveContainer width="100%" height="100%">
+                <BarChart
+                  data={[
+                    { name: "Views", value: analytics.funnel.views },
+                    { name: "Applications", value: analytics.funnel.applications },
+                    { name: "Screened", value: analytics.funnel.screened },
+                    { name: "Interview", value: analytics.funnel.interview },
+                    { name: "Hired", value: analytics.funnel.hired },
+                  ]}
+                >
+                  <CartesianGrid strokeDasharray="3 3" />
+                  <XAxis dataKey="name" />
+                  <YAxis />
+                  <Tooltip />
+                  <Bar dataKey="value" fill="#4f46e5" radius={[6, 6, 0, 0]} />
+                </BarChart>
+              </ResponsiveContainer>
+            </div>
+
+            <div className="space-y-2">
+              <p className="text-sm font-semibold text-surface-900">Source breakdown</p>
+              {analytics.source_breakdown.length === 0 ? (
+                <p className="text-sm text-surface-500">Source ma'lumoti topilmadi</p>
+              ) : (
+                analytics.source_breakdown.map((item) => (
+                  <div key={item.source} className="flex items-center justify-between rounded-lg border border-surface-200 px-3 py-2 dark:border-surface-700">
+                    <span className="text-sm">{item.source}</span>
+                    <span className="text-sm font-semibold">
+                      {item.count} ({item.share_pct}%)
+                    </span>
+                  </div>
+                ))
+              )}
+            </div>
+          </>
+        ) : (
+          <p className="text-sm text-surface-500">Analitika ma'lumotlari mavjud emas.</p>
+        )}
+      </motion.div>
     </div>
   );
 }

@@ -521,8 +521,8 @@ def _build_match_breakdown(match_score: str, job_requirements: list[str], studen
         "matched_skills": matched,
         "missing_skills": missing,
         "reasons": [
-            "Skill overlap against job requirements",
-            "Experience alignment and profile completeness",
+            "Ko'nikmalar vakansiya talablariga mos keladi",
+            "Tajriba va profil to'liqligi hisobga olindi",
         ],
     }
 
@@ -718,7 +718,7 @@ def seed_applications(db, jobs, students, resumes):
                 f"Assalomu alaykum, men {job.title} lavozimiga ariza yubormoqchiman. "
                 f"Mening tajribam va ko'nikmalarim ushbu rolga mos keladi."
             ),
-            notes="Seeded for company dashboard testing",
+            notes="Intervyu jadvali va keyingi bosqichlar shu yerda yuritiladi.",
             match_score=item["match_score"],
             match_breakdown=_build_match_breakdown(item["match_score"], job.requirements or [], student_seed["skills"]),
             applied_at=applied_at,

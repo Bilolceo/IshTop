@@ -9,6 +9,8 @@ import {
   BookmarkCheck,
   Zap,
   Target,
+  ShieldCheck,
+  AlertTriangle,
 } from "lucide-react";
 import { useTranslation } from "@/hooks/useTranslation";
 import { Badge } from "@/components/ui/badge";
@@ -110,7 +112,7 @@ export function JobCard({
         </span>
         <span className="flex items-center gap-1">
           <DollarSign className="h-3 w-3" />
-          {formatSalaryRange(job.salary_min, job.salary_max, isRu ? "ru" : "uz") ||
+          {formatSalaryRange(job.salary_min, job.salary_max, isRu ? "ru" : "uz", job.salary_currency || "USD") ||
             (isRu ? "Зарплата не указана" : "Maosh ko'rsatilmagan")}
         </span>
         <span className="flex items-center gap-1">
@@ -132,6 +134,19 @@ export function JobCard({
             {job.matchScore}% {isRu ? "mos" : "mos"}
           </Badge>
         ) : null}
+        {typeof job.trust_score === "number" ? (
+          <Badge
+            variant={job.trust_score >= 75 ? "success" : job.trust_score >= 50 ? "warning" : "secondary"}
+            className="gap-1"
+          >
+            {job.trust_score >= 50 ? (
+              <ShieldCheck className="h-3 w-3" />
+            ) : (
+              <AlertTriangle className="h-3 w-3" />
+            )}
+            {Math.round(job.trust_score)} {isRu ? "доверие" : "ishonch"}
+          </Badge>
+        ) : null}
       </div>
 
       {/* Skills */}
@@ -147,6 +162,19 @@ export function JobCard({
           </Badge>
         )}
       </div>
+
+      {job.explainability && (
+        <div className="mt-3 rounded-xl border border-surface-200 bg-surface-50 px-3 py-2 text-xs dark:border-surface-700 dark:bg-surface-800/60">
+          <p className="font-semibold text-surface-700 dark:text-surface-200">
+            {isRu ? "Почему подходит" : "Nega mos"}
+          </p>
+          {job.explainability.fit_reasons[0] && (
+            <p className="mt-1 text-surface-600 dark:text-surface-300">
+              {job.explainability.fit_reasons[0]}
+            </p>
+          )}
+        </div>
+      )}
 
       {/* CTA row */}
       <div className="mt-4 flex justify-end">

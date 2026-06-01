@@ -29,7 +29,7 @@ import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { Skeleton } from "@/components/ui/skeleton";
 import { jobApi } from "@/lib/api";
-import { formatRelativeTime, formatSalaryRange, cn } from "@/lib/utils";
+import { formatRelativeTime, formatSalaryRange, cn, sanitizeRichTextHtml, stripHtmlTags } from "@/lib/utils";
 import type { Job } from "@/types/api";
 
 const jobTypeLabels: Record<string, string> = {
@@ -130,6 +130,8 @@ export default function JobDetailPage() {
 
   const companyName = job.company?.name || "Kompaniya";
   const companyLetter = companyName[0]?.toUpperCase() || "K";
+  const safeDescriptionHtml = sanitizeRichTextHtml(job.description || "");
+  const hasDescription = stripHtmlTags(job.description || "").length > 0;
 
   return (
     <div className="mx-auto max-w-4xl space-y-6 p-4 md:p-6">
@@ -168,6 +170,11 @@ export default function JobDetailPage() {
               <div className="mt-1 flex items-center gap-2 text-surface-600">
                 <Building2 className="h-4 w-4" />
                 <span className="font-medium">{companyName}</span>
+                {job.verification_state === "approved" && (
+                  <span className="rounded-full bg-emerald-100 px-2 py-0.5 text-xs font-semibold text-emerald-700">
+                    Tasdiqlangan kompaniya
+                  </span>
+                )}
               </div>
             </div>
           </div>
@@ -242,7 +249,7 @@ export default function JobDetailPage() {
             <div className="flex items-center gap-2 text-surface-600">
               <DollarSign className="h-4 w-4 text-surface-400" />
               <span className="text-sm font-medium text-green-600">
-                {formatSalaryRange(job.salary_min, job.salary_max)}
+                {formatSalaryRange(job.salary_min, job.salary_max, "uz", job.salary_currency || "USD")}
               </span>
             </div>
           )}
@@ -300,11 +307,14 @@ export default function JobDetailPage() {
         className="rounded-2xl border border-surface-200 bg-white p-6 dark:border-surface-700 dark:bg-surface-800 shadow-sm dark:border-surface-700 dark:bg-surface-800"
       >
         <h2 className="mb-4 text-lg font-bold text-surface-900">Ish tavsifi</h2>
-        <div className="prose prose-sm max-w-none text-surface-600">
-          <p className="whitespace-pre-wrap leading-relaxed">
-            {job.description || "Tavsif mavjud emas."}
-          </p>
-        </div>
+        {hasDescription ? (
+          <div
+            className="prose prose-sm max-w-none text-surface-600 dark:prose-invert dark:text-surface-300"
+            dangerouslySetInnerHTML={{ __html: safeDescriptionHtml }}
+          />
+        ) : (
+          <p className="text-surface-600 dark:text-surface-300">Tavsif mavjud emas.</p>
+        )}
       </motion.div>
 
       {/* Requirements */}

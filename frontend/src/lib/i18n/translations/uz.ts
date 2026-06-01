@@ -44,6 +44,7 @@ export const uz = {
     basicInfo: "Asosiy ma'lumotlar",
     company: "Kompaniya",
     student: "Talaba",
+    completeProfile: "Profilni to'ldirish",
   },
 
   // Navigation
@@ -1083,7 +1084,7 @@ export const uz = {
     drafts: "Qoralamalar",
     noJobsTitle: "Hali vakansiya yo'q",
     noJobsDescription: "Malakali nomzodlardan ariza olishni boshlash uchun birinchi vakansiyangizni yarating.",
-    postFirstJob: "Birinchi vakansiyani e'lon qilish",
+    postFirstJob: "Birinchi vakansiyangizni yarating",
     applicants: "nomzod",
     views: "ko'rish",
     posted: "E'lon qilingan",
@@ -1119,8 +1120,8 @@ export const uz = {
     senior: "Senior (5+ yil)",
     lead: "Lead/Manager",
     executive: "Director+",
-    minSalary: "Minimal maosh (UZS)",
-    maxSalary: "Maksimal maosh (UZS)",
+    minSalary: "Minimal maosh",
+    maxSalary: "Maksimal maosh",
     showSalary: "Maoshni ko'rsatish",
     showSalaryDesc: "Nomzodlarga maosh oralig'ini ko'rsatish",
     vacancies: "Bo'sh o'rinlar soni",

@@ -1,4 +1,5 @@
 import { test, expect } from '@playwright/test';
+import { loginViaApi, logoutViaApi } from './helpers/auth';
 
 /**
  * =============================================================================
@@ -201,42 +202,39 @@ test.describe('Authentication Flow', () => {
   // LOGOUT
   // ===========================================================================
 
-  test('should logout successfully', async ({ page, request }) => {
+  test('should logout successfully', async ({ page }) => {
     // Seed a fresh authenticated student to avoid cross-browser rate-limit collisions.
     const email = `logout.student.${Date.now()}@example.com`;
     const password = 'Student123!';
-    const registerRes = await request.post('http://127.0.0.1:8000/api/v1/auth/register', {
-      data: {
-        email,
-        password,
-        full_name: 'Logout Student',
-        phone: '+998901239999',
-        role: 'student',
+    const registerRes = await page.context().request.post(
+      'http://127.0.0.1:8000/api/v1/auth/register',
+      {
+        data: {
+          email,
+          password,
+          full_name: 'Logout Student',
+          phone: '+998901239999',
+          role: 'student',
+        },
+        headers: { 'content-type': 'application/json' },
       },
-      headers: { 'content-type': 'application/json' },
-    });
+    );
     expect(registerRes.ok()).toBeTruthy();
-    const authData = await registerRes.json();
-    const storageValue = JSON.stringify({
-      state: {
-        user: authData.user,
-        accessToken: authData.access_token,
-        refreshToken: authData.refresh_token,
-        isAuthenticated: true,
-        hasHydrated: true,
-      },
-      version: 0,
-    });
-    await page.addInitScript((value) => {
-      if (typeof value === 'string') localStorage.setItem('auth-storage', value);
-    }, storageValue);
+
+    // Login through the same BrowserContext so the httpOnly auth cookies
+    // land in the jar the page will use for the protected navigation.
+    await loginViaApi(page, email, password);
     await page.goto('/student');
     await expect(page).toHaveURL(/\/student/, { timeout: 10000 });
 
-    // Cross-browser reliable logout check: clear persisted auth and verify guard redirect.
-    await page.evaluate(() => localStorage.removeItem('auth-storage'));
-    const authStorage = await page.evaluate(() => localStorage.getItem('auth-storage'));
-    expect(authStorage).toBeNull();
+    // Real logout: hit /auth/logout (server clears Set-Cookie), then
+    // also force-clear the context cookies + persisted user metadata.
+    await logoutViaApi(page);
+
+    // Navigating to a protected route should now redirect to /login —
+    // that's the user-observable signal that logout actually worked.
+    await page.goto('/student');
+    await expect(page).toHaveURL(/\/login/, { timeout: 10000 });
   });
 
   // ===========================================================================

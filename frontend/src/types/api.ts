@@ -34,6 +34,16 @@ export interface User {
   company_industry?: string;
   company_logo_url?: string;
   company_website?: string;
+  company_cover_photo_url?: string;
+  company_gallery_images?: string[];
+  company_culture?: string;
+  company_linkedin_url?: string;
+  company_telegram_url?: string;
+  company_instagram_url?: string;
+  company_facebook_url?: string;
+  company_founded_year?: number;
+  company_video_url?: string;
+  verification_state?: "unverified" | "pending" | "approved" | "rejected" | string;
   bio?: string;
   location?: string;
   subscription_tier?: string;
@@ -185,7 +195,7 @@ export interface ResumeGenerateRequest {
 
 export type JobType = "full_time" | "part_time" | "remote" | "hybrid" | "contract";
 export type ExperienceLevel = "junior" | "mid" | "senior" | "lead" | "executive";
-export type JobStatus = "draft" | "active" | "closed";
+export type JobStatus = "draft" | "active" | "paused" | "closed" | "filled";
 
 export interface JobRequirements {
   skills?: string[];
@@ -202,20 +212,60 @@ export interface Job {
   requirements: JobRequirements;
   salary_min?: number;
   salary_max?: number;
+  salary_currency?: string;
   location: string;
+  city_slug?: string;
   job_type: JobType;
   experience_level: ExperienceLevel;
+  profession_slug?: string;
+  company_slug?: string;
   status: JobStatus;
+  close_reason_code?: "hired" | "other" | string;
+  close_reason_note?: string;
   applications_count: number;
   views_count: number;
+  trust_score?: number;
+  trust_badges?: string[];
+  trust_factors?: Array<{
+    code: string;
+    label: string;
+    score: number;
+    weight: number;
+    state: "strong" | "medium" | "weak";
+  }>;
+  verification_state?: "unverified" | "pending" | "approved" | "rejected" | string;
   created_at: string;
   updated_at: string;
   expires_at?: string;
   company?: {
     name: string;
     logo_url?: string;
+    logo?: string;
+    location?: string;
+    website?: string;
+    cover_photo_url?: string;
+    gallery_images?: string[];
+    culture?: string;
+    linkedin_url?: string;
+    telegram_url?: string;
+    instagram_url?: string;
+    facebook_url?: string;
+    founded_year?: number;
+    video_url?: string;
+    verification_state?: string;
+    is_verified?: boolean;
   };
   matchScore?: number;
+  explainability?: {
+    confidence: "low" | "medium" | "high" | string;
+    fit_reasons: string[];
+    missing_items: string[];
+    improvement_plan: {
+      d7: string[];
+      d14: string[];
+      d30: string[];
+    };
+  };
 }
 
 export interface JobCreateRequest {
@@ -252,6 +302,7 @@ export type KnownApplicationStatus =
   | "shortlisted"
   | "interview"
   | "accepted"
+  | "hired"
   | "rejected"
   | "withdrawn";
 
@@ -260,6 +311,18 @@ export type ApplicationStatus = string;
 export interface ApplicationStatusUpdateRequest {
   status: KnownApplicationStatus;
   notes?: string;
+  tags?: string[];
+  message_history?: Array<{
+    id: string;
+    sent_at: string;
+    sender_id?: string;
+    sender_name?: string;
+    channel?: string;
+    subject: string;
+    body: string;
+    template_key?: string;
+    delivered?: boolean;
+  }>;
   interview_at?: string;
   interview_type?: "video" | "phone" | "in-person";
   meeting_link?: string;
@@ -287,6 +350,18 @@ export interface Application {
     missing_skills: string[];
     reasons: string[];
   } | null;
+  tags?: string[];
+  message_history?: Array<{
+    id: string;
+    sent_at: string;
+    sender_id?: string;
+    sender_name?: string;
+    channel?: string;
+    subject: string;
+    body: string;
+    template_key?: string;
+    delivered?: boolean;
+  }>;
   job?: Job;
   resume?: Resume;
   applicant?: User;

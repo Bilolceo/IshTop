@@ -57,14 +57,15 @@ export default defineConfig({
 
   /* Run your local dev server before starting the tests */
   webServer: {
-    // Build once and run a production Next server for E2E.
-    // Do not use `npm start` here because this repo's start script runs the
-    // standalone server artifact, which expects Docker-style file layout.
-    // In CI/local E2E that causes `/_next/static/*` 404 and blank pages.
-    command: 'node -e "require(\'fs\').rmSync(\'.next\', { recursive: true, force: true })" && npm run build && npx next start -p 3000',
+    // Build once and run the standalone production server for E2E.
+    // CI always removes .next first so stale vendor chunks cannot be reused.
+    command:
+      'node -e "require(\'fs\').rmSync(\'.next\', { recursive: true, force: true })" && npm run build && node -e "const fs=require(\'fs\'); fs.cpSync(\'.next/static\', \'.next/standalone/.next/static\', { recursive: true }); if (fs.existsSync(\'public\')) fs.cpSync(\'public\', \'.next/standalone/public\', { recursive: true });" && node .next/standalone/server.js',
     url: 'http://127.0.0.1:3000',
     env: {
       NEXT_PUBLIC_API_URL: process.env.NEXT_PUBLIC_API_URL || 'http://127.0.0.1:8000/api/v1',
+      HOSTNAME: '127.0.0.1',
+      PORT: '3000',
     },
     reuseExistingServer: !process.env.CI,
     timeout: 120 * 1000,

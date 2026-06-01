@@ -26,5 +26,5 @@ Do not perform implementation, research, or exploration work directly. Delegate 
    - expected output format
 
 7. Subagents must use GPT-5.5 with subagents enabled.
-   - Effort is set to `medium` by default.
+   - Effort is set to medium by default.
    - Model/effort may be changed only when explicitly requested by the user for that specific input.

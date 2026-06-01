@@ -44,6 +44,7 @@ export const ru = {
     basicInfo: "Основная информация",
     company: "Компания",
     student: "Студент",
+    completeProfile: "Заполнить профиль",
   },
 
   // Navigation
@@ -1119,8 +1120,8 @@ export const ru = {
     senior: "Senior (5+ лет)",
     lead: "Lead/Manager",
     executive: "Director+",
-    minSalary: "Минимальная зарплата (UZS)",
-    maxSalary: "Максимальная зарплата (UZS)",
+    minSalary: "Минимальная зарплата",
+    maxSalary: "Максимальная зарплата",
     showSalary: "Показать зарплату",
     showSalaryDesc: "Показывать диапазон зарплаты кандидатам",
     vacancies: "Количество вакансий",

@@ -64,15 +64,10 @@ export const api: AxiosInstance = axios.create({
 
 api.interceptors.request.use(
   (config: InternalAxiosRequestConfig) => {
-    // Get token from store
-    const accessToken = useAuthStore.getState().accessToken;
-    
-    // Attach token to request
-    if (accessToken && config.headers) {
-      config.headers.Authorization = `Bearer ${accessToken}`;
-    }
-
-    // Log request in development
+    // Stage 2 cookie-only browser auth: do NOT inject Authorization headers.
+    // withCredentials: true (set on the axios instance above) sends the
+    // httpOnly access_token cookie automatically. The backend prefers cookie
+    // auth and falls back to Bearer only for mobile/API clients.
     if (process.env.NODE_ENV === "development") {
       console.log(`🚀 [API] ${config.method?.toUpperCase()} ${config.url}`, {
         params: config.params,
@@ -94,16 +89,16 @@ api.interceptors.request.use(
 
 let isRefreshing = false;
 let failedQueue: Array<{
-  resolve: (value: string | null) => void;
+  resolve: (value: boolean) => void;
   reject: (error: unknown) => void;
 }> = [];
 
-const processQueue = (error: unknown, token: string | null = null) => {
+const processQueue = (error: unknown, ok = false) => {
   failedQueue.forEach((prom) => {
     if (error) {
       prom.reject(error);
     } else {
-      prom.resolve(token);
+      prom.resolve(ok);
     }
   });
   failedQueue = [];
@@ -136,19 +131,15 @@ api.interceptors.response.use(
       });
     }
 
-    // Handle 401 Unauthorized
+    // Handle 401 Unauthorized — cookie-only flow: call /auth/refresh, then
+    // retry the original request. The new access cookie travels with retries
+    // automatically via withCredentials.
     if (error.response?.status === 401 && !originalRequest._retry) {
       if (isRefreshing) {
-        // Wait for token refresh
-        return new Promise((resolve, reject) => {
+        return new Promise<boolean>((resolve, reject) => {
           failedQueue.push({ resolve, reject });
         })
-          .then((token) => {
-            if (originalRequest.headers) {
-              originalRequest.headers.Authorization = `Bearer ${token}`;
-            }
-            return api(originalRequest);
-          })
+          .then((ok) => (ok ? api(originalRequest) : Promise.reject(error)))
           .catch((err) => Promise.reject(err));
       }
 
@@ -156,29 +147,22 @@ api.interceptors.response.use(
       isRefreshing = true;
 
       try {
-        // Attempt to refresh token
-        const newToken = await useAuthStore.getState().refreshAccessToken();
-        
-        if (newToken) {
-          processQueue(null, newToken);
-          if (originalRequest.headers) {
-            originalRequest.headers.Authorization = `Bearer ${newToken}`;
-          }
+        const ok = await useAuthStore.getState().refreshAccessToken();
+
+        if (ok) {
+          processQueue(null, true);
           return api(originalRequest);
-        } else {
-          // Refresh failed, logout user
-          processQueue(error, null);
-          useAuthStore.getState().logout();
-          
-          // Redirect to login (if in browser)
-          if (typeof window !== "undefined") {
-            window.location.href = "/login";
-          }
-          
-          return Promise.reject(error);
         }
+
+        // Refresh failed — logout + redirect to login
+        processQueue(error, false);
+        useAuthStore.getState().logout();
+        if (typeof window !== "undefined") {
+          window.location.href = "/login";
+        }
+        return Promise.reject(error);
       } catch (refreshError) {
-        processQueue(refreshError, null);
+        processQueue(refreshError, false);
         useAuthStore.getState().logout();
         return Promise.reject(refreshError);
       } finally {
@@ -210,8 +194,7 @@ export const authApi = {
   
   logout: () => api.post("/auth/logout"),
   
-  refreshToken: (refreshToken?: string | null) =>
-    api.post("/auth/refresh", refreshToken ? { refresh_token: refreshToken } : {}),
+  refreshToken: () => api.post("/auth/refresh"),
   
   forgotPassword: (email: string) =>
     api.post("/auth/forgot-password", { email }),
@@ -281,7 +264,14 @@ export const jobApi = {
 
   publish: (id: string) => api.post(`/jobs/${id}/publish`),
 
-  close: (id: string) => api.post(`/jobs/${id}/close`),
+  pause: (id: string) => api.post(`/jobs/${id}/pause`),
+
+  reopen: (id: string) => api.post(`/jobs/${id}/reopen`),
+
+  close: (id: string, data?: { reason_code?: "hired" | "other"; reason_note?: string }) =>
+    api.post(`/jobs/${id}/close`, data || {}),
+
+  clone: (id: string) => api.post(`/jobs/${id}/clone`),
 
   match: (resumeId: string) =>
     api.post("/jobs/match", { resume_id: resumeId }),
@@ -297,6 +287,21 @@ export const jobApi = {
 
   savedJobs: (params?: { page?: number; limit?: number }) =>
     api.get("/jobs/saved", { params }),
+
+  submitCompanyVerification: (data: { notes?: string; requested_badges?: string[] }) =>
+    api.post("/jobs/company/verification/submit", data),
+
+  discoveryCity: (slug: string, params?: { page?: number; limit?: number }) =>
+    api.get(`/jobs/discovery/cities/${slug}`, { params }),
+
+  discoveryProfession: (slug: string, params?: { page?: number; limit?: number }) =>
+    api.get(`/jobs/discovery/professions/${slug}`, { params }),
+
+  discoveryCompany: (slug: string, params?: { page?: number; limit?: number }) =>
+    api.get(`/jobs/discovery/companies/${slug}`, { params }),
+
+  trackEvent: (data: { event_name: string; job_id?: string; source?: string; metadata?: Record<string, unknown> }) =>
+    api.post("/jobs/events", data),
 };
 
 // Application endpoints
@@ -323,11 +328,35 @@ export const applicationApi = {
   hiringFunnel: (params?: { days?: number }) =>
     api.get("/applications/analytics/funnel", { params }),
 
+  companyDashboardAnalytics: (params?: { days?: number; start_date?: string; end_date?: string }) =>
+    api.get("/applications/analytics/company-dashboard", { params }),
+
+  jobAnalytics: (jobId: string, params?: { days?: number; start_date?: string; end_date?: string }) =>
+    api.get(`/applications/analytics/job/${jobId}`, { params }),
+
   dashboardActions: () =>
     api.get("/applications/analytics/dashboard-actions"),
 
   upcomingInterviews: (params?: { days?: number }) =>
     api.get("/applications/interviews/upcoming", { params }),
+
+  companyList: (params?: { job_id?: string; status?: string; search?: string; tag?: string; page?: number; page_size?: number }) =>
+    api.get("/applications/company/list", { params }),
+
+  bulkStatusUpdate: (data: { application_ids: string[]; status: string; notes?: string }) =>
+    api.post("/applications/company/bulk-status", data),
+
+  bulkSendEmail: (data: { application_ids: string[]; subject: string; body: string; template_key?: string }) =>
+    api.post("/applications/company/bulk-email", data),
+
+  updateNotesTags: (applicationId: string, data: { notes?: string; tags: string[] }) =>
+    api.put(`/applications/${applicationId}/notes-tags`, data),
+
+  getMessages: (applicationId: string) =>
+    api.get(`/applications/${applicationId}/messages`),
+
+  sendMessage: (applicationId: string, data: { subject: string; body: string; template_key?: string }) =>
+    api.post(`/applications/${applicationId}/messages/send`, data),
 
   topCandidatesForJob: (jobId: string, params?: { limit?: number; pool?: "applicants" | "all" }) =>
     api.get(`/applications/jobs/${jobId}/top-candidates`, { params }),
@@ -378,6 +407,14 @@ export const adminApi = {
     api.get("/admin/jobs", { params }),
   updateJobStatus: (jobId: string, status: string) =>
     api.patch(`/admin/jobs/${jobId}/status`, { status }),
+
+  listCompanyVerification: (params?: { state?: string; limit?: number; offset?: number }) =>
+    api.get("/admin/companies/verification", { params }),
+
+  reviewCompanyVerification: (
+    companyId: string,
+    data: { action: "approve" | "reject"; notes?: string; badges?: string[] },
+  ) => api.post(`/admin/companies/${companyId}/verification/review`, data),
   deleteJob: (jobId: string) => api.delete(`/admin/jobs/${jobId}`),
 
   listCompanies: (params?: { search?: string; is_verified?: boolean; offset?: number; limit?: number }) =>
@@ -495,10 +532,11 @@ export const aiApi = {
   hrJobDescription: (data: {
     title: string;
     seniority: string;
+    tone?: "professional" | "friendly" | "startup";
     industry?: string;
     location?: string;
     must_have?: string[];
-    locale?: string;
+    locale?: "uz" | "ru" | "en" | string;
   }) => api.post("/ai/hr/job-description", data),
 
   hrCandidateSummary: (applicationId: string, locale = "uz") =>
@@ -574,6 +612,62 @@ function getDetailMessage(detail: unknown): {
 /**
  * Normalize API errors into user-friendly metadata
  */
+/**
+ * Coerce arbitrary backend "validation details" payloads into a readable
+ * string. Tolerates: array of strings, array of FastAPI/loc-msg objects,
+ * array of envelope {field,message} objects, Record<field, string[]>, or
+ * Record<field, string>. Returns undefined when nothing useful is found.
+ */
+export function formatValidationDetails(value: unknown): string | undefined {
+  if (value == null) return undefined;
+
+  if (typeof value === "string") return value;
+
+  if (Array.isArray(value)) {
+    const parts = value
+      .map((item) => {
+        if (item == null) return "";
+        if (typeof item === "string") return item;
+        if (typeof item === "object") {
+          const o = item as Record<string, unknown>;
+          const field =
+            (Array.isArray(o.loc) ? o.loc.filter((p) => p !== "body").join(".") : undefined) ||
+            (typeof o.field === "string" ? o.field : undefined) ||
+            (typeof o.name === "string" ? o.name : undefined);
+          const msg =
+            (typeof o.msg === "string" ? o.msg : undefined) ||
+            (typeof o.message === "string" ? o.message : undefined) ||
+            (typeof o.detail === "string" ? o.detail : undefined);
+          if (field && msg) return `${field}: ${msg}`;
+          return msg || "";
+        }
+        return "";
+      })
+      .filter(Boolean);
+    return parts.length ? parts.join("; ") : undefined;
+  }
+
+  if (typeof value === "object") {
+    const parts = Object.entries(value as Record<string, unknown>)
+      .map(([field, errors]) => {
+        if (Array.isArray(errors)) {
+          const inner = errors
+            .map((e) => (typeof e === "string" ? e : formatValidationDetails(e)))
+            .filter(Boolean)
+            .join(", ");
+          return inner ? `${field}: ${inner}` : "";
+        }
+        if (typeof errors === "string") return `${field}: ${errors}`;
+        const inner = formatValidationDetails(errors);
+        return inner ? `${field}: ${inner}` : "";
+      })
+      .filter(Boolean);
+    return parts.length ? parts.join("; ") : undefined;
+  }
+
+  return undefined;
+}
+
 export function getApiErrorInfo(error: unknown): ApiErrorInfo {
   if (!axios.isAxiosError(error)) {
     return {
@@ -584,18 +678,30 @@ export function getApiErrorInfo(error: unknown): ApiErrorInfo {
   const status = error.response?.status;
   const data = error.response?.data as {
     detail?: unknown;
-    error?: { message?: string; details?: Record<string, string[]> };
+    details?: unknown;
+    error?: { message?: string; details?: unknown };
+    errors?: unknown;
     message?: string;
     detail_message?: string;
   } | undefined;
 
-  if (data?.error?.details) {
-    const details = data.error.details;
-    const messages = Object.entries(details)
-      .map(([field, errors]) => `${field}: ${(errors as string[]).join(", ")}`)
-      .join("; ");
-    return { message: messages, status };
+  // Project envelope: { error: { details: [...] | {...} } }
+  const envelopeDetails = formatValidationDetails(data?.error?.details);
+  if (envelopeDetails) {
+    return { message: envelopeDetails, status };
   }
+
+  // FastAPI native 422: { detail: [{loc,msg,type}, ...] }
+  if (Array.isArray(data?.detail)) {
+    const formatted = formatValidationDetails(data!.detail);
+    if (formatted) return { message: formatted, status };
+  }
+
+  // Generic top-level details / errors fields
+  const topDetails = formatValidationDetails(data?.details);
+  if (topDetails) return { message: topDetails, status };
+  const topErrors = formatValidationDetails(data?.errors);
+  if (topErrors) return { message: topErrors, status };
 
   const detailInfo = getDetailMessage(data?.detail);
   const explicitMessage =

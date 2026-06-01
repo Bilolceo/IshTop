@@ -22,10 +22,24 @@ export function ThemeToggle() {
     setMounted(true);
   }, []);
 
+  const toggleLabel =
+    theme === "dark"
+      ? isRu
+        ? "Переключить на светлую тему"
+        : "Yorug' mavzuga o'tish"
+      : isRu
+        ? "Переключить на темную тему"
+        : "Qorong'i mavzuga o'tish";
+
   if (!mounted) {
     return (
-      <Button variant="ghost" size="icon" className="w-9 h-9">
-        <Sun className="h-5 w-5" />
+      <Button
+        variant="ghost"
+        size="icon"
+        className="w-9 h-9"
+        aria-label={isRu ? "Переключить тему" : "Mavzuni almashtirish"}
+      >
+        <Sun className="h-5 w-5" aria-hidden />
       </Button>
     );
   }
@@ -36,22 +50,15 @@ export function ThemeToggle() {
       size="icon"
       onClick={() => setTheme(theme === 'dark' ? 'light' : 'dark')}
       className="w-9 h-9"
-      title={
-        theme === "dark"
-          ? isRu
-            ? "Переключить на светлую тему"
-            : "Yorug' mavzuga o'tish"
-          : isRu
-            ? "Переключить на темную тему"
-            : "Qorong'i mavzuga o'tish"
-      }
+      title={toggleLabel}
+      aria-label={toggleLabel}
+      aria-pressed={theme === "dark"}
     >
       {theme === 'dark' ? (
-        <Sun className="h-5 w-5 text-yellow-500" />
+        <Sun className="h-5 w-5 text-yellow-500" aria-hidden />
       ) : (
-        <Moon className="h-5 w-5 text-surface-700" />
+        <Moon className="h-5 w-5 text-surface-700" aria-hidden />
       )}
-      <span className="sr-only">{isRu ? "Переключить тему" : "Mavzuni almashtirish"}</span>
     </Button>
   );
 }

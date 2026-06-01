@@ -1,4 +1,5 @@
 import { test, expect } from "@playwright/test";
+import { loginViaApi } from "./helpers/auth";
 
 /**
  * =============================================================================
@@ -15,32 +16,6 @@ import { test, expect } from "@playwright/test";
 
 const APP_URL = "http://127.0.0.1:3000";
 
-let authStorageValue: string | null = null;
-
-async function loginWithRetry(request: any, email: string, password: string) {
-  const apiBase = process.env.NEXT_PUBLIC_API_URL || "http://127.0.0.1:8000/api/v1";
-  for (let attempt = 1; attempt <= 10; attempt++) {
-    const res = await request.post(`${apiBase}/auth/login`, {
-      data: { email, password },
-      headers: { "content-type": "application/json" },
-    });
-    if (res.ok()) return res;
-
-    if (res.status() === 429 && attempt < 10) {
-      const retryAfterHeader = Number(res.headers()["retry-after"] || "0");
-      const bodyText = await res.text();
-      const matchedSeconds = bodyText.match(/try again in\s+(\d+)\s+seconds/i);
-      const retryAfter = Number.isFinite(retryAfterHeader) && retryAfterHeader > 0
-        ? retryAfterHeader
-        : (matchedSeconds ? Number(matchedSeconds[1]) : 3);
-      await new Promise((resolve) => setTimeout(resolve, Math.max(1, retryAfter) * 1000));
-      continue;
-    }
-
-    return res;
-  }
-}
-
 async function fetchJobs(request: any) {
   const apiBase = process.env.NEXT_PUBLIC_API_URL || "http://127.0.0.1:8000/api/v1";
   const res = await request.get(`${apiBase}/jobs?limit=50&page=1`);
@@ -52,29 +27,12 @@ async function fetchJobs(request: any) {
 }
 
 test.describe("Job Application Flow", () => {
-  test.beforeAll(async ({ request }) => {
-    const res = await loginWithRetry(request, "john@example.com", "Student123!");
-    expect(res.ok()).toBeTruthy();
-    const data = await res.json();
-
-    // Mirror Zustand persist storage shape: { state: { ... }, version: 0 }
-    authStorageValue = JSON.stringify({
-      state: {
-        user: data.user,
-        accessToken: data.access_token,
-        refreshToken: data.refresh_token,
-        isAuthenticated: true,
-      },
-      version: 0,
-    });
-  });
-
+  // Cookie-only auth: re-login per test so each fresh BrowserContext gets
+  // its own Set-Cookie. The shared `beforeAll` localStorage seeding was
+  // broken because it didn't carry the httpOnly access_token cookie that
+  // the server now actually checks.
   test.beforeEach(async ({ page }) => {
-    // Set auth storage before any app code runs, so protected routes don't redirect to /login.
-    const value = authStorageValue;
-    await page.addInitScript((v) => {
-      if (typeof v === "string") localStorage.setItem("auth-storage", v);
-    }, value);
+    await loginViaApi(page, "john@example.com", "Student123!");
   });
 
   test("should display jobs list", async ({ page }) => {

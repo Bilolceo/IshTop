@@ -26,8 +26,17 @@ import {
 } from "@/components/ui/select";
 import { Skeleton } from "@/components/ui/skeleton";
 import { UserAvatar } from "@/components/ui/avatar";
+import {
+  Dialog,
+  DialogContent,
+  DialogDescription,
+  DialogFooter,
+  DialogHeader,
+  DialogTitle,
+} from "@/components/ui/dialog";
 import { formatRelativeTime } from "@/lib/utils";
 import { useTranslation } from "@/hooks/useTranslation";
+import { useAuth } from "@/hooks/useAuth";
 
 type LoadState = "loading" | "ready" | "error";
 
@@ -63,6 +72,16 @@ const copy = {
     saving: "Saqlanmoqda",
     loadMore: "Yana yuklash",
     updated: "Foydalanuvchi holati yangilandi",
+    confirmBlockTitle: "Foydalanuvchini bloklash",
+    confirmBlockBody:
+      "Bu foydalanuvchi tizimga kira olmaydi va dashboardni ko'ra olmaydi. Davom etishni xohlaysizmi?",
+    confirmActivateTitle: "Foydalanuvchini faollashtirish",
+    confirmActivateBody:
+      "Bu foydalanuvchi tizimga qayta kira oladi. Davom etishni xohlaysizmi?",
+    cancel: "Bekor qilish",
+    confirmBlock: "Bloklash",
+    confirmActivate: "Faollashtirish",
+    cannotBlockSelf: "O'zingizni bloklay olmaysiz",
   },
   ru: {
     title: "Управление пользователями",
@@ -94,6 +113,16 @@ const copy = {
     saving: "Сохраняем",
     loadMore: "Загрузить ещё",
     updated: "Статус пользователя обновлён",
+    confirmBlockTitle: "Заблокировать пользователя",
+    confirmBlockBody:
+      "Пользователь не сможет войти в систему и открыть дашборд. Продолжить?",
+    confirmActivateTitle: "Активировать пользователя",
+    confirmActivateBody:
+      "Пользователь сможет снова войти в систему. Продолжить?",
+    cancel: "Отмена",
+    confirmBlock: "Заблокировать",
+    confirmActivate: "Активировать",
+    cannotBlockSelf: "Нельзя заблокировать себя",
   },
 } as const;
 
@@ -109,6 +138,7 @@ function roleLabel(locale: "uz" | "ru", role: UserRole) {
 export default function AdminUsersPage() {
   const { locale } = useTranslation();
   const c = copy[locale];
+  const { user: currentAdmin } = useAuth();
   const [loadState, setLoadState] = useState<LoadState>("loading");
   const [loadError, setLoadError] = useState<string | null>(null);
   const [statusMessage, setStatusMessage] = useState<string | null>(null);
@@ -229,6 +259,7 @@ export default function AdminUsersPage() {
       setLoadError(getErrorMessage(error));
     } finally {
       setSavingId(null);
+      setConfirmTarget(null);
     }
   };
 
@@ -452,28 +483,37 @@ export default function AdminUsersPage() {
                     </div>
 
                     <div className="flex justify-end">
-                      <Button
-                        variant={user.is_active ? "destructive" : "default"}
-                        onClick={() => void handleToggleActive(user)}
-                        disabled={isSaving}
-                      >
-                        {isSaving ? (
-                          <>
-                            <RefreshCw className="mr-2 h-4 w-4 animate-spin" />
-                            {c.saving}
-                          </>
-                        ) : user.is_active ? (
-                          <>
-                            <UserX className="mr-2 h-4 w-4" />
-                            {c.deactivate}
-                          </>
-                        ) : (
-                          <>
-                            <UserCheck className="mr-2 h-4 w-4" />
-                            {c.activate}
-                          </>
-                        )}
-                      </Button>
+                      {(() => {
+                        const isSelf = currentAdmin?.id === user.id;
+                        return (
+                          <Button
+                            variant={user.is_active ? "destructive" : "default"}
+                            onClick={() => setConfirmTarget(user)}
+                            disabled={isSaving || isSelf}
+                            title={isSelf ? c.cannotBlockSelf : undefined}
+                            aria-label={
+                              user.is_active ? c.deactivate : c.activate
+                            }
+                          >
+                            {isSaving ? (
+                              <>
+                                <RefreshCw className="mr-2 h-4 w-4 animate-spin" />
+                                {c.saving}
+                              </>
+                            ) : user.is_active ? (
+                              <>
+                                <UserX className="mr-2 h-4 w-4" />
+                                {c.deactivate}
+                              </>
+                            ) : (
+                              <>
+                                <UserCheck className="mr-2 h-4 w-4" />
+                                {c.activate}
+                              </>
+                            )}
+                          </Button>
+                        );
+                      })()}
                     </div>
                   </div>
                 );

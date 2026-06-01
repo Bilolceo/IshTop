@@ -86,19 +86,19 @@ class JobCreate(BaseModel):
     salary_min: Optional[int] = Field(
         None,
         ge=0,
-        description="Minimum salary (in cents)",
-        examples=[8000000]  # $80,000
+        description="Minimum salary (whole units in selected currency)",
+        examples=[8000]
     )
     
     salary_max: Optional[int] = Field(
         None,
         ge=0,
-        description="Maximum salary (in cents)",
-        examples=[12000000]  # $120,000
+        description="Maximum salary (whole units in selected currency)",
+        examples=[12000]
     )
     
     salary_currency: str = Field(
-        default="USD",
+        default="UZS",
         max_length=3,
         description="Currency code"
     )
@@ -228,6 +228,21 @@ class JobSearchParams(BaseModel):
         None,
         description="Filter by company"
     )
+
+    city_slug: Optional[str] = Field(
+        None,
+        description="Filter by normalized city slug"
+    )
+
+    profession_slug: Optional[str] = Field(
+        None,
+        description="Filter by normalized profession slug"
+    )
+
+    company_slug: Optional[str] = Field(
+        None,
+        description="Filter by normalized company slug"
+    )
     
     sort_by: str = Field(
         default="created_at",
@@ -253,6 +268,17 @@ class CompanyInfo(BaseModel):
     logo: Optional[str] = None
     location: Optional[str] = None
     website: Optional[str] = None
+    cover_photo_url: Optional[str] = None
+    gallery_images: List[str] = Field(default_factory=list)
+    culture: Optional[str] = None
+    linkedin_url: Optional[str] = None
+    telegram_url: Optional[str] = None
+    instagram_url: Optional[str] = None
+    facebook_url: Optional[str] = None
+    founded_year: Optional[int] = None
+    video_url: Optional[str] = None
+    verification_state: Optional[str] = None
+    is_verified: bool = False
 
 
 class JobResponse(BaseModel):
@@ -272,12 +298,21 @@ class JobResponse(BaseModel):
     salary_currency: str
     is_salary_visible: bool
     location: Optional[str] = None
+    city_slug: Optional[str] = None
     is_remote_allowed: bool
     job_type: str
     experience_level: str
+    profession_slug: Optional[str] = None
+    company_slug: Optional[str] = None
     status: str
+    close_reason_code: Optional[str] = None
+    close_reason_note: Optional[str] = None
     views_count: int
     applications_count: int
+    trust_score: float = 0.0
+    trust_badges: List[str] = Field(default_factory=list)
+    trust_factors: List[Dict[str, Any]] = Field(default_factory=list)
+    verification_state: Optional[str] = None
     is_featured: bool
     created_at: datetime
     updated_at: Optional[datetime] = None

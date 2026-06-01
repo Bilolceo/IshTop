@@ -30,6 +30,11 @@ import {
   Check,
   Minus,
   Sparkles,
+  Tag,
+  X,
+  Send,
+  CalendarPlus,
+  ExternalLink,
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
@@ -37,11 +42,19 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
 import { Skeleton } from "@/components/ui/skeleton";
-import { aiApi, applicationApi } from "@/lib/api";
+import { aiApi, applicationApi, getErrorMessage } from "@/lib/api";
 import { formatDate, formatRelativeTime, cn } from "@/lib/utils";
 import type { Application, KnownApplicationStatus } from "@/types/api";
 import { useTranslation } from "@/hooks/useTranslation";
 import { toast } from "sonner";
+import {
+  Dialog,
+  DialogContent,
+  DialogDescription,
+  DialogFooter,
+  DialogHeader,
+  DialogTitle,
+} from "@/components/ui/dialog";
 
 type InterviewFormat = "video" | "phone" | "in-person";
 
@@ -51,6 +64,7 @@ const statusConfig: Record<KnownApplicationStatus, { label: string; color: strin
   shortlisted: { label: "Saralangan", color: "bg-amber-100 text-amber-700", icon: Award },
   interview: { label: "Intervyu", color: "bg-purple-100 text-purple-700", icon: User },
   accepted: { label: "Qabul qilindi", color: "bg-green-100 text-green-700", icon: CheckCircle },
+  hired: { label: "Yollandi", color: "bg-emerald-100 text-emerald-700", icon: CheckCircle },
   rejected: { label: "Rad etildi", color: "bg-red-100 text-red-700", icon: XCircle },
   withdrawn: { label: "Bekor qilingan", color: "bg-surface-100 text-surface-600", icon: XCircle },
 };
@@ -60,6 +74,7 @@ const statusActions: KnownApplicationStatus[] = [
   "reviewing",
   "shortlisted",
   "accepted",
+  "hired",
   "rejected",
 ];
 
@@ -68,15 +83,15 @@ const interviewFormatLabels: Record<
   { label: string; helper: string }
 > = {
   video: {
-    label: "Video",
+    label: "Video intervyu",
     helper: "Zoom, Meet yoki boshqa online havola ishlatiladi.",
   },
   phone: {
-    label: "Phone",
+    label: "Telefon intervyu",
     helper: "Telefon orqali intervyu uchun havola kerak emas.",
   },
   "in-person": {
-    label: "In-person",
+    label: "Ofisda intervyu",
     helper: "Ofis yoki boshqa manzilda uchrashuv belgilanadi.",
   },
 };
@@ -93,6 +108,158 @@ function toDatetimeLocalValue(value?: string) {
   const minutes = `${date.getMinutes()}`.padStart(2, "0");
 
   return `${year}-${month}-${day}T${hours}:${minutes}`;
+}
+
+type InterviewCalendarPayload = {
+  title: string;
+  description: string;
+  location: string;
+  startIso: string;
+  endIso: string;
+  candidateEmail?: string;
+};
+
+function toGoogleUtcDate(value: string): string {
+  const date = new Date(value);
+  const year = date.getUTCFullYear();
+  const month = `${date.getUTCMonth() + 1}`.padStart(2, "0");
+  const day = `${date.getUTCDate()}`.padStart(2, "0");
+  const hours = `${date.getUTCHours()}`.padStart(2, "0");
+  const minutes = `${date.getUTCMinutes()}`.padStart(2, "0");
+  const seconds = `${date.getUTCSeconds()}`.padStart(2, "0");
+  return `${year}${month}${day}T${hours}${minutes}${seconds}Z`;
+}
+
+function buildGoogleCalendarUrl(payload: InterviewCalendarPayload): string {
+  const url = new URL("https://calendar.google.com/calendar/render");
+  url.searchParams.set("action", "TEMPLATE");
+  url.searchParams.set("text", payload.title);
+  url.searchParams.set(
+    "dates",
+    `${toGoogleUtcDate(payload.startIso)}/${toGoogleUtcDate(payload.endIso)}`
+  );
+  url.searchParams.set("details", payload.description);
+  url.searchParams.set("location", payload.location);
+  if (payload.candidateEmail) {
+    url.searchParams.set("add", payload.candidateEmail);
+  }
+  return url.toString();
+}
+
+function escapeIcs(value: string): string {
+  return value
+    .replace(/\\/g, "\\\\")
+    .replace(/\n/g, "\\n")
+    .replace(/,/g, "\\,")
+    .replace(/;/g, "\\;");
+}
+
+function buildIcsContent(payload: InterviewCalendarPayload): string {
+  const uid = `ishtop-${Date.now()}@calendar`;
+  const now = toGoogleUtcDate(new Date().toISOString());
+  const start = toGoogleUtcDate(payload.startIso);
+  const end = toGoogleUtcDate(payload.endIso);
+  const attendees = payload.candidateEmail
+    ? `\nATTENDEE;CN=Candidate:mailto:${payload.candidateEmail}`
+    : "";
+  return [
+    "BEGIN:VCALENDAR",
+    "VERSION:2.0",
+    "PRODID:-//IshTop//Interview Calendar//EN",
+    "CALSCALE:GREGORIAN",
+    "METHOD:REQUEST",
+    "BEGIN:VEVENT",
+    `UID:${uid}`,
+    `DTSTAMP:${now}`,
+    `DTSTART:${start}`,
+    `DTEND:${end}`,
+    `SUMMARY:${escapeIcs(payload.title)}`,
+    `DESCRIPTION:${escapeIcs(payload.description)}`,
+    `LOCATION:${escapeIcs(payload.location)}`,
+    `ORGANIZER;CN=IshTop:mailto:no-reply@ishtop.uz${attendees}`,
+    "END:VEVENT",
+    "END:VCALENDAR",
+    "",
+  ].join("\n");
+}
+
+function sanitizeInterviewNotes(value?: string | null): string {
+  if (!value) return "";
+  if (value.toLowerCase().includes("seeded for")) return "";
+  return value;
+}
+
+function recommendationLabel(
+  value: "shortlist" | "review" | "pass",
+  isRu: boolean,
+): string {
+  if (isRu) {
+    if (value === "shortlist") return "Шорт-лист";
+    if (value === "review") return "Доп. проверка";
+    return "Отказ";
+  }
+  if (value === "shortlist") return "Saralash";
+  if (value === "review") return "Qo'shimcha ko'rik";
+  return "Rad etish";
+}
+
+function localizeMatchReason(reason: string, isRu: boolean): string {
+  const matchedTerms = reason.match(/^Matched\s+(\d+)\/(\d+)\s+requirement terms$/i);
+  if (matchedTerms) {
+    const [, matched, total] = matchedTerms;
+    return isRu
+      ? `Совпало ${matched}/${total} требований`
+      : `${matched}/${total} talab bo'yicha moslik aniqlandi`;
+  }
+
+  const titleOverlap = reason.match(/^Title\/domain overlap detected:\s*(.+)$/i);
+  if (titleOverlap) {
+    return isRu
+      ? `Обнаружено совпадение по должности/домену: ${titleOverlap[1]}`
+      : `Lavozim/yo'nalish bo'yicha moslik topildi: ${titleOverlap[1]}`;
+  }
+
+  const normalized = reason.trim().toLowerCase();
+  const dictionary: Record<string, { ru: string; uz: string }> = {
+    "job requirements are broad, using title/experience matching": {
+      ru: "Требования описаны широко, использовано сопоставление по роли и опыту",
+      uz: "Talablar umumiy berilgan, shuning uchun lavozim va tajriba bo'yicha moslashtirildi",
+    },
+    "experience level matches perfectly": {
+      ru: "Уровень опыта идеально совпадает",
+      uz: "Tajriba darajasi to'liq mos",
+    },
+    "slightly over-qualified (good!)": {
+      ru: "Кандидат немного сильнее требований (это хорошо)",
+      uz: "Nomzod talabdan biroz yuqori malakali (bu ijobiy holat)",
+    },
+    "slightly under-qualified, but close": {
+      ru: "Опыт чуть ниже, но близок к требованиям",
+      uz: "Tajriba biroz pastroq, lekin talabga yaqin",
+    },
+    "may be over-qualified for this role": {
+      ru: "Возможна избыточная квалификация для этой роли",
+      uz: "Bu rol uchun ortiqcha malaka bo'lishi mumkin",
+    },
+    "remote/hybrid flexibility is available": {
+      ru: "Доступен удалённый/гибридный формат работы",
+      uz: "Masofaviy yoki gibrid format mavjud",
+    },
+    "skill overlap against job requirements": {
+      ru: "Навыки кандидата по отношению к требованиям вакансии",
+      uz: "Ko'nikmalar vakansiya talablariga nisbatan tahlil qilindi",
+    },
+    "experience alignment and profile completeness": {
+      ru: "Соответствие опыта и полнота профиля",
+      uz: "Tajriba mosligi va profil to'liqligi baholandi",
+    },
+  };
+
+  if (dictionary[normalized]) {
+    return isRu ? dictionary[normalized].ru : dictionary[normalized].uz;
+  }
+
+  return reason;
 }
 
 export default function ApplicantDetailPage() {
@@ -122,6 +289,17 @@ export default function ApplicantDetailPage() {
   };
   type AIQuestion = { question: string; category: string; rationale: string };
   type AIEmail = { subject: string; body: string; ai_generated: boolean };
+  type MessageHistoryItem = {
+    id?: string;
+    sent_at?: string;
+    sender_id?: string;
+    sender_name?: string;
+    channel?: string;
+    subject: string;
+    body: string;
+    template_key?: string;
+    delivered?: boolean;
+  };
 
   const [aiSummary, setAiSummary] = useState<AISummary | null>(null);
   const [aiSummaryLoading, setAiSummaryLoading] = useState(false);
@@ -130,6 +308,22 @@ export default function ApplicantDetailPage() {
   const [aiEmail, setAiEmail] = useState<AIEmail | null>(null);
   const [aiEmailLoading, setAiEmailLoading] = useState<null | "interview" | "reject" | "offer" | "shortlist">(null);
   const [aiEmailSending, setAiEmailSending] = useState(false);
+
+  const [privateNotes, setPrivateNotes] = useState("");
+  const [privateTags, setPrivateTags] = useState<string[]>([]);
+  const [tagInput, setTagInput] = useState("");
+  const [notesSaving, setNotesSaving] = useState(false);
+  const [inviteSending, setInviteSending] = useState(false);
+
+  const [messageDialogOpen, setMessageDialogOpen] = useState(false);
+  const [messageTemplate, setMessageTemplate] = useState<
+    "blank" | "taklif" | "shortlist" | "offer" | "reject"
+  >("blank");
+  const [messageSubject, setMessageSubject] = useState("");
+  const [messageBody, setMessageBody] = useState("");
+  const [messageSending, setMessageSending] = useState(false);
+  const [templateLoading, setTemplateLoading] = useState(false);
+  const [messageHistory, setMessageHistory] = useState<MessageHistoryItem[]>([]);
 
   // Structured interview scorecard
   type Scorecard = {
@@ -202,7 +396,7 @@ export default function ApplicantDetailPage() {
       const res = await aiApi.hrCandidateSummary(appId, locale);
       setAiSummary((res.data as { data: AISummary }).data);
     } catch (e) {
-      toast.error((e as Error).message || "AI error");
+      toast.error((e as Error).message || (isRu ? "Ошибка AI" : "AI xatosi"));
     } finally {
       setAiSummaryLoading(false);
     }
@@ -214,7 +408,7 @@ export default function ApplicantDetailPage() {
       const res = await aiApi.hrInterviewQuestions(appId, 8, locale);
       setAiQuestions((res.data as { data: { questions: AIQuestion[] } }).data.questions);
     } catch (e) {
-      toast.error((e as Error).message || "AI error");
+      toast.error((e as Error).message || (isRu ? "Ошибка AI" : "AI xatosi"));
     } finally {
       setAiQuestionsLoading(false);
     }
@@ -226,9 +420,118 @@ export default function ApplicantDetailPage() {
       const res = await aiApi.hrEmailTemplate(appId, { action, locale });
       setAiEmail((res.data as { data: AIEmail }).data);
     } catch (e) {
-      toast.error((e as Error).message || "AI error");
+      toast.error((e as Error).message || (isRu ? "Ошибка AI" : "AI xatosi"));
     } finally {
       setAiEmailLoading(null);
+    }
+  };
+
+  const addTag = (rawValue: string) => {
+    const value = rawValue.trim();
+    if (!value) return;
+    setPrivateTags((prev) => {
+      if (prev.some((tag) => tag.toLowerCase() === value.toLowerCase())) return prev;
+      return [...prev, value].slice(0, 20);
+    });
+  };
+
+  const removeTag = (value: string) => {
+    setPrivateTags((prev) => prev.filter((tag) => tag !== value));
+  };
+
+  const saveNotesAndTags = async () => {
+    setNotesSaving(true);
+    try {
+      const response = await applicationApi.updateNotesTags(appId, {
+        notes: privateNotes.trim() || undefined,
+        tags: privateTags,
+      });
+      const updated = (response.data as { data?: Application }).data;
+      if (updated) {
+        setApplication(updated);
+      }
+      toast.success(isRu ? "Заметки и теги сохранены" : "Eslatma va teglar saqlandi");
+    } catch (error) {
+      toast.error(error instanceof Error ? error.message : getErrorMessage(error));
+    } finally {
+      setNotesSaving(false);
+    }
+  };
+
+  const loadMessageHistory = async () => {
+    try {
+      const response = await applicationApi.getMessages(appId);
+      const payload = response.data as { data?: { messages?: MessageHistoryItem[] } };
+      setMessageHistory(payload.data?.messages || []);
+    } catch {
+      // ignore non-critical history loading errors
+    }
+  };
+
+  const applyMessageTemplate = async (
+    template: "blank" | "taklif" | "shortlist" | "offer" | "reject"
+  ) => {
+    setMessageTemplate(template);
+    if (template === "blank") return;
+
+    const actionMap: Record<"taklif" | "shortlist" | "offer" | "reject", "interview" | "shortlist" | "offer" | "reject"> = {
+      taklif: "interview",
+      shortlist: "shortlist",
+      offer: "offer",
+      reject: "reject",
+    };
+
+    setTemplateLoading(true);
+    try {
+      const response = await aiApi.hrEmailTemplate(appId, {
+        action: actionMap[template],
+        locale,
+      });
+      const tpl = (response.data as { data?: AIEmail }).data;
+      setMessageSubject(tpl?.subject || "");
+      setMessageBody(tpl?.body || "");
+    } catch (error) {
+      toast.error(error instanceof Error ? error.message : getErrorMessage(error));
+    } finally {
+      setTemplateLoading(false);
+    }
+  };
+
+  const sendApplicantMessage = async () => {
+    const subject = messageSubject.trim();
+    const body = messageBody.trim();
+    if (!subject || !body) {
+      toast.error(isRu ? "Введите тему и текст сообщения" : "Xabar mavzusi va matnini kiriting");
+      return;
+    }
+
+    setMessageSending(true);
+    try {
+      const response = await applicationApi.sendMessage(appId, {
+        subject,
+        body,
+        template_key: messageTemplate !== "blank" ? messageTemplate : undefined,
+      });
+      const payload = response.data as { data?: { delivered?: boolean; messages?: MessageHistoryItem[] } };
+      if (payload.data?.messages) {
+        setMessageHistory(payload.data.messages);
+      } else {
+        await loadMessageHistory();
+      }
+      toast.success(
+        payload.data?.delivered
+          ? isRu
+            ? "Сообщение отправлено"
+            : "Xabar yuborildi"
+          : isRu
+            ? "Сообщение сохранено в истории, но доставка не удалась"
+            : "Xabar tarixga yozildi, lekin yetkazilmadi"
+      );
+      setMessageDialogOpen(false);
+    } catch (error) {
+      toast.error(error instanceof Error ? error.message : getErrorMessage(error));
+    } finally {
+      setMessageSending(false);
     }
   };
 
@@ -247,6 +550,7 @@ export default function ApplicantDetailPage() {
     if (appId) {
       fetchApplication();
       void loadScorecards();
+      void loadMessageHistory();
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [appId]);
@@ -255,13 +559,18 @@ export default function ApplicantDetailPage() {
     setInterviewDateTime(toDatetimeLocalValue(application?.interview_at));
     setInterviewFormat((application?.interview_type as InterviewFormat) || "video");
     setMeetingLink(application?.meeting_link || "");
-    setInterviewNotes(application?.notes || "");
+    setInterviewNotes(sanitizeInterviewNotes(application?.notes));
+    setPrivateNotes(sanitizeInterviewNotes(application?.notes));
+    setPrivateTags(application?.tags || []);
+    setMessageHistory((application?.message_history || []) as MessageHistoryItem[]);
   }, [
     application?.id,
     application?.interview_at,
     application?.interview_type,
     application?.meeting_link,
     application?.notes,
+    application?.tags,
+    application?.message_history,
   ]);
 
   const handleStatusChange = async (newStatus: KnownApplicationStatus) => {
@@ -317,7 +626,7 @@ export default function ApplicantDetailPage() {
       setInterviewDateTime(toDatetimeLocalValue(updatedApplication?.interview_at || payload.interview_at));
       setInterviewFormat((updatedApplication?.interview_type as InterviewFormat) || interviewFormat);
       setMeetingLink(updatedApplication?.meeting_link || payload.meeting_link || "");
-      setInterviewNotes(updatedApplication?.notes || payload.notes || "");
+      setInterviewNotes(sanitizeInterviewNotes(updatedApplication?.notes || payload.notes || ""));
       toast.success("Intervyu muvaffaqiyatli belgilandi.");
     } catch (error) {
       toast.error(error instanceof Error ? error.message : "Intervyuni belgilashda xatolik.");
@@ -362,6 +671,76 @@ export default function ApplicantDetailPage() {
   const status = statusConfig[application.status as KnownApplicationStatus] || statusConfig.pending;
   const StatusIcon = status.icon;
   const isVideoInterview = interviewFormat === "video";
+  const interviewIso =
+    application.interview_at ||
+    (interviewDateTime ? new Date(interviewDateTime).toISOString() : "");
+  const calendarPayload: InterviewCalendarPayload | null = interviewIso
+    ? {
+        title: `${job?.title || "Vakansiya"} — ${isRu ? "Собеседование" : "Intervyu"}`,
+        description: isRu
+          ? `Кандидат: ${applicant?.full_name || "—"}\nПозиция: ${job?.title || "—"}\n${
+              interviewNotes?.trim() ? `Комментарий: ${interviewNotes.trim()}` : ""
+            }`
+          : `Nomzod: ${applicant?.full_name || "—"}\nLavozim: ${job?.title || "—"}\n${
+              interviewNotes?.trim() ? `Izoh: ${interviewNotes.trim()}` : ""
+            }`,
+        location:
+          interviewFormat === "video"
+            ? meetingLink.trim() || (isRu ? "Онлайн" : "Onlayn")
+            : interviewFormat === "phone"
+              ? isRu
+                ? "Телефон"
+                : "Telefon"
+              : isRu
+                ? "Офлайн встреча"
+                : "Ofis uchrashuvi",
+        startIso: interviewIso,
+        endIso: new Date(new Date(interviewIso).getTime() + 60 * 60 * 1000).toISOString(),
+        candidateEmail: applicant?.email || undefined,
+      }
+    : null;
+  const googleCalendarUrl = calendarPayload ? buildGoogleCalendarUrl(calendarPayload) : "";
+
+  const downloadOutlookIcs = () => {
+    if (!calendarPayload) return;
+    const ics = buildIcsContent(calendarPayload);
+    const blob = new Blob([ics], { type: "text/calendar;charset=utf-8" });
+    const link = document.createElement("a");
+    link.href = URL.createObjectURL(blob);
+    link.download = `interview-${job?.title || "job"}.ics`;
+    document.body.appendChild(link);
+    link.click();
+    document.body.removeChild(link);
+    URL.revokeObjectURL(link.href);
+  };
+
+  const sendCalendarInviteToCandidate = async () => {
+    if (!calendarPayload || !applicant?.email) return;
+    setInviteSending(true);
+    try {
+      const subject = isRu
+        ? `Приглашение на собеседование — ${job?.title || "вакансия"}`
+        : `Intervyu taklifi — ${job?.title || "vakansiya"}`;
+      const body = isRu
+        ? `Здравствуйте, ${applicant.full_name || "кандидат"}!\n\nПриглашаем вас на собеседование.\nДата и время: ${formatDate(
+            calendarPayload.startIso
+          )}\nGoogle Calendar: ${googleCalendarUrl}\n\nС уважением,\nIshTop`
+        : `Assalomu alaykum, ${applicant.full_name || "nomzod"}!\n\nSizni intervyuga taklif qilamiz.\nSana va vaqt: ${formatDate(
+            calendarPayload.startIso
+          )}\nGoogle Calendar: ${googleCalendarUrl}\n\nHurmat bilan,\nIshTop`;
+      await applicationApi.sendMessage(appId, {
+        subject,
+        body,
+        template_key: "interview_calendar",
+      });
+      toast.success(isRu ? "Календарное приглашение отправлено" : "Calendar taklif yuborildi");
+      await loadMessageHistory();
+    } catch (error) {
+      toast.error(error instanceof Error ? error.message : getErrorMessage(error));
+    } finally {
+      setInviteSending(false);
+    }
+  };
 
   return (
     <div className="mx-auto max-w-4xl space-y-6 p-4 md:p-6">
@@ -444,6 +823,21 @@ export default function ApplicantDetailPage() {
                 );
               })}
             </div>
+          </motion.div>
+
+          <motion.div
+            initial={{ opacity: 0, y: 20 }}
+            animate={{ opacity: 1, y: 0 }}
+            transition={{ delay: 0.12 }}
+            className="rounded-2xl border border-surface-200 bg-white p-5 shadow-sm dark:border-surface-700 dark:bg-surface-800"
+          >
+            <h3 className="mb-3 font-semibold text-surface-900 dark:text-white">
+              {isRu ? "Связь с кандидатом" : "Nomzod bilan aloqa"}
+            </h3>
+            <Button className="w-full" onClick={() => setMessageDialogOpen(true)}>
+              <Send className="mr-2 h-4 w-4" />
+              {isRu ? "Отправить сообщение" : "Xabar yuborish"}
+            </Button>
           </motion.div>
         </div>
 
@@ -581,7 +975,118 @@ export default function ApplicantDetailPage() {
                   Bu forma statusni avtomatik ravishda <span className="font-medium text-surface-700">interview</span> ga o'tkazadi va formatni saqlaydi.
                 </p>
               </div>
+
+              {calendarPayload && (
+                <div className="rounded-xl border border-surface-200 p-3 dark:border-surface-700">
+                  <p className="mb-2 text-sm font-medium text-surface-800 dark:text-surface-100">
+                    {isRu ? "Экспорт в календарь" : "Calendar integratsiyasi"}
+                  </p>
+                  <div className="flex flex-wrap gap-2">
+                    <a href={googleCalendarUrl} target="_blank" rel="noopener noreferrer">
+                      <Button type="button" variant="outline">
+                        <CalendarPlus className="mr-2 h-4 w-4" />
+                        Google Calendar&apos;ga qo&apos;shish
+                      </Button>
+                    </a>
+                    <Button type="button" variant="outline" onClick={downloadOutlookIcs}>
+                      <Download className="mr-2 h-4 w-4" />
+                      Outlook (.ics)
+                    </Button>
+                    <Button
+                      type="button"
+                      variant="outline"
+                      onClick={() => void sendCalendarInviteToCandidate()}
+                      disabled={inviteSending || !applicant?.email}
+                    >
+                      {inviteSending ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : <Send className="mr-2 h-4 w-4" />}
+                      {isRu ? "Отправить invite" : "Nomzodga invite yuborish"}
+                    </Button>
+                  </div>
+                </div>
+              )}
             </form>
+          </motion.div>
+
+          <motion.div
+            initial={{ opacity: 0, y: 20 }}
+            animate={{ opacity: 1, y: 0 }}
+            transition={{ delay: 0.08 }}
+            className="rounded-2xl border border-surface-200 bg-white p-5 shadow-sm dark:border-surface-700 dark:bg-surface-800"
+          >
+            <div className="flex items-center justify-between gap-2">
+              <h3 className="font-semibold text-surface-900 dark:text-white">
+                {isRu ? "Личные заметки и теги" : "Shaxsiy eslatmalar va teglar"}
+              </h3>
+              <Button size="sm" onClick={() => void saveNotesAndTags()} disabled={notesSaving}>
+                {notesSaving ? <Loader2 className="mr-1 h-3.5 w-3.5 animate-spin" /> : null}
+                {isRu ? "Сохранить" : "Saqlash"}
+              </Button>
+            </div>
+
+            <div className="mt-3 space-y-2">
+              <Label htmlFor="private-notes">{isRu ? "Личная заметка" : "Ichki eslatma"}</Label>
+              <Textarea
+                id="private-notes"
+                rows={4}
+                value={privateNotes}
+                onChange={(event) => setPrivateNotes(event.target.value)}
+                placeholder={
+                  isRu
+                    ? "Короткая внутренняя заметка о кандидате..."
+                    : "Nomzod haqida ichki eslatma yozing..."
+                }
+              />
+            </div>
+
+            <div className="mt-4 space-y-2">
+              <Label htmlFor="tag-input">{isRu ? "Теги" : "Teglar"}</Label>
+              <div className="flex gap-2">
+                <Input
+                  id="tag-input"
+                  value={tagInput}
+                  onChange={(event) => setTagInput(event.target.value)}
+                  onKeyDown={(event) => {
+                    if (event.key === "Enter" || event.key === ",") {
+                      event.preventDefault();
+                      addTag(tagInput);
+                      setTagInput("");
+                    }
+                  }}
+                  placeholder={isRu ? "Например: Сильный кандидат" : "Masalan: Kuchli kandidat"}
+                />
+                <Button
+                  type="button"
+                  variant="outline"
+                  onClick={() => {
+                    addTag(tagInput);
+                    setTagInput("");
+                  }}
+                >
+                  {isRu ? "Добавить" : "Qo'shish"}
+                </Button>
+              </div>
+              {privateTags.length > 0 && (
+                <div className="flex flex-wrap gap-1.5">
+                  {privateTags.map((tag) => (
+                    <span
+                      key={tag}
+                      className="inline-flex items-center gap-1 rounded-full bg-brand-100 px-2 py-0.5 text-xs font-medium text-brand-700 dark:bg-brand-500/20 dark:text-brand-200"
+                    >
+                      <Tag className="h-3 w-3" />
+                      {tag}
+                      <button
+                        type="button"
+                        onClick={() => removeTag(tag)}
+                        className="inline-flex h-4 w-4 items-center justify-center rounded-full hover:bg-brand-200 dark:hover:bg-brand-500/30"
+                        aria-label={isRu ? "Удалить тег" : "Tegni o'chirish"}
+                      >
+                        <X className="h-3 w-3" />
+                      </button>
+                    </span>
+                  ))}
+                </div>
+              )}
+            </div>
           </motion.div>
 
           {/* Job Info */}
@@ -714,7 +1219,7 @@ export default function ApplicantDetailPage() {
                     {application.match_breakdown.reasons.map((reason, i) => (
                       <li key={i} className="flex items-start gap-2">
                         <span className="mt-1.5 inline-block h-1 w-1 rounded-full bg-surface-400" />
-                        <span>{reason}</span>
+                        <span>{localizeMatchReason(reason, isRu)}</span>
                       </li>
                     ))}
                   </ul>
@@ -794,7 +1299,7 @@ export default function ApplicantDetailPage() {
                             : "bg-amber-100 text-amber-700 dark:bg-amber-500/20 dark:text-amber-300"
                         }`}
                       >
-                        {aiSummary.recommendation}
+                        {recommendationLabel(aiSummary.recommendation, isRu)}
                       </span>
                     </div>
                   </div>
@@ -898,8 +1403,8 @@ export default function ApplicantDetailPage() {
                       <Sparkles className="mr-1 h-3.5 w-3.5" />
                     )}
                     {action === "interview" && (isRu ? "Приглашение" : "Taklif")}
-                    {action === "shortlist" && (isRu ? "Шорт-лист" : "Shortlist")}
-                    {action === "offer" && (isRu ? "Оффер" : "Offer")}
+                    {action === "shortlist" && (isRu ? "Шорт-лист" : "Saralash")}
+                    {action === "offer" && (isRu ? "Оффер" : "Taklif xati")}
                     {action === "reject" && (isRu ? "Отказ" : "Rad etish")}
                   </Button>
                 ))}
@@ -940,10 +1445,17 @@ export default function ApplicantDetailPage() {
                         if (!aiEmail) return;
                         setAiEmailSending(true);
                         try {
-                          await aiApi.hrEmailSend(appId, {
+                          const response = await applicationApi.sendMessage(appId, {
                             subject: aiEmail.subject,
                             body: aiEmail.body,
+                            template_key: "ai_panel",
                           });
+                          const payload = response.data as { data?: { messages?: MessageHistoryItem[] } };
+                          if (payload.data?.messages) {
+                            setMessageHistory(payload.data.messages);
+                          } else {
+                            await loadMessageHistory();
+                          }
                           toast.success(isRu ? "Письмо отправлено" : "Xat yuborildi");
                         } catch (e: any) {
                           const msg = e?.response?.data?.detail || (e as Error).message;
@@ -969,6 +1481,50 @@ export default function ApplicantDetailPage() {
                 </div>
               )}
             </div>
+          </motion.div>
+
+          <motion.div
+            initial={{ opacity: 0, y: 20 }}
+            animate={{ opacity: 1, y: 0 }}
+            transition={{ delay: 0.285 }}
+            className="rounded-2xl border border-surface-200 bg-white p-5 shadow-sm dark:border-surface-700 dark:bg-surface-800"
+          >
+            <div className="mb-3 flex items-center justify-between">
+              <h3 className="font-semibold text-surface-900 dark:text-white">
+                {isRu ? "История сообщений" : "Xabarlar tarixi"}
+              </h3>
+              <Button size="sm" variant="outline" onClick={() => void loadMessageHistory()}>
+                {isRu ? "Обновить" : "Yangilash"}
+              </Button>
+            </div>
+
+            {messageHistory.length === 0 ? (
+              <p className="text-sm text-surface-500">
+                {isRu ? "Сообщения пока не отправлялись." : "Hozircha xabar yuborilmagan."}
+              </p>
+            ) : (
+              <div className="space-y-2">
+                {messageHistory
+                  .slice()
+                  .reverse()
+                  .map((item, index) => (
+                    <div
+                      key={item.id || `${item.subject}-${index}`}
+                      className="rounded-lg border border-surface-200 p-3 dark:border-surface-700"
+                    >
+                      <div className="flex flex-wrap items-center gap-2 text-xs text-surface-500">
+                        <span className="font-medium">{item.sender_name || (isRu ? "HR" : "HR")}</span>
+                        <span>·</span>
+                        <span>{item.sent_at ? formatDate(item.sent_at) : "—"}</span>
+                        <span>·</span>
+                        <span>{item.delivered ? (isRu ? "Доставлено" : "Yetkazildi") : (isRu ? "Ошибка доставки" : "Yetkazilmadi")}</span>
+                      </div>
+                      <p className="mt-1 text-sm font-semibold text-surface-900 dark:text-white">{item.subject}</p>
+                      <p className="mt-1 whitespace-pre-wrap text-sm text-surface-600 dark:text-surface-300">{item.body}</p>
+                    </div>
+                  ))}
+              </div>
+            )}
           </motion.div>
 
           {/* Interview Scorecard — structured evaluation */}
@@ -1211,15 +1767,106 @@ export default function ApplicantDetailPage() {
               )}
 
               {resume.pdf_url && (
-                <a href={resume.pdf_url} target="_blank" rel="noopener noreferrer">
-                  <Button variant="outline" className="mt-4 w-full">
-                    <Download className="mr-2 h-4 w-4" />
-                    PDF ko'chirish
-                  </Button>
-                </a>
+                <div className="mt-4 space-y-3">
+                  <div className="flex flex-wrap gap-2">
+                    <a href={resume.pdf_url} target="_blank" rel="noopener noreferrer">
+                      <Button type="button" variant="outline">
+                        <ExternalLink className="mr-2 h-4 w-4" />
+                        Yangi tabda ochish
+                      </Button>
+                    </a>
+                    <a href={resume.pdf_url} download target="_blank" rel="noopener noreferrer">
+                      <Button type="button" variant="outline">
+                        <Download className="mr-2 h-4 w-4" />
+                        Yuklab olish
+                      </Button>
+                    </a>
+                  </div>
+                  <div className="overflow-hidden rounded-xl border border-surface-200 dark:border-surface-700">
+                    <iframe
+                      src={`${resume.pdf_url}#view=FitH`}
+                      title="Resume PDF preview"
+                      className="h-[560px] w-full bg-white"
+                    />
+                  </div>
+                </div>
               )}
             </motion.div>
           )}
+
+          <Dialog open={messageDialogOpen} onOpenChange={setMessageDialogOpen}>
+            <DialogContent className="sm:max-w-xl max-sm:h-[100dvh] max-sm:w-screen max-sm:max-w-none max-sm:rounded-none max-sm:border-0">
+              <DialogHeader>
+                <DialogTitle>{isRu ? "Отправить сообщение кандидату" : "Nomzodga xabar yuborish"}</DialogTitle>
+                <DialogDescription>
+                  {isRu
+                    ? "Выберите шаблон и отредактируйте текст перед отправкой."
+                    : "Shablonni tanlang va yuborishdan oldin matnni tahrirlang."}
+                </DialogDescription>
+              </DialogHeader>
+
+              <div className="space-y-3">
+                <div className="space-y-2">
+                  <Label>{isRu ? "Шаблон" : "Shablon"}</Label>
+                  <div className="flex flex-wrap gap-2">
+                    {([
+                      ["blank", isRu ? "Пусто" : "Bo'sh"],
+                      ["taklif", isRu ? "Приглашение" : "Taklif"],
+                      ["shortlist", isRu ? "Шорт-лист" : "Shortlist"],
+                      ["offer", isRu ? "Оффер" : "Offer"],
+                      ["reject", isRu ? "Отказ" : "Rad etish"],
+                    ] as const).map(([key, label]) => (
+                      <Button
+                        key={key}
+                        type="button"
+                        size="sm"
+                        variant={messageTemplate === key ? "default" : "outline"}
+                        disabled={templateLoading}
+                        onClick={() =>
+                          void applyMessageTemplate(
+                            key as "blank" | "taklif" | "shortlist" | "offer" | "reject"
+                          )
+                        }
+                      >
+                        {label}
+                      </Button>
+                    ))}
+                  </div>
+                </div>
+
+                <div className="space-y-2">
+                  <Label htmlFor="message-subject">{isRu ? "Тема" : "Mavzu"}</Label>
+                  <Input
+                    id="message-subject"
+                    value={messageSubject}
+                    onChange={(event) => setMessageSubject(event.target.value)}
+                    placeholder={isRu ? "Напишите тему..." : "Mavzuni kiriting..."}
+                  />
+                </div>
+
+                <div className="space-y-2">
+                  <Label htmlFor="message-body">{isRu ? "Сообщение" : "Xabar matni"}</Label>
+                  <Textarea
+                    id="message-body"
+                    rows={8}
+                    value={messageBody}
+                    onChange={(event) => setMessageBody(event.target.value)}
+                    placeholder={isRu ? "Текст сообщения..." : "Xabar matni..."}
+                  />
+                </div>
+              </div>
+
+              <DialogFooter>
+                <Button variant="outline" onClick={() => setMessageDialogOpen(false)}>
+                  {isRu ? "Отмена" : "Bekor qilish"}
+                </Button>
+                <Button onClick={() => void sendApplicantMessage()} disabled={messageSending || templateLoading}>
+                  {messageSending ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : <Send className="mr-2 h-4 w-4" />}
+                  {isRu ? "Отправить" : "Yuborish"}
+                </Button>
+              </DialogFooter>
+            </DialogContent>
+          </Dialog>
         </div>
       </div>
     </div>

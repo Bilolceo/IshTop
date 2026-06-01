@@ -265,9 +265,18 @@ def score_resume_against_job(resume_content: Dict[str, Any], job: Any) -> Dict[s
         resume_keywords=resume_keywords,
         job=job,
     )
+    from app.services.trust_engine import build_match_explainability
+
+    explainability = build_match_explainability(
+        score=round(score, 1),
+        reasons=reasons,
+        missing_skills=missing,
+    )
+
     return {
         "score": round(score, 1),
         "matched_skills": matched,
         "missing_skills": missing,
         "reasons": reasons,
+        "explainability": explainability,
     }

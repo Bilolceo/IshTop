@@ -32,9 +32,10 @@ VERSION: 1.0.0
 # =============================================================================
 
 import logging
+import asyncio
 from contextlib import asynccontextmanager
 from datetime import datetime
-from typing import Any, Dict
+from typing import Any, Dict, List
 from uuid import uuid4
 
 from fastapi import Depends, FastAPI, Request, status
@@ -57,6 +58,7 @@ from app.database import (
 )
 from app.models import User, UserRole, AdminSubRole
 from app.services.startup_seed import run_startup_auto_seed
+from app.services.company_weekly_digest import send_due_company_weekly_digests
 
 # =============================================================================
 # LOGGING CONFIGURATION
@@ -246,12 +248,42 @@ async def lifespan(app: FastAPI):
     if settings.DEBUG:
         print_config_summary()
     
+    digest_task: asyncio.Task | None = None
+
+    async def _weekly_digest_loop() -> None:
+        """Periodic loop that sends due Monday digests."""
+        interval = max(300, int(settings.COMPANY_WEEKLY_DIGEST_POLL_SECONDS))
+        while True:
+            db: Session | None = None
+            try:
+                db = SessionLocal()
+                result = await send_due_company_weekly_digests(db=db)
+                if result.get("sent", 0) > 0:
+                    logger.info(
+                        "Weekly digest sent=%s skipped=%s failed=%s",
+                        result.get("sent", 0),
+                        result.get("skipped", 0),
+                        result.get("failed", 0),
+                    )
+            except asyncio.CancelledError:
+                raise
+            except Exception as exc:
+                logger.exception("Weekly digest scheduler iteration failed: %s", exc)
+            finally:
+                if db is not None:
+                    db.close()
+
+            await asyncio.sleep(interval)
+
     # Check database connection
     if check_database_connection():
         logger.info("✅ Database connection successful")
         normalize_legacy_user_role_values()
         _bootstrap_admin_user()
         run_startup_auto_seed()
+        if settings.COMPANY_WEEKLY_DIGEST_ENABLED:
+            digest_task = asyncio.create_task(_weekly_digest_loop())
+            logger.info("📬 Company weekly digest scheduler started")
     else:
         logger.error("❌ Database connection failed!")
 
@@ -266,6 +298,13 @@ async def lifespan(app: FastAPI):
     # SHUTDOWN
     # =========================================================================
     
+    if digest_task:
+        digest_task.cancel()
+        try:
+            await digest_task
+        except asyncio.CancelledError:
+            pass
+
     logger.info("=" * 60)
     logger.info(f"👋 Shutting down {settings.APP_NAME}...")
     logger.info("=" * 60)
@@ -612,29 +651,44 @@ async def health_check(db: Session = Depends(get_db)):
         "model": settings.GEMINI_MODEL if settings.AI_PROVIDER == "gemini" else settings.OPENAI_MODEL
     }
     
-    # Check Redis (if enabled)
+    # Check Redis (if enabled). Use a live probe so a flapping Redis is
+    # actually visible — get_redis() is lru_cached and can hide outages.
     if settings.REDIS_ENABLED:
-        try:
-            from app.core.redis_client import get_redis
+        from app.core.redis_client import ping_redis
 
-            redis_client = get_redis()
-            if redis_client is None:
-                raise RuntimeError("Redis unavailable")
-            redis_client.ping()
+        if ping_redis():
             health_status["redis"] = "connected"
-        except Exception as e:
-            logger.warning("Health check - Redis error: %s", e)
-            health_status["redis"] = "disconnected"
+        else:
+            health_status["redis"] = "unavailable"
+            # In production, Redis-backed security features (token blacklist,
+            # cross-worker rate limiting) silently degrade to per-process
+            # in-memory state when Redis is down. Demote /health so monitoring
+            # pages instead of returning 200 with a buried "redis: unavailable".
+            if not settings.DEBUG:
+                degraded: List[str] = []
+                if settings.TOKEN_BLACKLIST_USE_REDIS:
+                    degraded.append("token_blacklist")
+                if settings.RATE_LIMIT_USE_REDIS:
+                    degraded.append("rate_limit")
+                health_status["status"] = "degraded"
+                health_status["degraded_features"] = degraded
+                logger.error(
+                    "HEALTH_REDIS_UNAVAILABLE: Redis enabled but unreachable; "
+                    "degraded features=%s",
+                    degraded,
+                )
     else:
         health_status["redis"] = "disabled"
     
-    # Return 503 if unhealthy
-    if health_status["status"] == "unhealthy":
+    # Return 503 for either fully-unhealthy (DB down) or degraded
+    # (Redis-backed security features unavailable in production). Monitoring
+    # treats any non-200 from /health as a page-able event.
+    if health_status["status"] in ("unhealthy", "degraded"):
         return JSONResponse(
             status_code=status.HTTP_503_SERVICE_UNAVAILABLE,
             content=health_status
         )
-    
+
     return health_status
 
 
@@ -682,18 +736,14 @@ async def readyz():
         )
 
     if settings.REDIS_ENABLED:
-        try:
-            from app.core.redis_client import get_redis
+        from app.core.redis_client import ping_redis
 
-            redis_client = get_redis()
-            if redis_client is None:
-                raise RuntimeError("Redis unavailable")
-            redis_client.ping()
+        if ping_redis():
             ready_status["redis"] = "connected"
-        except Exception as e:
-            logger.warning("Readiness probe - Redis error: %s", e)
-            ready_status["redis"] = "disconnected"
+        else:
+            ready_status["redis"] = "unavailable"
             ready_status["status"] = "unready"
+            logger.error("READYZ_REDIS_UNAVAILABLE: Redis enabled but unreachable")
             return JSONResponse(
                 status_code=status.HTTP_503_SERVICE_UNAVAILABLE,
                 content=ready_status,

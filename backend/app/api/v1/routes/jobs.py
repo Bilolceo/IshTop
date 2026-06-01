@@ -30,6 +30,8 @@ VERSION: 1.0.0
 import logging
 import time
 import re
+from copy import deepcopy
+from datetime import datetime, timezone
 from typing import Optional, List, Dict, Any
 from uuid import UUID
 from enum import Enum
@@ -46,7 +48,18 @@ from app.core.dependencies import (
     get_optional_current_user,
     PaginationParams
 )
-from app.models import User, Job, JobStatus, UserRole, Resume, Application, ApplicationStatus, SavedJob
+from app.models import (
+    User,
+    Job,
+    JobStatus,
+    UserRole,
+    Resume,
+    Application,
+    ApplicationStatus,
+    SavedJob,
+    VerificationAuditLog,
+    FunnelEvent,
+)
 from app.schemas.job import (
     JobCreate,
     JobUpdate,
@@ -64,12 +77,21 @@ from app.schemas.application import (
 from app.schemas.auth import MessageResponse
 from app.config import settings
 from app.services import job_matching
+from app.services.discovery import normalize_discovery_labels, normalize_discovery_slug
+from app.services.trust_engine import (
+    calculate_job_trust,
+    build_match_explainability,
+    is_rollout_enabled,
+)
+from app.services.telegram_service import send_company_telegram_notification
 
 # =============================================================================
 # LOGGING
 # =============================================================================
 
 logger = logging.getLogger(__name__)
+
+ALLOWED_SALARY_CURRENCIES = {"UZS", "USD"}
 
 # =============================================================================
 # ROUTER
@@ -117,7 +139,7 @@ class JobMatchRequest(BaseModel):
     
     min_salary: Optional[int] = Field(
         None,
-        description="Minimum salary requirement (in cents)"
+        description="Minimum salary requirement (whole units in selected currency)"
     )
     
     experience_levels: Optional[List[str]] = Field(
@@ -133,6 +155,19 @@ class JobMatchRequest(BaseModel):
     )
 
 
+class MatchImprovementPlan(BaseModel):
+    d7: List[str] = Field(default_factory=list)
+    d14: List[str] = Field(default_factory=list)
+    d30: List[str] = Field(default_factory=list)
+
+
+class MatchExplainability(BaseModel):
+    confidence: str = "medium"
+    fit_reasons: List[str] = Field(default_factory=list)
+    missing_items: List[str] = Field(default_factory=list)
+    improvement_plan: MatchImprovementPlan = Field(default_factory=MatchImprovementPlan)
+
+
 class JobMatchScore(BaseModel):
     """Job match with score."""
     
@@ -141,6 +176,7 @@ class JobMatchScore(BaseModel):
     match_reasons: List[str] = Field(default_factory=list)
     skill_matches: List[str] = Field(default_factory=list)
     missing_skills: List[str] = Field(default_factory=list)
+    explainability: Optional[MatchExplainability] = None
 
 
 class JobMatchResponse(BaseModel):
@@ -152,6 +188,52 @@ class JobMatchResponse(BaseModel):
     matches: List[JobMatchScore]
     resume_skills: List[str] = Field(default_factory=list)
     processing_time_seconds: Optional[float] = None
+
+
+class CompanyVerificationSubmitRequest(BaseModel):
+    notes: Optional[str] = Field(
+        default=None,
+        max_length=1000,
+        description="Optional context for verification submission",
+    )
+    requested_badges: List[str] = Field(default_factory=list)
+
+
+class VerificationAuditResponse(BaseModel):
+    success: bool = True
+    message: str
+    verification_state: str
+    audit_id: Optional[str] = None
+
+
+class CloseJobRequest(BaseModel):
+    reason_code: Optional[str] = Field(
+        default=None,
+        description="Optional close reason code: hired | other",
+    )
+    reason_note: Optional[str] = Field(
+        default=None,
+        max_length=500,
+        description="Optional close reason details",
+    )
+
+
+class DiscoveryCompanyResponse(BaseModel):
+    success: bool = True
+    company: Dict[str, Any]
+    jobs: List[JobResponse]
+    total: int
+    page: int
+    page_size: int
+    total_pages: int
+    locale_slugs: Dict[str, Dict[str, str]]
+
+
+class AnalyticsEventRequest(BaseModel):
+    event_name: str = Field(..., min_length=3, max_length=100)
+    job_id: Optional[str] = None
+    source: Optional[str] = Field(default="web")
+    metadata: Dict[str, Any] = Field(default_factory=dict)
 
 
 # =============================================================================
@@ -249,6 +331,88 @@ def _find_duplicate_company_job(
             return candidate
     return None
 
+
+def _is_feature_enabled_for_user(
+    *,
+    feature_enabled: bool,
+    rollout_percent: int,
+    current_user: Optional[User],
+) -> bool:
+    if not feature_enabled:
+        return False
+    if current_user is None:
+        # Anonymous/public traffic gets full exposure when feature flag is on.
+        return True
+    return is_rollout_enabled(subject_id=str(current_user.id), rollout_percent=rollout_percent)
+
+
+def _normalize_salary_currency(raw_currency: Optional[str], company: Optional[User]) -> str:
+    prefs = (company.notification_preferences or {}) if company else {}
+    preferred = str(prefs.get("preferred_salary_currency", "UZS")).upper()
+    candidate = str(raw_currency or preferred or "UZS").upper()
+    return candidate if candidate in ALLOWED_SALARY_CURRENCIES else "UZS"
+
+
+async def _send_deadline_telegram_reminders(
+    *,
+    company: User,
+    jobs: List[Job],
+    db: Session,
+) -> None:
+    prefs = company.notification_preferences or {}
+    if not prefs.get("telegram_enabled", False):
+        return
+    if not prefs.get("telegram_deadline_reminders", True):
+        return
+
+    now = datetime.now(timezone.utc)
+    sent_map = prefs.get("telegram_deadline_reminders_sent") or {}
+    if not isinstance(sent_map, dict):
+        sent_map = {}
+
+    has_updates = False
+
+    for job in jobs:
+        if job.status != JobStatus.ACTIVE.value or not job.expires_at:
+            continue
+
+        expires_at = job.expires_at
+        if expires_at.tzinfo is None:
+            expires_at = expires_at.replace(tzinfo=timezone.utc)
+        else:
+            expires_at = expires_at.astimezone(timezone.utc)
+
+        hours_left = (expires_at - now).total_seconds() / 3600
+        if hours_left <= 0 or hours_left > 72:
+            continue
+
+        reminder_key = f"{job.id}:{expires_at.date().isoformat()}"
+        if sent_map.get(reminder_key):
+            continue
+
+        dashboard_url = f"{settings.FRONTEND_URL.rstrip('/')}/company/jobs/{job.id}/edit"
+        message = (
+            f"Vakansiya muddati yaqinlashmoqda.\n"
+            f"Vakansiya: {job.title}\n"
+            f"Tugash vaqti: {expires_at.strftime('%Y-%m-%d %H:%M UTC')}\n"
+            f"Boshqarish: {dashboard_url}"
+        )
+
+        sent = await send_company_telegram_notification(
+            company=company,
+            title="⏰ Vakansiya muddati",
+            message=message,
+        )
+        if sent:
+            sent_map[reminder_key] = now.isoformat()
+            has_updates = True
+
+    if has_updates:
+        prefs["telegram_deadline_reminders_sent"] = sent_map
+        company.notification_preferences = prefs
+        db.commit()
+
+
 def job_to_response(job: Job, include_company: bool = True) -> JobResponse:
     """Convert Job model to JobResponse."""
 
@@ -273,7 +437,24 @@ def job_to_response(job: Job, include_company: bool = True) -> JobResponse:
             logo=job.company.avatar_url,
             location=job.company.location,
             website=job.company.company_website,
+            cover_photo_url=job.company.company_cover_photo_url,
+            gallery_images=job.company.company_gallery_images or [],
+            culture=job.company.company_culture,
+            linkedin_url=job.company.company_linkedin_url,
+            telegram_url=job.company.company_telegram_url,
+            instagram_url=job.company.company_instagram_url,
+            facebook_url=job.company.company_facebook_url,
+            founded_year=job.company.company_founded_year,
+            video_url=job.company.company_video_url,
+            verification_state=job.company.verification_state,
+            is_verified=(job.company.verification_state == "approved"),
         )
+
+    trust_payload = calculate_job_trust(job, job.company)
+    trust_score = float(job.trust_score or trust_payload["trust_score"])
+    trust_badges = list(job.trust_badges or trust_payload["trust_badges"])
+    trust_factors = list(job.trust_factors or trust_payload["trust_factors"])
+    verification_state = trust_payload.get("verification_state")
     
     return JobResponse(
         id=str(job.id),
@@ -290,12 +471,21 @@ def job_to_response(job: Job, include_company: bool = True) -> JobResponse:
         salary_currency=job.salary_currency,
         is_salary_visible=job.is_salary_visible,
         location=job.location,
+        city_slug=job.city_slug,
         is_remote_allowed=job.is_remote_allowed,
         job_type=job.job_type,
         experience_level=job.experience_level,
+        profession_slug=job.profession_slug,
+        company_slug=job.company_slug,
         status=job.status,
+        close_reason_code=job.close_reason_code,
+        close_reason_note=job.close_reason_note,
         views_count=job.views_count,
         applications_count=job.applications_count,
+        trust_score=trust_score,
+        trust_badges=trust_badges,
+        trust_factors=trust_factors,
+        verification_state=verification_state,
         is_featured=job.is_featured,
         is_active=job.is_active,
         is_expired=job.is_expired,
@@ -339,6 +529,7 @@ def application_to_response(
         status=app.status,
         cover_letter=app.cover_letter,
         match_score=app.match_score,
+        match_breakdown=app.match_breakdown,
         applied_at=app.applied_at,
         reviewed_at=app.reviewed_at,
         interview_at=app.interview_at,
@@ -348,6 +539,8 @@ def application_to_response(
         resume=resume_summary,
         applicant=applicant_summary,
         notes=app.notes if include_notes else None,
+        tags=list(app.tags or []) if include_notes else [],
+        message_history=list(app.message_history or []) if include_notes else [],
     )
 
 
@@ -367,8 +560,8 @@ def application_to_response(
     - `location`: Filter by location (partial match)
     - `job_type`: full_time, part_time, remote, hybrid, contract, internship
     - `experience_level`: intern, junior, mid, senior, lead, executive
-    - `salary_min`: Minimum salary (in cents)
-    - `salary_max`: Maximum salary (in cents)
+    - `salary_min`: Minimum salary (whole units in selected currency)
+    - `salary_max`: Maximum salary (whole units in selected currency)
     - `is_remote`: Filter for remote-friendly jobs only
     - `company_id`: Filter by specific company
     
@@ -412,12 +605,12 @@ async def search_jobs(
     salary_min: Optional[int] = Query(
         None,
         ge=0,
-        description="Minimum salary (in cents)"
+        description="Minimum salary (whole units in selected currency)"
     ),
     salary_max: Optional[int] = Query(
         None,
         ge=0,
-        description="Maximum salary (in cents)"
+        description="Maximum salary (whole units in selected currency)"
     ),
     is_remote: Optional[bool] = Query(
         None,
@@ -426,6 +619,18 @@ async def search_jobs(
     company_id: Optional[str] = Query(
         None,
         description="Filter by company ID"
+    ),
+    city_slug: Optional[str] = Query(
+        None,
+        description="Filter by normalized city slug"
+    ),
+    profession_slug: Optional[str] = Query(
+        None,
+        description="Filter by normalized profession slug"
+    ),
+    company_slug: Optional[str] = Query(
+        None,
+        description="Filter by normalized company slug"
     ),
     
     # Sorting
@@ -507,6 +712,15 @@ async def search_jobs(
             q = q.filter(Job.company_id == UUID(company_id))
         except ValueError:
             pass  # Invalid UUID, ignore filter
+
+    if city_slug:
+        q = q.filter(Job.city_slug == normalize_discovery_slug(city_slug, kind="city"))
+
+    if profession_slug:
+        q = q.filter(Job.profession_slug == normalize_discovery_slug(profession_slug, kind="profession"))
+
+    if company_slug:
+        q = q.filter(Job.company_slug == normalize_discovery_slug(company_slug, kind="company"))
     
     # =========================================================================
     # GET TOTAL COUNT (before pagination)
@@ -537,6 +751,7 @@ async def search_jobs(
         q = q.order_by(desc(order_col))
     else:
         q = q.order_by(asc(order_col))
+    q = q.order_by(desc(Job.id))
     
     # =========================================================================
     # APPLY PAGINATION
@@ -589,6 +804,12 @@ async def list_my_jobs(
     jobs = q.order_by(Job.created_at.desc()).offset(
         pagination.skip
     ).limit(pagination.limit).all()
+
+    await _send_deadline_telegram_reminders(
+        company=company,
+        jobs=jobs,
+        db=db,
+    )
     
     total_pages = (total + pagination.page_size - 1) // pagination.page_size
     
@@ -676,6 +897,7 @@ async def get_saved_jobs(
                 "experience_level": job.experience_level,
                 "salary_min": job.salary_min,
                 "salary_max": job.salary_max,
+                "salary_currency": job.salary_currency,
                 "status": job.status,
                 "applications_count": job.applications_count,
                 "views_count": job.views_count,
@@ -774,6 +996,11 @@ async def recommended_jobs(
     # STEP 4: Score & rank
     # =========================================================================
     scored: List[Dict[str, Any]] = []
+    explainability_enabled = _is_feature_enabled_for_user(
+        feature_enabled=settings.FEATURE_EXPLAINABLE_MATCH_ENABLED,
+        rollout_percent=settings.FEATURE_EXPLAINABILITY_ROLLOUT_PERCENT,
+        current_user=current_user,
+    )
     for job in jobs:
         score, skill_matches, missing_skills, reasons = job_matching.calculate_match_score(
             resume_skills=resume_skills,
@@ -781,6 +1008,13 @@ async def recommended_jobs(
             resume_keywords=resume_keywords,
             job=job,
         )
+        explainability = None
+        if explainability_enabled:
+            explainability = build_match_explainability(
+                score=round(score, 1),
+                reasons=reasons,
+                missing_skills=missing_skills,
+            )
         scored.append(
             {
                 "job": job,
@@ -788,6 +1022,7 @@ async def recommended_jobs(
                 "skill_matches": skill_matches,
                 "missing_skills": missing_skills,
                 "reasons": reasons,
+                "explainability": explainability,
             }
         )
 
@@ -801,6 +1036,7 @@ async def recommended_jobs(
             match_reasons=item["reasons"],
             skill_matches=item["skill_matches"],
             missing_skills=item["missing_skills"][:5],
+            explainability=item["explainability"],
         )
         for item in scored
     ]
@@ -819,6 +1055,241 @@ async def recommended_jobs(
         resume_skills=resume_skills[:20],
         processing_time_seconds=round(processing_time, 2),
     )
+
+
+@router.post(
+    "/company/verification/submit",
+    response_model=VerificationAuditResponse,
+    summary="Submit company verification request",
+)
+async def submit_company_verification(
+    request: CompanyVerificationSubmitRequest,
+    company: User = Depends(get_current_company),
+    db: Session = Depends(get_db),
+):
+    """Company initiates verification workflow (audit logged)."""
+    if not settings.FEATURE_TRUST_ENGINE_ENABLED:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Feature is disabled")
+    if company.role != UserRole.COMPANY:
+        raise HTTPException(
+            status_code=status.HTTP_403_FORBIDDEN,
+            detail="Company role required",
+        )
+
+    company.verification_state = "pending"
+    company.verification_submitted_at = datetime.now(timezone.utc)
+    company.verification_notes = request.notes
+
+    audit = VerificationAuditLog(
+        company_id=company.id,
+        actor_id=company.id,
+        action="submit",
+        notes=request.notes,
+        payload={
+            "requested_badges": request.requested_badges,
+        },
+    )
+    db.add(audit)
+    db.commit()
+    db.refresh(company)
+    db.refresh(audit)
+
+    return VerificationAuditResponse(
+        message="Verification request submitted successfully",
+        verification_state=company.verification_state or "pending",
+        audit_id=str(audit.id),
+    )
+
+
+@router.get(
+    "/discovery/cities/{city_slug}",
+    response_model=JobListResponse,
+    summary="City discovery landing",
+)
+async def discovery_city_jobs(
+    city_slug: str,
+    page: int = Query(1, ge=1),
+    limit: int = Query(20, ge=1, le=100),
+    db: Session = Depends(get_db),
+):
+    if not settings.FEATURE_DISCOVERY_SEO_ENABLED:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Feature is disabled")
+
+    q = db.query(Job).filter(
+        Job.is_deleted == False,
+        Job.status == JobStatus.ACTIVE.value,
+        Job.city_slug == normalize_discovery_slug(city_slug, kind="city"),
+    )
+    total = q.count()
+    jobs = (
+        q.options(joinedload(Job.company))
+        .order_by(Job.is_featured.desc(), Job.created_at.desc(), Job.id.desc())
+        .offset((page - 1) * limit)
+        .limit(limit)
+        .all()
+    )
+    return JobListResponse(
+        jobs=[job_to_response(j) for j in jobs],
+        total=total,
+        page=page,
+        page_size=limit,
+        total_pages=(total + limit - 1) // limit if total else 0,
+    )
+
+
+@router.get(
+    "/discovery/professions/{profession_slug}",
+    response_model=JobListResponse,
+    summary="Profession discovery landing",
+)
+async def discovery_profession_jobs(
+    profession_slug: str,
+    page: int = Query(1, ge=1),
+    limit: int = Query(20, ge=1, le=100),
+    db: Session = Depends(get_db),
+):
+    if not settings.FEATURE_DISCOVERY_SEO_ENABLED:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Feature is disabled")
+
+    q = db.query(Job).filter(
+        Job.is_deleted == False,
+        Job.status == JobStatus.ACTIVE.value,
+        Job.profession_slug == normalize_discovery_slug(profession_slug, kind="profession"),
+    )
+    total = q.count()
+    jobs = (
+        q.options(joinedload(Job.company))
+        .order_by(Job.is_featured.desc(), Job.created_at.desc(), Job.id.desc())
+        .offset((page - 1) * limit)
+        .limit(limit)
+        .all()
+    )
+    return JobListResponse(
+        jobs=[job_to_response(j) for j in jobs],
+        total=total,
+        page=page,
+        page_size=limit,
+        total_pages=(total + limit - 1) // limit if total else 0,
+    )
+
+
+@router.get(
+    "/discovery/companies/{company_slug}",
+    response_model=DiscoveryCompanyResponse,
+    summary="Company discovery landing",
+)
+async def discovery_company_jobs(
+    company_slug: str,
+    page: int = Query(1, ge=1),
+    limit: int = Query(20, ge=1, le=100),
+    db: Session = Depends(get_db),
+):
+    if not settings.FEATURE_DISCOVERY_SEO_ENABLED:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Feature is disabled")
+
+    slug = normalize_discovery_slug(company_slug, kind="company")
+    q = db.query(Job).filter(
+        Job.is_deleted == False,
+        Job.status == JobStatus.ACTIVE.value,
+        Job.company_slug == slug,
+    )
+    total = q.count()
+    if total == 0:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Company discovery page not found")
+
+    first_job = (
+        q.options(joinedload(Job.company))
+        .order_by(Job.is_featured.desc(), Job.created_at.desc(), Job.id.desc())
+        .first()
+    )
+    jobs = (
+        q.options(joinedload(Job.company))
+        .order_by(Job.is_featured.desc(), Job.created_at.desc(), Job.id.desc())
+        .offset((page - 1) * limit)
+        .limit(limit)
+        .all()
+    )
+
+    company = first_job.company if first_job else None
+    locale_slugs = normalize_discovery_labels(
+        city_slug=first_job.city_slug or "",
+        profession_slug=first_job.profession_slug or "",
+        company_slug=first_job.company_slug or slug,
+    )
+
+    return DiscoveryCompanyResponse(
+        company={
+            "id": str(company.id) if company else None,
+            "name": (company.company_name or company.full_name) if company else slug,
+            "slug": slug,
+            "verification_state": getattr(company, "verification_state", "unverified") if company else "unverified",
+            "is_verified": bool(getattr(company, "verification_state", None) == "approved") if company else False,
+            "trust_badges": getattr(company, "trust_badges", []) if company else [],
+            "cover_photo_url": getattr(company, "company_cover_photo_url", None) if company else None,
+            "gallery_images": getattr(company, "company_gallery_images", []) if company else [],
+            "culture": getattr(company, "company_culture", None) if company else None,
+            "linkedin_url": getattr(company, "company_linkedin_url", None) if company else None,
+            "telegram_url": getattr(company, "company_telegram_url", None) if company else None,
+            "instagram_url": getattr(company, "company_instagram_url", None) if company else None,
+            "facebook_url": getattr(company, "company_facebook_url", None) if company else None,
+            "founded_year": getattr(company, "company_founded_year", None) if company else None,
+            "video_url": getattr(company, "company_video_url", None) if company else None,
+            "website": getattr(company, "company_website", None) if company else None,
+            "location": getattr(company, "location", None) if company else None,
+        },
+        jobs=[job_to_response(j) for j in jobs],
+        total=total,
+        page=page,
+        page_size=limit,
+        total_pages=(total + limit - 1) // limit if total else 0,
+        locale_slugs=locale_slugs,
+    )
+
+
+@router.post(
+    "/events",
+    summary="Track candidate funnel events",
+)
+async def track_job_event(
+    request: AnalyticsEventRequest,
+    current_user: User = Depends(get_current_active_user),
+    db: Session = Depends(get_db),
+):
+    job_uuid: Optional[UUID] = None
+    if request.job_id:
+        try:
+            job_uuid = UUID(request.job_id)
+        except ValueError:
+            logger.warning("Invalid funnel_event job_id ignored: %s", request.job_id)
+
+    actor_role = None
+    if current_user and current_user.role:
+        actor_role = (
+            current_user.role.value
+            if hasattr(current_user.role, "value")
+            else str(current_user.role)
+        )
+
+    event = FunnelEvent(
+        event_name=request.event_name.strip(),
+        actor_user_id=current_user.id,
+        actor_role=actor_role,
+        job_id=job_uuid,
+        source=request.source,
+        event_metadata=request.metadata or {},
+    )
+    db.add(event)
+    db.commit()
+
+    logger.info(
+        "funnel_event name=%s user=%s job=%s source=%s metadata=%s",
+        event.event_name,
+        str(current_user.id),
+        request.job_id,
+        request.source,
+        request.metadata,
+    )
+    return {"success": True, "message": "Event captured"}
 
 
 @router.get(
@@ -901,6 +1372,7 @@ async def create_job(
     db: Session = Depends(get_db)
 ):
     """Create a new job posting (company only)."""
+    normalized_currency = _normalize_salary_currency(job_data.salary_currency, company)
     duplicate = _find_duplicate_company_job(
         db,
         company_id=company.id,
@@ -935,7 +1407,7 @@ async def create_job(
         benefits=job_data.benefits,
         salary_min=job_data.salary_min,
         salary_max=job_data.salary_max,
-        salary_currency=job_data.salary_currency,
+        salary_currency=normalized_currency,
         is_salary_visible=job_data.is_salary_visible,
         location=job_data.location,
         is_remote_allowed=job_data.is_remote_allowed,
@@ -945,6 +1417,15 @@ async def create_job(
         expires_at=job_data.expires_at,
         status=JobStatus.ACTIVE.value,
     )
+
+    job.sync_discovery_slugs(
+        company_name=company.company_name,
+        company_full_name=company.full_name,
+    )
+    trust_payload = calculate_job_trust(job, company)
+    job.trust_score = float(trust_payload["trust_score"])
+    job.trust_badges = trust_payload["trust_badges"]
+    job.trust_factors = trust_payload["trust_factors"]
     
     db.add(job)
     db.commit()
@@ -995,6 +1476,8 @@ async def update_job(
     
     # Update fields
     update_dict = update_data.model_dump(exclude_unset=True)
+    if "salary_currency" in update_dict:
+        update_dict["salary_currency"] = _normalize_salary_currency(update_dict.get("salary_currency"), current_user)
     next_title = update_dict.get("title", job.title)
     next_location = update_dict.get("location", job.location)
     next_salary_min = update_dict.get("salary_min", job.salary_min)
@@ -1030,6 +1513,15 @@ async def update_job(
                 setattr(job, field, value.value)
             else:
                 setattr(job, field, value)
+
+    job.sync_discovery_slugs(
+        company_name=job.company.company_name if job.company else None,
+        company_full_name=job.company.full_name if job.company else None,
+    )
+    trust_payload = calculate_job_trust(job, job.company or current_user)
+    job.trust_score = float(trust_payload["trust_score"])
+    job.trust_badges = trust_payload["trust_badges"]
+    job.trust_factors = trust_payload["trust_factors"]
     
     db.commit()
     db.refresh(job)
@@ -1314,6 +1806,11 @@ async def match_jobs(
     # =========================================================================
     
     matches = []
+    explainability_enabled = _is_feature_enabled_for_user(
+        feature_enabled=settings.FEATURE_EXPLAINABLE_MATCH_ENABLED,
+        rollout_percent=settings.FEATURE_EXPLAINABILITY_ROLLOUT_PERCENT,
+        current_user=current_user,
+    )
     
     for job in jobs:
         score, skill_matches, missing_skills, reasons = job_matching.calculate_match_score(
@@ -1329,6 +1826,15 @@ async def match_jobs(
             "skill_matches": skill_matches,
             "missing_skills": missing_skills,
             "reasons": reasons,
+            "explainability": (
+                build_match_explainability(
+                    score=round(score, 1),
+                    reasons=reasons,
+                    missing_skills=missing_skills,
+                )
+                if explainability_enabled
+                else None
+            ),
         })
     
     # Sort by score (highest first)
@@ -1350,6 +1856,7 @@ async def match_jobs(
             match_reasons=m["reasons"],
             skill_matches=m["skill_matches"],
             missing_skills=m["missing_skills"][:5],  # Limit to top 5 missing
+            explainability=m["explainability"],
         )
         for m in matches
     ]
@@ -1416,6 +1923,7 @@ async def publish_job(
 )
 async def close_job(
     job_id: UUID,
+    request: Optional[CloseJobRequest] = None,
     current_user: User = Depends(get_current_company),
     db: Session = Depends(get_db)
 ):
@@ -1433,7 +1941,15 @@ async def close_job(
             detail="Job not found"
         )
     
-    job.close()
+    reason_code = (request.reason_code.strip().lower() if request and request.reason_code else None)
+    if reason_code not in {None, "hired", "other"}:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail="reason_code must be one of: hired, other",
+        )
+    reason_note = request.reason_note.strip() if request and request.reason_note else None
+
+    job.close(reason_code=reason_code, reason_note=reason_note)
     db.commit()
     db.refresh(job)
     
@@ -1441,3 +1957,150 @@ async def close_job(
     
     return job_to_response(job)
 
+
+@router.post(
+    "/{job_id}/pause",
+    response_model=JobResponse,
+    summary="Pause job",
+    description="""
+    Pause a job posting (temporarily stop receiving new applications).
+
+    **Access:** Only the owner company can pause.
+    """,
+)
+async def pause_job(
+    job_id: UUID,
+    current_user: User = Depends(get_current_company),
+    db: Session = Depends(get_db),
+):
+    job = db.query(Job).filter(
+        Job.id == job_id,
+        Job.company_id == current_user.id,
+        Job.is_deleted == False,
+    ).first()
+
+    if not job:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail="Job not found",
+        )
+
+    if job.status not in {JobStatus.ACTIVE.value, JobStatus.DRAFT.value}:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail="Only active or draft jobs can be paused",
+        )
+
+    job.pause()
+    db.commit()
+    db.refresh(job)
+
+    logger.info(f"Job paused: {job.id}")
+    return job_to_response(job)
+
+
+@router.post(
+    "/{job_id}/reopen",
+    response_model=JobResponse,
+    summary="Reopen job",
+    description="""
+    Reopen a paused/closed job back to active state.
+
+    **Access:** Only the owner company can reopen.
+    """,
+)
+async def reopen_job(
+    job_id: UUID,
+    current_user: User = Depends(get_current_company),
+    db: Session = Depends(get_db),
+):
+    job = db.query(Job).filter(
+        Job.id == job_id,
+        Job.company_id == current_user.id,
+        Job.is_deleted == False,
+    ).first()
+
+    if not job:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail="Job not found",
+        )
+
+    if job.status not in {JobStatus.PAUSED.value, JobStatus.CLOSED.value, JobStatus.FILLED.value}:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail="Only paused/closed jobs can be reopened",
+        )
+
+    job.publish()
+    db.commit()
+    db.refresh(job)
+
+    logger.info(f"Job reopened: {job.id}")
+    return job_to_response(job)
+
+
+@router.post(
+    "/{job_id}/clone",
+    response_model=JobResponse,
+    summary="Clone job as draft",
+    description="""
+    Clone an existing company job into a new draft posting.
+
+    **Access:** Only the owner company can clone.
+    """,
+)
+async def clone_job(
+    job_id: UUID,
+    current_user: User = Depends(get_current_company),
+    db: Session = Depends(get_db),
+):
+    source_job = db.query(Job).filter(
+        Job.id == job_id,
+        Job.company_id == current_user.id,
+        Job.is_deleted == False,
+    ).first()
+
+    if not source_job:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail="Job not found",
+        )
+
+    cloned_job = Job(
+        company_id=current_user.id,
+        title=source_job.title,
+        description=source_job.description,
+        requirements=deepcopy(source_job.requirements),
+        responsibilities=deepcopy(source_job.responsibilities),
+        benefits=deepcopy(source_job.benefits),
+        salary_min=source_job.salary_min,
+        salary_max=source_job.salary_max,
+        salary_currency=source_job.salary_currency or "UZS",
+        is_salary_visible=source_job.is_salary_visible,
+        location=source_job.location,
+        city_slug=source_job.city_slug,
+        is_remote_allowed=source_job.is_remote_allowed,
+        job_type=source_job.job_type,
+        experience_level=source_job.experience_level,
+        profession_slug=source_job.profession_slug,
+        company_slug=source_job.company_slug,
+        status=JobStatus.DRAFT.value,
+        close_reason_code=None,
+        close_reason_note=None,
+        views_count=0,
+        applications_count=0,
+        trust_score=0.0,
+        trust_factors=[],
+        trust_badges=[],
+        external_apply_url=source_job.external_apply_url,
+        is_featured=False,
+        expires_at=source_job.expires_at,
+    )
+
+    db.add(cloned_job)
+    db.commit()
+    db.refresh(cloned_job)
+
+    logger.info(f"Job cloned: source={source_job.id}, clone={cloned_job.id}")
+    return job_to_response(cloned_job)

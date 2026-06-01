@@ -123,9 +123,10 @@ export function ResumePreview({ content, title, className, isPlaceholder, locale
               <Sparkles className="h-3.5 w-3.5" />
               {copy.badge}
             </div>
-            <h1 className="text-[34px] font-black leading-tight tracking-tight text-slate-950">
+            {/* h2: ResumePreview is always embedded inside a page that already owns the h1. */}
+            <h2 className="text-[34px] font-black leading-tight tracking-tight text-slate-950">
               {name}
-            </h1>
+            </h2>
             <p className="mt-2 text-lg font-medium text-emerald-700">{role}</p>
             <div className="mt-5 flex flex-wrap gap-x-4 gap-y-2 text-[13px] text-slate-600">
               {email && <ContactItem icon={<Mail className="h-4 w-4" />} text={email} />}

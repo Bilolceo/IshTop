@@ -14,12 +14,15 @@ import {
   Share2,
   Send,
   Target,
+  ShieldCheck,
+  AlertTriangle,
+  CheckCircle2,
   X,
 } from "lucide-react";
 import { useTranslation } from "@/hooks/useTranslation";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
-import { formatSalaryRange } from "@/lib/utils";
+import { formatSalaryRange, sanitizeRichTextHtml, stripHtmlTags } from "@/lib/utils";
 import type { Job } from "@/types/api";
 
 export function JobDetailPanel({
@@ -39,6 +42,8 @@ export function JobDetailPanel({
 }) {
   const { locale } = useTranslation();
   const isRu = locale === "ru";
+  const safeDescriptionHtml = sanitizeRichTextHtml(job.description || "");
+  const hasDescription = stripHtmlTags(job.description || "").length > 0;
 
   return (
     <motion.div
@@ -62,6 +67,11 @@ export function JobDetailPanel({
             <p className="mt-0.5 text-surface-600 dark:text-surface-400">
               {job.company?.name}
             </p>
+            {job.verification_state === "approved" && (
+              <span className="mt-2 inline-flex rounded-full bg-emerald-100 px-2 py-0.5 text-xs font-semibold text-emerald-700 dark:bg-emerald-500/20 dark:text-emerald-300">
+                {isRu ? "Проверенная компания" : "Tasdiqlangan kompaniya"}
+              </span>
+            )}
             <div className="mt-2.5 flex flex-wrap items-center gap-2">
               <span className="flex items-center gap-1 text-sm text-surface-500">
                 <MapPin className="h-3.5 w-3.5" />
@@ -77,6 +87,15 @@ export function JobDetailPanel({
                 >
                   <Target className="h-3 w-3" />
                   {job.matchScore}% {isRu ? "совпадение" : "moslik"}
+                </Badge>
+              ) : null}
+              {typeof job.trust_score === "number" ? (
+                <Badge
+                  variant={job.trust_score >= 75 ? "success" : job.trust_score >= 50 ? "warning" : "secondary"}
+                  className="gap-1 rounded-full"
+                >
+                  {job.trust_score >= 50 ? <ShieldCheck className="h-3 w-3" /> : <AlertTriangle className="h-3 w-3" />}
+                  {Math.round(job.trust_score)} {isRu ? "доверие" : "ishonch"}
                 </Badge>
               ) : null}
             </div>
@@ -162,6 +181,7 @@ export function JobDetailPanel({
                   job.salary_min,
                   job.salary_max,
                   isRu ? "ru" : "uz",
+                  job.salary_currency || "USD",
                 )}
               </p>
             </div>
@@ -194,14 +214,78 @@ export function JobDetailPanel({
           </div>
         </div>
 
+        {(job.trust_badges?.length || job.trust_factors?.length) && (
+          <div className="mt-6 rounded-2xl border border-surface-200 bg-white p-4 dark:border-surface-700 dark:bg-surface-900/70">
+            <h3 className="mb-3 text-lg font-semibold text-surface-900 dark:text-white">
+              {isRu ? "Показатели доверия" : "Ishonch ko'rsatkichlari"}
+            </h3>
+            {job.trust_badges && job.trust_badges.length > 0 && (
+              <div className="mb-3 flex flex-wrap gap-2">
+                {job.trust_badges.map((badge) => (
+                  <Badge key={badge} variant="secondary" className="rounded-full">
+                    {badge.replace(/_/g, " ")}
+                  </Badge>
+                ))}
+              </div>
+            )}
+            {job.trust_factors && job.trust_factors.length > 0 && (
+              <div className="space-y-2">
+                {job.trust_factors.slice(0, 5).map((factor) => (
+                  <div key={factor.code} className="flex items-center justify-between text-sm">
+                    <span className="text-surface-600 dark:text-surface-300">{factor.label}</span>
+                    <span className="font-medium text-surface-900 dark:text-white">{Math.round((factor.score || 0) * 100)}%</span>
+                  </div>
+                ))}
+              </div>
+            )}
+          </div>
+        )}
+
+        {job.explainability && (
+          <div className="mt-6 rounded-2xl border border-surface-200 bg-white p-4 dark:border-surface-700 dark:bg-surface-900/70">
+            <h3 className="mb-3 text-lg font-semibold text-surface-900 dark:text-white">
+              {isRu ? "Почему эта вакансия вам подходит" : "Nima uchun bu ish sizga mos"}
+            </h3>
+            <div className="space-y-2">
+              {job.explainability.fit_reasons.slice(0, 3).map((reason, idx) => (
+                <div key={`${reason}-${idx}`} className="flex items-start gap-2 text-sm text-surface-700 dark:text-surface-300">
+                  <CheckCircle2 className="mt-0.5 h-4 w-4 text-emerald-500" />
+                  <span>{reason}</span>
+                </div>
+              ))}
+            </div>
+            {job.explainability.missing_items.length > 0 && (
+              <div className="mt-4">
+                <p className="mb-2 text-sm font-medium text-surface-700 dark:text-surface-300">
+                  {isRu ? "Что улучшить" : "Nimani yaxshilash kerak"}
+                </p>
+                <div className="flex flex-wrap gap-2">
+                  {job.explainability.missing_items.map((item) => (
+                    <Badge key={item} variant="warning" className="rounded-full">
+                      {item}
+                    </Badge>
+                  ))}
+                </div>
+              </div>
+            )}
+          </div>
+        )}
+
         {/* Section: Description */}
         <div className="mt-6">
           <h3 className="mb-3 text-lg font-semibold text-surface-900 dark:text-white">
             {isRu ? "Описание вакансии" : "Lavozim haqida"}
           </h3>
-          <div className="whitespace-pre-line text-sm leading-relaxed text-surface-600 dark:text-surface-400">
-            {job.description}
-          </div>
+          {hasDescription ? (
+            <div
+              className="prose prose-sm max-w-none text-surface-600 dark:prose-invert dark:text-surface-300"
+              dangerouslySetInnerHTML={{ __html: safeDescriptionHtml }}
+            />
+          ) : (
+            <p className="text-sm text-surface-500 dark:text-surface-400">
+              {isRu ? "Описание не указано" : "Tavsif ko'rsatilmagan"}
+            </p>
+          )}
         </div>
 
         {/* Section: Requirements */}

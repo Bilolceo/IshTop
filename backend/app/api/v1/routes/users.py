@@ -18,6 +18,7 @@ from typing import Optional
 from uuid import UUID
 import os
 from pathlib import Path
+from datetime import datetime, timezone
 
 from fastapi import APIRouter, Depends, HTTPException, status, Query, UploadFile, File
 from fastapi.responses import FileResponse
@@ -32,7 +33,7 @@ from app.core.dependencies import (
     PaginationParams
 )
 from app.core.security import get_password_hash, verify_password
-from app.models import User, Resume, Application
+from app.models import User, Resume, Application, Job
 from app.schemas.user import (
     UserUpdate, 
     UserProfileResponse, 
@@ -97,6 +98,16 @@ async def get_my_profile(
         location=current_user.location,
         company_name=current_user.company_name,
         company_website=current_user.company_website,
+        company_cover_photo_url=current_user.company_cover_photo_url,
+        company_gallery_images=current_user.company_gallery_images or [],
+        company_culture=current_user.company_culture,
+        company_linkedin_url=current_user.company_linkedin_url,
+        company_telegram_url=current_user.company_telegram_url,
+        company_instagram_url=current_user.company_instagram_url,
+        company_facebook_url=current_user.company_facebook_url,
+        company_founded_year=current_user.company_founded_year,
+        company_video_url=current_user.company_video_url,
+        verification_state=current_user.verification_state,
         created_at=current_user.created_at,
         updated_at=current_user.updated_at,
         last_login=current_user.last_login,
@@ -119,6 +130,12 @@ async def update_my_profile(
     
     # Update fields if provided
     update_dict = update_data.model_dump(exclude_unset=True)
+    if "company_gallery_images" in update_dict and update_dict["company_gallery_images"] is not None:
+        update_dict["company_gallery_images"] = [
+            str(item).strip()
+            for item in update_dict["company_gallery_images"]
+            if str(item).strip()
+        ][:6]
     
     for field, value in update_dict.items():
         if hasattr(current_user, field):
@@ -154,6 +171,16 @@ async def update_my_profile(
         location=current_user.location,
         company_name=current_user.company_name,
         company_website=current_user.company_website,
+        company_cover_photo_url=current_user.company_cover_photo_url,
+        company_gallery_images=current_user.company_gallery_images or [],
+        company_culture=current_user.company_culture,
+        company_linkedin_url=current_user.company_linkedin_url,
+        company_telegram_url=current_user.company_telegram_url,
+        company_instagram_url=current_user.company_instagram_url,
+        company_facebook_url=current_user.company_facebook_url,
+        company_founded_year=current_user.company_founded_year,
+        company_video_url=current_user.company_video_url,
+        verification_state=current_user.verification_state,
         created_at=current_user.created_at,
         updated_at=current_user.updated_at,
         last_login=current_user.last_login,
@@ -221,6 +248,16 @@ async def get_user(
         location=user.location,
         company_name=user.company_name,
         company_website=user.company_website,
+        company_cover_photo_url=user.company_cover_photo_url,
+        company_gallery_images=user.company_gallery_images or [],
+        company_culture=user.company_culture,
+        company_linkedin_url=user.company_linkedin_url,
+        company_telegram_url=user.company_telegram_url,
+        company_instagram_url=user.company_instagram_url,
+        company_facebook_url=user.company_facebook_url,
+        company_founded_year=user.company_founded_year,
+        company_video_url=user.company_video_url,
+        verification_state=user.verification_state,
         created_at=user.created_at,
         updated_at=user.updated_at,
         last_login=None,  # Hide last login for public
@@ -281,6 +318,16 @@ async def list_users(
             location=user.location,
             company_name=user.company_name,
             company_website=user.company_website,
+            company_cover_photo_url=user.company_cover_photo_url,
+            company_gallery_images=user.company_gallery_images or [],
+            company_culture=user.company_culture,
+            company_linkedin_url=user.company_linkedin_url,
+            company_telegram_url=user.company_telegram_url,
+            company_instagram_url=user.company_instagram_url,
+            company_facebook_url=user.company_facebook_url,
+            company_founded_year=user.company_founded_year,
+            company_video_url=user.company_video_url,
+            verification_state=user.verification_state,
             created_at=user.created_at,
             updated_at=user.updated_at,
             last_login=user.last_login,
@@ -431,6 +478,16 @@ async def upload_avatar(
         location=current_user.location,
         company_name=current_user.company_name,
         company_website=current_user.company_website,
+        company_cover_photo_url=current_user.company_cover_photo_url,
+        company_gallery_images=current_user.company_gallery_images or [],
+        company_culture=current_user.company_culture,
+        company_linkedin_url=current_user.company_linkedin_url,
+        company_telegram_url=current_user.company_telegram_url,
+        company_instagram_url=current_user.company_instagram_url,
+        company_facebook_url=current_user.company_facebook_url,
+        company_founded_year=current_user.company_founded_year,
+        company_video_url=current_user.company_video_url,
+        verification_state=current_user.verification_state,
         created_at=current_user.created_at,
         updated_at=current_user.updated_at,
         last_login=current_user.last_login,
@@ -487,6 +544,134 @@ class NotificationPreferences(BaseModel):
     email_tips: bool = False
     push_applications: bool = True
     push_messages: bool = True
+    telegram_enabled: bool = False
+    telegram_new_applications: bool = True
+    telegram_deadline_reminders: bool = True
+    telegram_chat_id: Optional[str] = None
+    telegram_channel: Optional[str] = None
+    preferred_salary_currency: str = "UZS"
+    company_size: Optional[str] = None
+    company_industry: Optional[str] = None
+
+
+class OnboardingChecklistStep(BaseModel):
+    key: str
+    label: str
+    url: str
+    completed: bool
+
+
+class OnboardingChecklistResponse(BaseModel):
+    success: bool = True
+    progress: str
+    completed_count: int
+    total_count: int
+    all_done: bool
+    dismissed: bool
+    steps: list[OnboardingChecklistStep]
+
+
+def _compute_company_onboarding_state(
+    *,
+    company: User,
+    db: Session,
+) -> dict:
+    prefs = company.notification_preferences or {}
+    onboarding_prefs = prefs.get("company_onboarding") or {}
+    if not isinstance(onboarding_prefs, dict):
+        onboarding_prefs = {}
+
+    completed_profile = all(
+        [
+            bool((company.avatar_url or "").strip()),
+            bool((company.company_name or "").strip()),
+            bool((company.company_website or "").strip()),
+            bool((company.location or "").strip()),
+            bool((company.bio or "").strip()),
+            bool(str(prefs.get("company_size") or "").strip()),
+            bool(str(prefs.get("company_industry") or "").strip()),
+        ]
+    )
+
+    jobs_count = (
+        db.query(func.count(Job.id))
+        .filter(
+            Job.company_id == company.id,
+            Job.is_deleted == False,
+        )
+        .scalar()
+        or 0
+    )
+    has_first_job = jobs_count > 0
+
+    responded_count = (
+        db.query(func.count(Application.id))
+        .join(Job, Job.id == Application.job_id)
+        .filter(
+            Job.company_id == company.id,
+            Job.is_deleted == False,
+            Application.is_deleted == False,
+            Application.status != "pending",
+        )
+        .scalar()
+        or 0
+    )
+    has_first_response = responded_count > 0
+
+    completed_map = {
+        "complete_profile": completed_profile,
+        "first_job_posted": has_first_job,
+        "first_candidate_responded": has_first_response,
+    }
+
+    steps = [
+        {
+            "key": "complete_profile",
+            "label": "Kompaniya profilini to'ldiring",
+            "url": "/company/settings#company",
+            "completed": completed_profile,
+        },
+        {
+            "key": "first_job_posted",
+            "label": "Birinchi vakansiyani e'lon qiling",
+            "url": "/company/jobs/new",
+            "completed": has_first_job,
+        },
+        {
+            "key": "first_candidate_responded",
+            "label": "Birinchi nomzodga javob bering",
+            "url": "/company/applicants",
+            "completed": has_first_response,
+        },
+    ]
+
+    completed_count = sum(1 for item in steps if item["completed"])
+    total_count = len(steps)
+    all_done = completed_count == total_count
+    dismissed = bool(onboarding_prefs.get("dismissed", False) and all_done)
+
+    now = datetime.now(timezone.utc).isoformat()
+    next_onboarding_state = {
+        "completed_map": completed_map,
+        "completed_count": completed_count,
+        "total_count": total_count,
+        "all_done": all_done,
+        "dismissed": dismissed,
+        "updated_at": now,
+        "dismissed_at": onboarding_prefs.get("dismissed_at"),
+    }
+    if not all_done:
+        next_onboarding_state["dismissed"] = False
+        next_onboarding_state["dismissed_at"] = None
+
+    return {
+        "steps": steps,
+        "completed_count": completed_count,
+        "total_count": total_count,
+        "all_done": all_done,
+        "dismissed": bool(next_onboarding_state["dismissed"]),
+        "persisted_state": next_onboarding_state,
+    }
 
 
 @router.get("/me/notification-preferences", summary="Get notification preferences")
@@ -505,6 +690,14 @@ async def get_notification_preferences(
             "email_tips": prefs.get("email_tips", False),
             "push_applications": prefs.get("push_applications", True),
             "push_messages": prefs.get("push_messages", True),
+            "telegram_enabled": prefs.get("telegram_enabled", False),
+            "telegram_new_applications": prefs.get("telegram_new_applications", True),
+            "telegram_deadline_reminders": prefs.get("telegram_deadline_reminders", True),
+            "telegram_chat_id": prefs.get("telegram_chat_id"),
+            "telegram_channel": prefs.get("telegram_channel"),
+            "preferred_salary_currency": str(prefs.get("preferred_salary_currency", "UZS")).upper(),
+            "company_size": prefs.get("company_size"),
+            "company_industry": prefs.get("company_industry"),
         }
     }
 
@@ -516,9 +709,81 @@ async def update_notification_preferences(
     db: Session = Depends(get_db)
 ):
     """Save user's notification preferences."""
-    current_user.notification_preferences = prefs.model_dump()
+    merged = dict(current_user.notification_preferences or {})
+    payload = prefs.model_dump()
+    normalized_currency = str(payload.get("preferred_salary_currency") or "UZS").upper()
+    payload["preferred_salary_currency"] = normalized_currency if normalized_currency in {"UZS", "USD"} else "UZS"
+    merged.update(payload)
+    current_user.notification_preferences = merged
     db.commit()
     return {"success": True, "message": "Bildirishnoma sozlamalari saqlandi"}
+
+
+@router.get(
+    "/me/company-onboarding-checklist",
+    response_model=OnboardingChecklistResponse,
+    summary="Get company onboarding checklist state",
+)
+async def get_company_onboarding_checklist(
+    current_user: User = Depends(get_current_active_user),
+    db: Session = Depends(get_db),
+):
+    if current_user.role.value != "company":
+        raise HTTPException(
+            status_code=status.HTTP_403_FORBIDDEN,
+            detail="Only company accounts can access onboarding checklist",
+        )
+
+    payload = _compute_company_onboarding_state(company=current_user, db=db)
+    prefs = dict(current_user.notification_preferences or {})
+    prefs["company_onboarding"] = payload["persisted_state"]
+    current_user.notification_preferences = prefs
+    db.commit()
+
+    completed_count = payload["completed_count"]
+    total_count = payload["total_count"]
+    progress = f"{completed_count}/{total_count} bajarildi"
+
+    return OnboardingChecklistResponse(
+        progress=progress,
+        completed_count=completed_count,
+        total_count=total_count,
+        all_done=payload["all_done"],
+        dismissed=payload["dismissed"],
+        steps=[OnboardingChecklistStep(**item) for item in payload["steps"]],
+    )
+
+
+@router.post(
+    "/me/company-onboarding-checklist/dismiss",
+    summary="Dismiss company onboarding checklist when fully complete",
+)
+async def dismiss_company_onboarding_checklist(
+    current_user: User = Depends(get_current_active_user),
+    db: Session = Depends(get_db),
+):
+    if current_user.role.value != "company":
+        raise HTTPException(
+            status_code=status.HTTP_403_FORBIDDEN,
+            detail="Only company accounts can dismiss onboarding checklist",
+        )
+
+    payload = _compute_company_onboarding_state(company=current_user, db=db)
+    if not payload["all_done"]:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail="Checklist can be dismissed only after all steps are completed",
+        )
+
+    prefs = dict(current_user.notification_preferences or {})
+    onboarding = dict(payload["persisted_state"])
+    onboarding["dismissed"] = True
+    onboarding["dismissed_at"] = datetime.now(timezone.utc).isoformat()
+    prefs["company_onboarding"] = onboarding
+    current_user.notification_preferences = prefs
+    db.commit()
+
+    return {"success": True, "message": "Onboarding checklist dismissed"}
 
 
 # =============================================================================

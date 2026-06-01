@@ -64,7 +64,7 @@ from typing import Optional, List, Dict, Any, TYPE_CHECKING
 
 # SQLAlchemy imports
 from sqlalchemy import (
-    Column, String, Text, Integer, Boolean, DateTime,
+    Column, String, Text, Integer, Boolean, DateTime, Float,
     ForeignKey, Index, CheckConstraint
 )
 from app.models.types import GUID
@@ -147,14 +147,11 @@ class Job(Base, UUIDMixin, TimestampMixin, SoftDeleteMixin):
     SALARY HANDLING
     ==========================================================================
     
-    WHY STORE AS INTEGER (CENTS)?
+    WHY STORE AS INTEGER (WHOLE UNITS)?
         - Avoids floating point precision issues
-        - $75,000 stored as 7500000 (cents)
+        - Keeps values explicit for UZS/USD without decimal drift
         - Math is exact: no rounding errors
-        - Standard practice in financial applications
-    
-    DISPLAY CONVERSION:
-        salary_display = salary_cents / 100
+        - Works well with range filters and reporting
         
     WHY SEPARATE MIN/MAX?
         - Most jobs have salary ranges
@@ -210,6 +207,9 @@ class Job(Base, UUIDMixin, TimestampMixin, SoftDeleteMixin):
         # Index for location filtering
         # WHY? "Jobs in New York" is a common filter
         Index('idx_jobs_location', 'location'),
+
+        # Index for city discovery landing pages
+        Index('idx_jobs_city_slug', 'city_slug'),
         
         # Index for job type filtering
         # WHY? "Remote jobs only" filter
@@ -222,6 +222,9 @@ class Job(Base, UUIDMixin, TimestampMixin, SoftDeleteMixin):
         # Index for experience level
         # WHY? "Senior positions only" filter
         Index('idx_jobs_experience', 'experience_level'),
+
+        # Index for profession discovery landing pages
+        Index('idx_jobs_profession_slug', 'profession_slug'),
         
         # Index for expiration date
         # WHY? Filter out expired jobs efficiently
@@ -242,6 +245,9 @@ class Job(Base, UUIDMixin, TimestampMixin, SoftDeleteMixin):
         # Index for company's jobs
         # Query: SELECT * FROM jobs WHERE company_id = ?
         Index('idx_jobs_company', 'company_id'),
+
+        # Index for company discovery landing pages
+        Index('idx_jobs_company_slug', 'company_slug'),
         
         # =====================================================================
         # CONSTRAINTS
@@ -308,26 +314,26 @@ class Job(Base, UUIDMixin, TimestampMixin, SoftDeleteMixin):
     )
     
     # =========================================================================
-    # COLUMNS - SALARY (stored in cents)
+    # COLUMNS - SALARY (stored in whole units of selected currency)
     # =========================================================================
     
     salary_min = Column(
         Integer,
         nullable=True,
-        comment="Minimum salary in cents (e.g., 7500000 = $75,000)"
+        comment="Minimum salary amount in selected currency units"
     )
     
     salary_max = Column(
         Integer,
         nullable=True,
-        comment="Maximum salary in cents (e.g., 10000000 = $100,000)"
+        comment="Maximum salary amount in selected currency units"
     )
     
     salary_currency = Column(
         String(3),
-        default="USD",
+        default="UZS",
         nullable=False,
-        comment="ISO 4217 currency code (USD, EUR, GBP, etc.)"
+        comment="ISO 4217 currency code (UZS, USD, etc.)"
     )
     
     is_salary_visible = Column(
@@ -346,6 +352,13 @@ class Job(Base, UUIDMixin, TimestampMixin, SoftDeleteMixin):
         nullable=True,
         index=True,
         comment="Job location (city, state, country)"
+    )
+
+    city_slug = Column(
+        String(255),
+        nullable=True,
+        index=True,
+        comment="Normalized city slug for SEO/discovery pages",
     )
     
     is_remote_allowed = Column(
@@ -374,6 +387,20 @@ class Job(Base, UUIDMixin, TimestampMixin, SoftDeleteMixin):
         index=True,
         comment="Required experience: intern, junior, mid, senior, lead, executive"
     )
+
+    profession_slug = Column(
+        String(255),
+        nullable=True,
+        index=True,
+        comment="Normalized profession slug derived from job title",
+    )
+
+    company_slug = Column(
+        String(255),
+        nullable=True,
+        index=True,
+        comment="Normalized company slug for discovery landing pages",
+    )
     
     status = Column(
         String(20),
@@ -381,6 +408,18 @@ class Job(Base, UUIDMixin, TimestampMixin, SoftDeleteMixin):
         default=JobStatus.DRAFT.value,
         index=True,
         comment="Posting status: draft, active, paused, closed, filled"
+    )
+
+    close_reason_code = Column(
+        String(20),
+        nullable=True,
+        comment="Optional close reason code: hired, other",
+    )
+
+    close_reason_note = Column(
+        String(500),
+        nullable=True,
+        comment="Optional close reason note for HR context",
     )
     
     # =========================================================================
@@ -399,6 +438,27 @@ class Job(Base, UUIDMixin, TimestampMixin, SoftDeleteMixin):
         default=0,
         nullable=False,
         comment="Number of applications received"
+    )
+
+    trust_score = Column(
+        Float,
+        default=0.0,
+        nullable=False,
+        comment="Computed trust score shown to candidates (0..100)",
+    )
+
+    trust_factors = Column(
+        JSON,
+        nullable=True,
+        default=list,
+        comment="Structured trust factor breakdown for explainable trust UI",
+    )
+
+    trust_badges = Column(
+        JSON,
+        nullable=True,
+        default=list,
+        comment="Public trust badges for the job listing",
     )
     
     # =========================================================================
@@ -496,19 +556,31 @@ class Job(Base, UUIDMixin, TimestampMixin, SoftDeleteMixin):
     def publish(self) -> None:
         """Publish the job (make it active)."""
         self.status = JobStatus.ACTIVE.value
-    
+        self.close_reason_code = None
+        self.close_reason_note = None
+
     def pause(self) -> None:
         """Temporarily pause accepting applications."""
         self.status = JobStatus.PAUSED.value
-    
-    def close(self) -> None:
+        self.close_reason_code = None
+        self.close_reason_note = None
+
+    def close(
+        self,
+        *,
+        reason_code: Optional[str] = None,
+        reason_note: Optional[str] = None,
+    ) -> None:
         """Close the job posting."""
         self.status = JobStatus.CLOSED.value
-    
+        self.close_reason_code = reason_code or None
+        self.close_reason_note = reason_note or None
+
     def mark_as_filled(self) -> None:
         """Mark position as filled."""
         self.status = JobStatus.FILLED.value
-    
+        self.close_reason_code = "hired"
+
     # =========================================================================
     # HELPER PROPERTIES
     # =========================================================================
@@ -550,9 +622,9 @@ class Job(Base, UUIDMixin, TimestampMixin, SoftDeleteMixin):
         if not self.salary_min and not self.salary_max:
             return None
         
-        # Convert cents to dollars
-        min_display = f"{self.salary_min // 100:,}" if self.salary_min else None
-        max_display = f"{self.salary_max // 100:,}" if self.salary_max else None
+        # Salary values are stored as whole units in selected currency.
+        min_display = f"{self.salary_min:,}" if self.salary_min else None
+        max_display = f"{self.salary_max:,}" if self.salary_max else None
         
         currency = self.salary_currency or "USD"
         
@@ -574,6 +646,23 @@ class Job(Base, UUIDMixin, TimestampMixin, SoftDeleteMixin):
     def increment_application_count(self) -> None:
         """Increment application counter."""
         self.applications_count = (self.applications_count or 0) + 1
+
+    def sync_discovery_slugs(
+        self,
+        *,
+        company_name: Optional[str] = None,
+        company_full_name: Optional[str] = None,
+    ) -> None:
+        """Update discovery slugs from mutable display fields."""
+        from app.services.discovery import (
+            city_slug_from_location,
+            profession_slug_from_title,
+            company_slug_from_name,
+        )
+
+        self.city_slug = city_slug_from_location(self.location)
+        self.profession_slug = profession_slug_from_title(self.title)
+        self.company_slug = company_slug_from_name(company_name, company_full_name)
     
     # =========================================================================
     # SERIALIZATION
@@ -601,13 +690,22 @@ class Job(Base, UUIDMixin, TimestampMixin, SoftDeleteMixin):
             "responsibilities": self.responsibilities,
             "benefits": self.benefits,
             "salary_range": self.salary_range_display,
+            "salary_currency": self.salary_currency,
             "location": self.location,
             "is_remote_allowed": self.is_remote_allowed,
+            "city_slug": self.city_slug,
             "job_type": self.job_type,
             "experience_level": self.experience_level,
+            "profession_slug": self.profession_slug,
+            "company_slug": self.company_slug,
             "status": self.status,
+            "close_reason_code": self.close_reason_code,
+            "close_reason_note": self.close_reason_note,
             "views_count": self.views_count,
             "applications_count": self.applications_count,
+            "trust_score": self.trust_score,
+            "trust_factors": self.trust_factors or [],
+            "trust_badges": self.trust_badges or [],
             "is_featured": self.is_featured,
             "is_active": self.is_active,
             "is_deleted": self.is_deleted,

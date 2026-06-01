@@ -32,6 +32,7 @@ logger = logging.getLogger(__name__)
 async def generate_job_description(
     title: str,
     seniority: str,
+    tone: str = "professional",
     industry: Optional[str] = None,
     location: Optional[str] = None,
     must_have: Optional[List[str]] = None,
@@ -39,11 +40,14 @@ async def generate_job_description(
 ) -> Dict[str, Any]:
     """Draft a complete job description from a short brief."""
     must_have = must_have or []
-    prompt = _job_description_prompt(title, seniority, industry, location, must_have, locale)
+    normalized_locale = _normalize_locale(locale)
+    prompt = _job_description_prompt(
+        title, seniority, tone, industry, location, must_have, normalized_locale
+    )
 
     parsed = await _generate_json(prompt)
     if parsed is None:
-        return _fallback_job_description(title, seniority, must_have, locale)
+        return _fallback_job_description(title, seniority, must_have, normalized_locale)
 
     # Normalize keys + types
     return {
@@ -193,14 +197,24 @@ def _coerce_int(value: Any, default: Optional[int], lo: int, hi: int) -> Optiona
 
 
 def _lang_directive(locale: str) -> str:
-    return (
-        "Respond in Russian." if locale == "ru" else "Respond in Uzbek (latin script)."
-    )
+    if locale == "ru":
+        return "Respond in Russian."
+    if locale == "en":
+        return "Respond in English."
+    return "Respond in Uzbek (latin script)."
+
+
+def _normalize_locale(locale: str) -> str:
+    value = (locale or "uz").strip().lower()
+    if value in {"ru", "en"}:
+        return value
+    return "uz"
 
 
 def _job_description_prompt(
     title: str,
     seniority: str,
+    tone: str,
     industry: Optional[str],
     location: Optional[str],
     must_have: List[str],
@@ -211,6 +225,7 @@ def _job_description_prompt(
 
 Job title: {title}
 Seniority: {seniority}
+Tone: {tone}
 Industry: {industry or "general"}
 Location: {location or "—"}
 Must-have skills/qualifications: {must}
@@ -331,26 +346,35 @@ Return ONLY this JSON:
 
 def _fallback_job_description(title: str, seniority: str, must_have: List[str], locale: str) -> Dict[str, Any]:
     is_ru = locale == "ru"
+    is_en = locale == "en"
     return {
         "title": title,
         "summary": (
             f"Мы ищем {seniority} {title}." if is_ru
+            else f"We are hiring a {seniority} {title}." if is_en
             else f"Biz {seniority} {title} izlamoqdamiz."
         ),
         "description": (
             "Динамичная команда, профессиональный рост, конкурентная зарплата." if is_ru
+            else "Dynamic team, growth opportunities, and a competitive compensation package." if is_en
             else "Dinamik jamoa, professional o'sish, raqobatbardosh maosh."
         ),
         "requirements": must_have or (
+            ["Relevant role experience", "Team collaboration", "Accountability"] if is_en
+            else
             ["Profilga mos tajriba", "Jamoa bilan ishlash", "Mas'uliyat hissi"] if not is_ru
             else ["Релевантный опыт", "Командная работа", "Ответственность"]
         ),
         "responsibilities": (
+            ["Deliver core responsibilities", "Collaborate with cross-functional teammates", "Report progress regularly"] if is_en
+            else
             ["Asosiy vazifalarni bajarish", "Hamkasblar bilan ish olib borish", "Hisobot berish"] if not is_ru
             else ["Выполнение основных задач", "Работа с коллегами", "Отчётность"]
         ),
         "nice_to_have": [],
         "benefits": (
+            ["Health insurance", "Flexible schedule", "Career growth"] if is_en
+            else
             ["Tibbiy sug'urta", "Moslashuvchan jadval", "Karyera rivoji"] if not is_ru
             else ["Медстраховка", "Гибкий график", "Развитие карьеры"]
         ),

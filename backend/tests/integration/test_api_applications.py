@@ -264,6 +264,61 @@ class TestCreateApplication:
         ]
 
     @pytest.mark.asyncio
+    async def test_apply_race_returns_409_via_integrity_error(
+        self,
+        async_client: AsyncClient,
+        auth_headers,
+        test_job,
+        test_resume,
+        monkeypatch,
+    ):
+        """Regression for R6.
+
+        Simulates the race window between the duplicate pre-check and the
+        commit by forcing the very next Session.commit() to raise
+        IntegrityError as if a concurrent INSERT won the uq_user_job
+        constraint. The route must convert that to a clean 409, never a 500.
+        """
+        from sqlalchemy.exc import IntegrityError
+        from sqlalchemy.orm import Session
+
+        original_commit = Session.commit
+        state = {"raised": False}
+
+        def commit_once_raises_integrity_error(self):
+            if not state["raised"]:
+                state["raised"] = True
+                raise IntegrityError(
+                    statement="INSERT INTO applications ...",
+                    params={},
+                    orig=Exception("UNIQUE constraint failed: uq_user_job"),
+                )
+            return original_commit(self)
+
+        monkeypatch.setattr(Session, "commit", commit_once_raises_integrity_error)
+
+        response = await async_client.post(
+            "/api/v1/applications/apply",
+            headers=auth_headers,
+            json={
+                "job_id": as_str(test_job.id),
+                "resume_id": as_str(test_resume.id),
+            },
+        )
+
+        assert state["raised"], "Patched commit was never called — test did not exercise the race path"
+        assert response.status_code == status.HTTP_409_CONFLICT, (
+            f"Expected 409 from IntegrityError handler, got {response.status_code}: "
+            f"{response.text}"
+        )
+        # The project wraps HTTPException in its own envelope, so search the
+        # whole serialized response rather than guessing the exact key.
+        body_text = response.text.lower()
+        assert "already applied" in body_text, (
+            f"Expected duplicate-apply message in response, got: {response.text!r}"
+        )
+
+    @pytest.mark.asyncio
     async def test_apply_closed_job(
         self, async_client: AsyncClient, auth_headers, test_resume, async_session, test_company
     ):

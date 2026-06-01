@@ -21,7 +21,7 @@ import { Input } from "@/components/ui/input";
 import { Badge } from "@/components/ui/badge";
 import { SkeletonCard } from "@/components/ui/skeleton";
 import { jobApi } from "@/lib/api";
-import { formatRelativeTime, formatSalaryRange, cn } from "@/lib/utils";
+import { formatRelativeTime, formatSalaryRange, cn, stripHtmlTags } from "@/lib/utils";
 import { toast } from "sonner";
 import { useTranslation } from "@/hooks/useTranslation";
 
@@ -50,6 +50,7 @@ interface SavedJobItem {
   experience_level: string;
   salary_min?: number;
   salary_max?: number;
+  salary_currency?: string;
   status: string;
   applications_count: number;
   created_at: string;
@@ -223,7 +224,7 @@ export default function SavedJobsPage() {
 
                   {/* Description */}
                   <p className="mt-1 line-clamp-2 text-sm text-surface-500">
-                    {job.description}
+                    {stripHtmlTags(job.description)}
                   </p>
 
                   {/* Info */}
@@ -237,7 +238,7 @@ export default function SavedJobsPage() {
                     {(job.salary_min || job.salary_max) && (
                       <span className="flex items-center gap-1 font-medium text-green-600">
                         <DollarSign className="h-3 w-3" />
-                        {formatSalaryRange(job.salary_min, job.salary_max)}
+                        {formatSalaryRange(job.salary_min, job.salary_max, "uz", job.salary_currency || "USD")}
                       </span>
                     )}
                   </div>

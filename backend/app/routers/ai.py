@@ -23,7 +23,7 @@ import logging
 import re
 
 from app.config import settings
-from app.core.dependencies import get_current_active_user
+from app.core.dependencies import get_current_active_user, rate_limit
 
 # Try to import AI services
 try:
@@ -247,6 +247,7 @@ def _condense_help_answer(answer: str, locale: str) -> str:
 async def help_assistant(
     request: HelpAssistantRequest,
     _user=Depends(get_current_active_user),
+    _rl: None = Depends(rate_limit(max_requests=10, window_seconds=60)),
 ):
     """
     AI helper for student dashboard questions.
@@ -373,7 +374,11 @@ def get_ai_service():
     summary="Generate a Resume with AI",
     description="Generate a complete professional resume using AI (Gemini - FREE or OpenAI)."
 )
-async def generate_resume(request: ResumeGenerateRequest):
+async def generate_resume(
+    request: ResumeGenerateRequest,
+    _user=Depends(get_current_active_user),
+    _rl: None = Depends(rate_limit(max_requests=5, window_seconds=60)),
+):
     """
     Generate a professional resume using AI.
     
@@ -470,7 +475,11 @@ async def generate_resume(request: ResumeGenerateRequest):
     summary="Analyze a Resume",
     description="Analyze an existing resume for ATS compatibility, skills, and improvements."
 )
-async def analyze_resume(request: ResumeAnalyzeRequest):
+async def analyze_resume(
+    request: ResumeAnalyzeRequest,
+    _user=Depends(get_current_active_user),
+    _rl: None = Depends(rate_limit(max_requests=5, window_seconds=60)),
+):
     """
     Analyze a resume and provide detailed feedback.
     
@@ -517,7 +526,11 @@ async def analyze_resume(request: ResumeAnalyzeRequest):
     summary="Generate a Cover Letter",
     description="Generate a tailored cover letter based on resume and job description."
 )
-async def generate_cover_letter(request: CoverLetterRequest):
+async def generate_cover_letter(
+    request: CoverLetterRequest,
+    _user=Depends(get_current_active_user),
+    _rl: None = Depends(rate_limit(max_requests=5, window_seconds=60)),
+):
     """
     Generate a personalized cover letter.
     
@@ -556,7 +569,11 @@ async def generate_cover_letter(request: CoverLetterRequest):
     summary="Match Resume to Job",
     description="Analyze how well a resume matches a specific job description."
 )
-async def match_job(request: JobMatchRequest):
+async def match_job(
+    request: JobMatchRequest,
+    _user=Depends(get_current_active_user),
+    _rl: None = Depends(rate_limit(max_requests=10, window_seconds=60)),
+):
     """
     Analyze resume-job fit.
     
@@ -593,7 +610,7 @@ async def match_job(request: JobMatchRequest):
     summary="Get API Usage Statistics",
     description="Get token usage and cost estimates for the current session."
 )
-async def get_usage():
+async def get_usage(_user=Depends(get_current_active_user)):
     """
     Get AI API usage statistics.
     
@@ -670,10 +687,11 @@ from uuid import UUID
 class JobDescriptionRequest(BaseModel):
     title: str = Field(..., min_length=2, max_length=120)
     seniority: str = Field("mid", description="intern | junior | mid | senior | lead")
+    tone: str = Field("professional", description="professional | friendly | startup")
     industry: Optional[str] = None
     location: Optional[str] = None
     must_have: List[str] = Field(default_factory=list)
-    locale: str = Field("uz", description="uz | ru")
+    locale: str = Field("uz", description="uz | ru | en")
 
 
 @router.post(
@@ -684,10 +702,12 @@ class JobDescriptionRequest(BaseModel):
 async def ai_hr_job_description(
     request: JobDescriptionRequest,
     company: _User = Depends(get_current_company),
+    _rl: None = Depends(rate_limit(max_requests=5, window_seconds=60)),
 ):
     data = await ai_hr_service.generate_job_description(
         title=request.title,
         seniority=request.seniority,
+        tone=request.tone,
         industry=request.industry,
         location=request.location,
         must_have=request.must_have,
@@ -757,6 +777,7 @@ async def ai_hr_candidate_summary(
     locale: str = "uz",
     company: _User = Depends(get_current_company),
     db: Session = Depends(get_db),
+    _rl: None = Depends(rate_limit(max_requests=10, window_seconds=60)),
 ):
     application = _load_application_for_company(application_id, company, db)
     data = await ai_hr_service.generate_candidate_summary(
@@ -777,6 +798,7 @@ async def ai_hr_interview_questions(
     count: int = 8,
     locale: str = "uz",
     company: _User = Depends(get_current_company),
+    _rl: None = Depends(rate_limit(max_requests=10, window_seconds=60)),
     db: Session = Depends(get_db),
 ):
     application = _load_application_for_company(application_id, company, db)
@@ -805,6 +827,7 @@ async def ai_hr_email_template(
     request: EmailTemplateRequest,
     company: _User = Depends(get_current_company),
     db: Session = Depends(get_db),
+    _rl: None = Depends(rate_limit(max_requests=10, window_seconds=60)),
 ):
     application = _load_application_for_company(application_id, company, db)
     applicant_name = (application.user.full_name if application.user else "—") or "—"
@@ -842,6 +865,7 @@ async def ai_hr_email_send(
     request: SendEmailRequest,
     company: _User = Depends(get_current_company),
     db: Session = Depends(get_db),
+    _rl: None = Depends(rate_limit(max_requests=20, window_seconds=60)),
 ):
     application = _load_application_for_company(application_id, company, db)
     applicant = application.user

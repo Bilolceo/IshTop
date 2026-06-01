@@ -179,6 +179,16 @@ def create_token_response(user: User) -> TokenResponse:
         location=user.location,
         company_name=user.company_name,
         company_website=user.company_website,
+        company_cover_photo_url=user.company_cover_photo_url,
+        company_gallery_images=user.company_gallery_images or [],
+        company_culture=user.company_culture,
+        company_linkedin_url=user.company_linkedin_url,
+        company_telegram_url=user.company_telegram_url,
+        company_instagram_url=user.company_instagram_url,
+        company_facebook_url=user.company_facebook_url,
+        company_founded_year=user.company_founded_year,
+        company_video_url=user.company_video_url,
+        verification_state=user.verification_state,
         subscription_tier=getattr(user, "subscription_tier", None),
         subscription_expires_at=getattr(user, "subscription_expires_at", None),
         created_at=user.created_at,
@@ -1086,6 +1096,16 @@ async def get_current_user_profile(
         location=current_user.location,
         company_name=current_user.company_name,
         company_website=current_user.company_website,
+        company_cover_photo_url=current_user.company_cover_photo_url,
+        company_gallery_images=current_user.company_gallery_images or [],
+        company_culture=current_user.company_culture,
+        company_linkedin_url=current_user.company_linkedin_url,
+        company_telegram_url=current_user.company_telegram_url,
+        company_instagram_url=current_user.company_instagram_url,
+        company_facebook_url=current_user.company_facebook_url,
+        company_founded_year=current_user.company_founded_year,
+        company_video_url=current_user.company_video_url,
+        verification_state=current_user.verification_state,
         created_at=current_user.created_at,
     )
 
@@ -1373,5 +1393,3 @@ async def linkedin_oauth_callback(
             error_code="LINKEDIN_OAUTH_AUTHENTICATION_FAILED",
             message="OAuth authentication failed",
         )
-
-

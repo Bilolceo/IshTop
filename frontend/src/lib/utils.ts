@@ -140,6 +140,7 @@ export function formatSalaryRange(
   min?: number,
   max?: number,
   locale: "uz" | "ru" = "uz",
+  currency: string = "USD",
 ): string {
   const labels =
     locale === "ru"
@@ -151,10 +152,59 @@ export function formatSalaryRange(
         };
 
   if (!min && !max) return labels.notDisclosed;
-  if (min && max) return `${formatCurrency(min)} - ${formatCurrency(max)}`;
-  if (min) return `${labels.from} ${formatCurrency(min)}`;
-  if (max) return `${labels.upTo} ${formatCurrency(max)}`;
+  if (min && max) return `${formatCurrency(min, currency)} - ${formatCurrency(max, currency)}`;
+  if (min) return `${labels.from} ${formatCurrency(min, currency)}`;
+  if (max) return `${labels.upTo} ${formatCurrency(max, currency)}`;
   return labels.notDisclosed;
+}
+
+export function stripHtmlTags(input?: string | null): string {
+  if (!input) return "";
+  return input
+    .replace(/<[^>]*>/g, " ")
+    .replace(/&nbsp;/g, " ")
+    .replace(/\s+/g, " ")
+    .trim();
+}
+
+export function plainTextToRichHtml(input?: string | null): string {
+  if (!input) return "";
+  const lines = input.split("\n").map((line) => line.trim());
+  const chunks: string[] = [];
+  let listBuffer: string[] = [];
+
+  const flushList = () => {
+    if (listBuffer.length === 0) return;
+    chunks.push(`<ul>${listBuffer.join("")}</ul>`);
+    listBuffer = [];
+  };
+
+  for (const line of lines) {
+    if (!line) {
+      flushList();
+      continue;
+    }
+
+    if (line.startsWith("• ")) {
+      listBuffer.push(`<li>${line.slice(2)}</li>`);
+      continue;
+    }
+
+    flushList();
+    chunks.push(`<p>${line}</p>`);
+  }
+
+  flushList();
+  return chunks.join("");
+}
+
+export function sanitizeRichTextHtml(input?: string | null): string {
+  if (!input) return "";
+  return input
+    .replace(/<script[\s\S]*?>[\s\S]*?<\/script>/gi, "")
+    .replace(/\son\w+="[^"]*"/gi, "")
+    .replace(/\son\w+='[^']*'/gi, "")
+    .replace(/javascript:/gi, "");
 }
 
 /**

@@ -330,6 +330,16 @@ class UserResponse(BaseModel):
     location: Optional[str] = None
     company_name: Optional[str] = None
     company_website: Optional[str] = None
+    company_cover_photo_url: Optional[str] = None
+    company_gallery_images: List[str] = Field(default_factory=list)
+    company_culture: Optional[str] = None
+    company_linkedin_url: Optional[str] = None
+    company_telegram_url: Optional[str] = None
+    company_instagram_url: Optional[str] = None
+    company_facebook_url: Optional[str] = None
+    company_founded_year: Optional[int] = None
+    company_video_url: Optional[str] = None
+    verification_state: Optional[str] = None
     subscription_tier: Optional[str] = None
     subscription_expires_at: Optional[datetime] = None
     created_at: datetime

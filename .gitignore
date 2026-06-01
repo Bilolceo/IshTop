@@ -2,10 +2,17 @@
 # SmartCareer AI - Git Ignore
 # =============================================================================
 
-# Environment variables
+# Environment variables — NEVER commit real secrets
 .env
 .env.*
 !.env.example
+!.env.example.*
+backend/.env
+backend/.env.*
+!backend/.env.example
+frontend/.env
+frontend/.env.*
+!frontend/.env.example
 *.local
 
 # Python
@@ -40,11 +47,16 @@ ENV/
 .venv/
 .venv*/
 
-# Database
+# Database — never commit local SQLite or backups
 *.db
 *.sqlite
 *.sqlite3
+*.db-journal
+*.db-shm
+*.db-wal
 smartcareer.db
+backend/*.db
+backend/*.sqlite*
 
 # Logs
 *.log
