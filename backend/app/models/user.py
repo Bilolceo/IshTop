@@ -128,6 +128,9 @@ ADMIN_PERMISSION_MATRIX = {
         "admin.errors.resolve",
         "admin.system.read",
         "admin.users.read",
+        "admin.users.write",
+        "admin.jobs.write",
+        "admin.companies.write",
         "admin.dashboard.read",
     },
     AdminSubRole.OPERATIONS_ADMIN: {
@@ -136,6 +139,9 @@ ADMIN_PERMISSION_MATRIX = {
         "admin.errors.resolve",
         "admin.system.read",
         "admin.users.read",
+        "admin.users.write",
+        "admin.jobs.write",
+        "admin.companies.write",
         "admin.dashboard.read",
     },
     AdminSubRole.FINANCE_ADMIN: {

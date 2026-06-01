@@ -1240,7 +1240,7 @@ class BulkActionRequest(BaseModel):
 async def bulk_action_users(
     payload: BulkActionRequest,
     db: Session = Depends(get_db),
-    current_admin: User = Depends(require_admin_permission("manage_users")),
+    current_admin: User = Depends(require_admin_permission("admin.users.write")),
 ):
     """Bulk activate or deactivate users."""
     valid_actions = {"activate", "deactivate"}
@@ -1265,7 +1265,7 @@ async def bulk_action_users(
 async def bulk_action_jobs(
     payload: BulkActionRequest,
     db: Session = Depends(get_db),
-    current_admin: User = Depends(require_admin_permission("moderate_jobs")),
+    current_admin: User = Depends(require_admin_permission("admin.jobs.write")),
 ):
     """Bulk approve, pause, close, or delete jobs."""
     valid_actions = {"approve", "pause", "close", "delete"}
@@ -1280,7 +1280,8 @@ async def bulk_action_jobs(
 
     if payload.action == "delete":
         for j in jobs:
-            db.delete(j)
+            j.is_deleted = True
+            j.deleted_at = datetime.now(timezone.utc)
     else:
         status_map = {"approve": "active", "pause": "paused", "close": "closed"}
         for j in jobs:
@@ -1295,7 +1296,7 @@ async def bulk_action_jobs(
 async def bulk_action_companies(
     payload: BulkActionRequest,
     db: Session = Depends(get_db),
-    current_admin: User = Depends(require_admin_permission("moderate_companies")),
+    current_admin: User = Depends(require_admin_permission("admin.companies.write")),
 ):
     """Bulk verify or deactivate companies."""
     valid_actions = {"verify", "deactivate"}
