@@ -1,7 +1,7 @@
 """add audit_logs table
 
 Revision ID: 015_add_audit_log
-Revises: 014_add_landing_contents
+Revises: 018_add_application_tags_and_messages
 Create Date: 2026-05-31
 """
 
@@ -9,7 +9,7 @@ from alembic import op
 import sqlalchemy as sa
 
 revision = "015_add_audit_log"
-down_revision = "014_add_landing_contents"
+down_revision = "018_add_application_tags_and_messages"
 branch_labels = None
 depends_on = None
 

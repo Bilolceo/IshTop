@@ -153,6 +153,9 @@ export default function AdminUsersPage() {
   const [loadingMore, setLoadingMore] = useState(false);
   const [savingId, setSavingId] = useState<string | null>(null);
   const [selected, setSelected] = useState<Set<string>>(new Set());
+  const [confirmTarget, setConfirmTarget] = useState<AdminManagedUser | null>(
+    null,
+  );
 
   const hasMore = users.length < total;
 
@@ -551,6 +554,55 @@ export default function AdminUsersPage() {
           { label: "Bloklash", action: "deactivate", variant: "destructive", requireConfirm: true },
         ]}
       />
+
+      <Dialog
+        open={confirmTarget !== null}
+        onOpenChange={(open) => {
+          if (!open) setConfirmTarget(null);
+        }}
+      >
+        <DialogContent>
+          <DialogHeader>
+            <DialogTitle>
+              {confirmTarget?.is_active
+                ? c.confirmBlockTitle
+                : c.confirmActivateTitle}
+            </DialogTitle>
+            <DialogDescription>
+              {confirmTarget?.is_active
+                ? c.confirmBlockBody
+                : c.confirmActivateBody}
+            </DialogDescription>
+          </DialogHeader>
+          <DialogFooter>
+            <Button
+              variant="outline"
+              onClick={() => setConfirmTarget(null)}
+              disabled={savingId !== null}
+            >
+              {c.cancel}
+            </Button>
+            <Button
+              variant={confirmTarget?.is_active ? "destructive" : "default"}
+              onClick={() => {
+                if (confirmTarget) void handleToggleActive(confirmTarget);
+              }}
+              disabled={savingId !== null}
+            >
+              {savingId !== null ? (
+                <>
+                  <RefreshCw className="mr-2 h-4 w-4 animate-spin" />
+                  {c.saving}
+                </>
+              ) : confirmTarget?.is_active ? (
+                c.confirmBlock
+              ) : (
+                c.confirmActivate
+              )}
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
     </div>
   );
 }
