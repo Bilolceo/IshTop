@@ -25,6 +25,7 @@ import { api } from "@/lib/api";
 import { formatRelativeTime, cn } from "@/lib/utils";
 import { toast } from "sonner";
 import PushNotificationCard from "@/components/pwa/PushNotificationCard";
+import { useTranslation } from "@/contexts/TranslationContext";
 
 interface NotificationItem {
   id: string;
@@ -52,6 +53,48 @@ const getTypeConfig = (type: string) =>
   typeConfig[type] || typeConfig.info;
 
 export default function NotificationsPage() {
+  const { locale } = useTranslation();
+  const isRu = locale === "ru";
+  const c = isRu
+    ? {
+        title: "Уведомления",
+        countSuffix: "уведомлений",
+        loadFail: "Не удалось загрузить уведомления.",
+        genericErr: "Произошла ошибка.",
+        deleted: "Удалено.",
+        allMarkedRead: "Все отмечены как прочитанные.",
+        markAllRead: "Прочитать все",
+        all: "Все",
+        unread: "Непрочитанные",
+        emptyUnread: "Нет непрочитанных уведомлений",
+        emptyAll: "Уведомлений пока нет",
+        emptyUnreadSub: "Все уведомления прочитаны.",
+        emptyAllSub: "Здесь появятся новые события.",
+        showAll: "Показать все",
+        view: "Открыть",
+        markRead: "Отметить прочитанным",
+        delete: "Удалить",
+      }
+    : {
+        title: "Bildirishnomalar",
+        countSuffix: "ta bildirishnoma",
+        loadFail: "Bildirishnomalar yuklanmadi.",
+        genericErr: "Xatolik yuz berdi.",
+        deleted: "O'chirildi.",
+        allMarkedRead: "Barchasi o'qildi deb belgilandi.",
+        markAllRead: "Barchasini o'qildi",
+        all: "Barchasi",
+        unread: "O'qilmagan",
+        emptyUnread: "O'qilmagan bildirishnoma yo'q",
+        emptyAll: "Bildirishnomalar yo'q",
+        emptyUnreadSub: "Barcha bildirishnomalar o'qilgan.",
+        emptyAllSub: "Yangi faoliyat bo'lganda bu yerda ko'rinadi.",
+        showAll: "Barchasini ko'rish",
+        view: "Ko'rish",
+        markRead: "O'qildi deb belgilash",
+        delete: "O'chirish",
+      };
+
   const [notifications, setNotifications] = useState<NotificationItem[]>([]);
   const [isLoading, setIsLoading] = useState(true);
   const [filter, setFilter] = useState<"all" | "unread">("all");
@@ -66,7 +109,7 @@ export default function NotificationsPage() {
       setNotifications(res.data.notifications || []);
       setUnreadCount(res.data.unread_count || 0);
     } catch {
-      toast.error("Bildirishnomalar yuklanmadi.");
+      toast.error(c.loadFail);
     } finally {
       setIsLoading(false);
     }
@@ -85,7 +128,7 @@ export default function NotificationsPage() {
       );
       setUnreadCount((prev) => Math.max(0, prev - 1));
     } catch {
-      toast.error("Xatolik yuz berdi.");
+      toast.error(c.genericErr);
     }
   };
 
@@ -95,9 +138,9 @@ export default function NotificationsPage() {
       const was_unread = notifications.find((n) => n.id === id)?.is_read === false;
       setNotifications((prev) => prev.filter((n) => n.id !== id));
       if (was_unread) setUnreadCount((prev) => Math.max(0, prev - 1));
-      toast.success("O'chirildi.");
+      toast.success(c.deleted);
     } catch {
-      toast.error("Xatolik yuz berdi.");
+      toast.error(c.genericErr);
     }
   };
 
@@ -107,9 +150,9 @@ export default function NotificationsPage() {
       await api.post("/notifications/read-all");
       setNotifications((prev) => prev.map((n) => ({ ...n, is_read: true })));
       setUnreadCount(0);
-      toast.success("Barchasi o'qildi deb belgilandi.");
+      toast.success(c.allMarkedRead);
     } catch {
-      toast.error("Xatolik yuz berdi.");
+      toast.error(c.genericErr);
     } finally {
       setIsMarkingAll(false);
     }
@@ -127,7 +170,7 @@ export default function NotificationsPage() {
         <div>
           <h1 className="flex items-center gap-2 text-2xl font-bold text-surface-900">
             <Bell className="h-6 w-6 text-purple-600" />
-            Bildirishnomalar
+            {c.title}
             {unreadCount > 0 && (
               <Badge className="bg-red-500 text-white">
                 {unreadCount}
@@ -135,7 +178,7 @@ export default function NotificationsPage() {
             )}
           </h1>
           <p className="mt-1 text-sm text-surface-500">
-            {notifications.length} ta bildirishnoma
+            {notifications.length} {c.countSuffix}
           </p>
         </div>
 
@@ -151,7 +194,7 @@ export default function NotificationsPage() {
             ) : (
               <CheckCheck className="h-4 w-4" />
             )}
-            Barchasini o'qildi
+            {c.markAllRead}
           </Button>
         )}
       </motion.div>
@@ -167,7 +210,7 @@ export default function NotificationsPage() {
               : "text-surface-500 hover:text-surface-700"
           )}
         >
-          Barchasi
+          {c.all}
         </button>
         <button
           onClick={() => setFilter("unread")}
@@ -178,7 +221,7 @@ export default function NotificationsPage() {
               : "text-surface-500 hover:text-surface-700"
           )}
         >
-          O'qilmagan
+          {c.unread}
           {unreadCount > 0 && (
             <span className="flex h-5 w-5 items-center justify-center rounded-full bg-red-500 text-xs text-white">
               {unreadCount}
@@ -209,12 +252,10 @@ export default function NotificationsPage() {
         >
           <Bell className="h-16 w-16 text-surface-300" />
           <h3 className="mt-4 text-lg font-semibold text-surface-700">
-            {filter === "unread" ? "O'qilmagan bildirishnoma yo'q" : "Bildirishnomalar yo'q"}
+            {filter === "unread" ? c.emptyUnread : c.emptyAll}
           </h3>
           <p className="mt-2 text-sm text-surface-500">
-            {filter === "unread"
-              ? "Barcha bildirishnomalar o'qilgan."
-              : "Yangi faoliyat bo'lganda bu yerda ko'rinadi."}
+            {filter === "unread" ? c.emptyUnreadSub : c.emptyAllSub}
           </p>
           {filter === "unread" && (
             <Button
@@ -222,7 +263,7 @@ export default function NotificationsPage() {
               className="mt-4"
               onClick={() => setFilter("all")}
             >
-              Barchasini ko'rish
+              {c.showAll}
             </Button>
           )}
         </motion.div>
@@ -280,7 +321,7 @@ export default function NotificationsPage() {
                           className="flex items-center gap-1 text-xs text-purple-600 hover:underline"
                           onClick={() => !n.is_read && markAsRead(n.id)}
                         >
-                          Ko'rish
+                          {c.view}
                           <ExternalLink className="h-3 w-3" />
                         </Link>
                       )}
@@ -292,7 +333,7 @@ export default function NotificationsPage() {
                     {!n.is_read && (
                       <button
                         onClick={() => markAsRead(n.id)}
-                        title="O'qildi deb belgilash"
+                        title={c.markRead}
                         className="rounded-lg p-1.5 text-surface-400 hover:bg-green-50 hover:text-green-600"
                       >
                         <Check className="h-4 w-4" />
@@ -300,7 +341,7 @@ export default function NotificationsPage() {
                     )}
                     <button
                       onClick={() => deleteNotification(n.id)}
-                      title="O'chirish"
+                      title={c.delete}
                       className="rounded-lg p-1.5 text-surface-400 hover:bg-red-50 hover:text-red-500"
                     >
                       <Trash2 className="h-4 w-4" />
