@@ -3,7 +3,7 @@
 import { motion } from "framer-motion";
 import {
   MapPin,
-  DollarSign,
+  Wallet,
   Briefcase,
   Users,
   Globe,
@@ -23,6 +23,7 @@ import { useTranslation } from "@/hooks/useTranslation";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { formatSalaryRange, sanitizeRichTextHtml, stripHtmlTags } from "@/lib/utils";
+import { jobTypeLabel as jobTypeLabelFor, experienceLabel as experienceLabelFor } from "@/lib/jobLabels";
 import type { Job } from "@/types/api";
 
 export function JobDetailPanel({
@@ -48,31 +49,8 @@ export function JobDetailPanel({
   // Localized labels for backend-supplied enums / codes. Keep keys aligned
   // with the values the backend returns; unknown values fall back to the
   // raw value humanised (Title Case).
-  const jobTypeLabel = (() => {
-    const map: Record<string, [string, string]> = {
-      full_time:  ["To'liq stavka",   "Полная занятость"],
-      part_time:  ["Yarim stavka",    "Частичная занятость"],
-      contract:   ["Shartnoma",       "Контракт"],
-      internship: ["Amaliyot",        "Стажировка"],
-      remote:     ["Masofaviy",       "Удалённо"],
-      hybrid:     ["Gibrid",          "Гибрид"],
-    };
-    const pair = map[job.job_type];
-    return pair ? (isRu ? pair[1] : pair[0]) : job.job_type.replace(/_/g, " ");
-  })();
-
-  const experienceLabel = (() => {
-    const map: Record<string, [string, string]> = {
-      entry:     ["Boshlang'ich",        "Начинающий"],
-      junior:    ["Boshlovchi (0-2 yil)", "Начинающий (0-2 года)"],
-      mid:       ["O'rta (2-5 yil)",     "Средний (2-5 лет)"],
-      senior:    ["Katta (5+ yil)",      "Старший (5+ лет)"],
-      lead:      ["Rahbar (7+ yil)",     "Руководитель (7+ лет)"],
-      executive: ["Direktor",            "Директор"],
-    };
-    const pair = map[job.experience_level];
-    return pair ? (isRu ? pair[1] : pair[0]) : job.experience_level;
-  })();
+  const jobTypeLabel = jobTypeLabelFor(job.job_type, isRu);
+  const experienceLabel = experienceLabelFor(job.experience_level, isRu);
 
   const trustBadgeLabel = (code: string): string => {
     const map: Record<string, [string, string]> = {
@@ -223,7 +201,7 @@ export function JobDetailPanel({
           </div>
           <div className="flex items-center gap-3">
             <div className="flex h-10 w-10 items-center justify-center rounded-lg bg-green-100 dark:bg-green-900/50">
-              <DollarSign className="h-5 w-5 text-green-600" />
+              <Wallet className="h-5 w-5 text-green-600" />
             </div>
             <div>
               <p className="text-xs text-surface-500">
@@ -234,7 +212,7 @@ export function JobDetailPanel({
                   job.salary_min,
                   job.salary_max,
                   isRu ? "ru" : "uz",
-                  job.salary_currency || "USD",
+                  job.salary_currency || "UZS",
                 )}
               </p>
             </div>

@@ -15,7 +15,7 @@ import {
   Search,
   Briefcase,
   Clock,
-  DollarSign,
+  Wallet,
   Target,
   Loader2,
   RotateCcw,
@@ -47,7 +47,7 @@ import { useTranslation } from "@/hooks/useTranslation";
 import { JobCard } from "@/components/jobs/JobCard";
 import { JobDetailPanel } from "@/components/jobs/JobDetailPanel";
 import { FilterPillBar } from "@/components/jobs/FilterPillBar";
-import { SalarySlider } from "@/components/jobs/SalarySlider";
+import { SalarySlider, SALARY_MAX } from "@/components/jobs/SalarySlider";
 
 // =============================================================================
 // SEARCH SUGGESTIONS
@@ -112,7 +112,14 @@ export default function JobsPage() {
   const { locale } = useTranslation();
   const isRu = locale === "ru";
   const router = useRouter();
-  const { jobs, isLoading, fetchJobs, matchJobs } = useJobs();
+  const {
+    jobs,
+    isLoading,
+    fetchJobs,
+    matchJobs,
+    currentPage = 1,
+    totalPages = 1,
+  } = useJobs();
 
   const [localJobs, setLocalJobs] = useState<(Job & { matchScore?: number })[]>(
     [],
@@ -138,7 +145,7 @@ export default function JobsPage() {
     locations: [] as string[],
     jobTypes: [] as string[],
     experienceLevels: [] as string[],
-    salaryRange: [0, 10000] as [number, number],
+    salaryRange: [0, SALARY_MAX] as [number, number],
     companies: [] as string[],
     datePosted: "all",
   });
@@ -274,7 +281,7 @@ export default function JobsPage() {
       locations: [],
       jobTypes: [],
       experienceLevels: [],
-      salaryRange: [0, 10000],
+      salaryRange: [0, SALARY_MAX],
       companies: [],
       datePosted: "all",
     });
@@ -285,7 +292,7 @@ export default function JobsPage() {
     filters.jobTypes.length +
     filters.experienceLevels.length +
     filters.companies.length +
-    (filters.salaryRange[0] > 0 || filters.salaryRange[1] < 10000 ? 1 : 0) +
+    (filters.salaryRange[0] > 0 || filters.salaryRange[1] < SALARY_MAX ? 1 : 0) +
     (filters.datePosted !== "all" ? 1 : 0);
 
   const filteredJobs = localJobs.filter((job) => {
@@ -417,19 +424,29 @@ export default function JobsPage() {
   // Infinite scroll
   // -------------------------------------------------------------------------
 
+  // Load the next page of jobs (infinite scroll). Only paginates the "all
+  // jobs" feed — the matched feed is fetched in full via matchJobs.
+  const loadMore = useCallback(async () => {
+    if (feedMode !== "all" || isLoading || isLoadingMore) return;
+    if (currentPage >= totalPages) return;
+    setIsLoadingMore(true);
+    try {
+      await fetchJobs(undefined, currentPage + 1, true);
+    } finally {
+      setIsLoadingMore(false);
+    }
+  }, [feedMode, isLoading, isLoadingMore, currentPage, totalPages, fetchJobs]);
+
   useEffect(() => {
     observerRef.current = new IntersectionObserver(
       (entries) => {
-        if (entries[0].isIntersecting && !isLoadingMore) {
-          setIsLoadingMore(true);
-          setTimeout(() => setIsLoadingMore(false), 1000);
-        }
+        if (entries[0].isIntersecting) void loadMore();
       },
-      { threshold: 0.1 },
+      { threshold: 0.1, rootMargin: "400px" },
     );
     if (loadMoreRef.current) observerRef.current.observe(loadMoreRef.current);
     return () => observerRef.current?.disconnect();
-  }, [isLoadingMore]);
+  }, [loadMore]);
 
   // Auto-select first job on desktop
   useEffect(() => {
@@ -577,7 +594,7 @@ export default function JobsPage() {
               </SelectItem>
               <SelectItem value="salary">
                 <span className="flex items-center gap-2">
-                  <DollarSign className="h-4 w-4" />
+                  <Wallet className="h-4 w-4" />
                   {isRu ? "Высокая зарплата" : "Yuqori maosh"}
                 </span>
               </SelectItem>
@@ -729,14 +746,21 @@ export default function JobsPage() {
                 ))}
               </AnimatePresence>
 
-              {/* Infinite scroll trigger */}
+              {/* Infinite scroll trigger + explicit "load more" fallback.
+                  The observer auto-loads when the sentinel nears view; the
+                  button guarantees pagination works regardless of the inner
+                  scroll-container layout. */}
               <div ref={loadMoreRef} className="py-4 text-center">
-                {isLoadingMore && (
+                {isLoadingMore ? (
                   <div className="flex items-center justify-center gap-2 text-sm text-surface-500">
                     <Loader2 className="h-4 w-4 animate-spin" />
                     {isRu ? "Загружаем..." : "Yuklanmoqda..."}
                   </div>
-                )}
+                ) : feedMode === "all" && currentPage < totalPages ? (
+                  <Button variant="outline" onClick={() => void loadMore()}>
+                    {isRu ? "Показать ещё" : "Yana ko'rsatish"}
+                  </Button>
+                ) : null}
               </div>
             </div>
           )}
@@ -862,6 +886,7 @@ export default function JobsPage() {
                   value: "part_time",
                   label: isRu ? "Частичная занятость" : "Yarim kunlik",
                 },
+                { value: "internship", label: isRu ? "Стажировка" : "Amaliyot" },
                 { value: "remote", label: isRu ? "Удалённо" : "Masofaviy" },
                 { value: "hybrid", label: isRu ? "Гибрид" : "Aralash" },
                 { value: "contract", label: isRu ? "Контракт" : "Shartnoma" },
@@ -892,6 +917,7 @@ export default function JobsPage() {
                 {isRu ? "Опыт" : "Tajriba"}
               </p>
               {[
+                { value: "intern", label: isRu ? "Стажёр" : "Amaliyotchi" },
                 { value: "junior", label: isRu ? "Начинающий" : "Boshlovchi" },
                 { value: "mid", label: isRu ? "Средний" : "O'rta" },
                 { value: "senior", label: isRu ? "Старший" : "Katta" },

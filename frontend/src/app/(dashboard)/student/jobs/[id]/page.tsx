@@ -8,7 +8,7 @@ import {
   ArrowLeft,
   MapPin,
   Briefcase,
-  DollarSign,
+  Wallet,
   Clock,
   Building2,
   Users,
@@ -41,6 +41,7 @@ function getJobTypeLabels(isRu: boolean): Record<string, string> {
         remote: "Удалённо",
         hybrid: "Гибрид",
         contract: "Контракт",
+        internship: "Стажировка",
       }
     : {
         full_time: "To'liq stavka",
@@ -48,12 +49,14 @@ function getJobTypeLabels(isRu: boolean): Record<string, string> {
         remote: "Masofaviy",
         hybrid: "Gibrid",
         contract: "Shartnoma",
+        internship: "Amaliyot",
       };
 }
 
 function getExperienceLevelLabels(isRu: boolean): Record<string, string> {
   return isRu
     ? {
+        intern: "Стажёр (без опыта)",
         junior: "Начинающий (0-2 года)",
         mid: "Средний уровень (2-5 лет)",
         senior: "Старший уровень (5+ лет)",
@@ -61,6 +64,7 @@ function getExperienceLevelLabels(isRu: boolean): Record<string, string> {
         executive: "Директор",
       }
     : {
+        intern: "Amaliyotchi (tajribasiz)",
         junior: "Boshlovchi (0-2 yil)",
         mid: "O'rta daraja (2-5 yil)",
         senior: "Katta daraja (5+ yil)",
@@ -75,6 +79,7 @@ const jobTypeColors: Record<string, string> = {
   remote: "bg-purple-100 text-purple-700",
   hybrid: "bg-cyan-100 text-cyan-700",
   contract: "bg-orange-100 text-orange-700",
+  internship: "bg-pink-100 text-pink-700",
 };
 
 export default function JobDetailPage() {
@@ -327,7 +332,7 @@ export default function JobDetailPage() {
           </div>
           {(job.salary_min || job.salary_max) && (
             <div className="flex items-center gap-2 text-surface-600">
-              <DollarSign className="h-4 w-4 text-surface-400" />
+              <Wallet className="h-4 w-4 text-surface-400" />
               <span className="text-sm font-medium text-green-600">
                 {formatSalaryRange(job.salary_min, job.salary_max, locale, job.salary_currency || "USD")}
               </span>

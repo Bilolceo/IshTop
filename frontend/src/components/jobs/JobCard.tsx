@@ -3,7 +3,7 @@
 import { motion } from "framer-motion";
 import {
   MapPin,
-  DollarSign,
+  Wallet,
   Clock,
   Bookmark,
   BookmarkCheck,
@@ -111,8 +111,8 @@ export function JobCard({
           {job.location}
         </span>
         <span className="flex items-center gap-1">
-          <DollarSign className="h-3 w-3" />
-          {formatSalaryRange(job.salary_min, job.salary_max, isRu ? "ru" : "uz", job.salary_currency || "USD") ||
+          <Wallet className="h-3 w-3" />
+          {formatSalaryRange(job.salary_min, job.salary_max, isRu ? "ru" : "uz", job.salary_currency || "UZS") ||
             (isRu ? "Зарплата не указана" : "Maosh ko'rsatilmagan")}
         </span>
         <span className="flex items-center gap-1">

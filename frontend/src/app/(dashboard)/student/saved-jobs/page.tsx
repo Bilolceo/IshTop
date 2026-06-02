@@ -6,7 +6,7 @@ import { motion, AnimatePresence } from "framer-motion";
 import {
   BookmarkCheck,
   MapPin,
-  DollarSign,
+  Wallet,
   Clock,
   Building2,
   Briefcase,
@@ -31,6 +31,7 @@ const getJobTypeLabels = (isRu: boolean): Record<string, string> => ({
   remote: isRu ? "Удалённо" : "Masofaviy",
   hybrid: isRu ? "Гибрид" : "Gibrid",
   contract: isRu ? "Контракт" : "Shartnoma",
+  internship: isRu ? "Стажировка" : "Amaliyot",
 });
 
 const jobTypeColors: Record<string, string> = {
@@ -39,6 +40,7 @@ const jobTypeColors: Record<string, string> = {
   remote: "bg-purple-100 text-purple-700",
   hybrid: "bg-cyan-100 text-cyan-700",
   contract: "bg-orange-100 text-orange-700",
+  internship: "bg-pink-100 text-pink-700",
 };
 
 interface SavedJobItem {
@@ -237,7 +239,7 @@ export default function SavedJobsPage() {
                     )}
                     {(job.salary_min || job.salary_max) && (
                       <span className="flex items-center gap-1 font-medium text-green-600">
-                        <DollarSign className="h-3 w-3" />
+                        <Wallet className="h-3 w-3" />
                         {formatSalaryRange(job.salary_min, job.salary_max, "uz", job.salary_currency || "USD")}
                       </span>
                     )}

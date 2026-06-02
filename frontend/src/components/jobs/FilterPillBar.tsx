@@ -1,7 +1,7 @@
 "use client";
 
 import { useState } from "react";
-import { SlidersHorizontal, RotateCcw, DollarSign } from "lucide-react";
+import { SlidersHorizontal, RotateCcw, Wallet } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import {
   Select,
@@ -16,7 +16,7 @@ import {
   DialogHeader,
   DialogTitle,
 } from "@/components/ui/dialog";
-import { SalarySlider } from "@/components/jobs/SalarySlider";
+import { SalarySlider, SALARY_MAX } from "@/components/jobs/SalarySlider";
 import { cn } from "@/lib/utils";
 
 type Filters = {
@@ -53,7 +53,7 @@ export function FilterPillBar({ filters, onChange, isRu }: FilterPillBarProps) {
   const [moreOpen, setMoreOpen] = useState(false);
 
   const salaryActive =
-    filters.salaryRange[0] > 0 || filters.salaryRange[1] < 10000;
+    filters.salaryRange[0] > 0 || filters.salaryRange[1] < SALARY_MAX;
   const locationActive = filters.locations.length > 0;
   const jobTypeActive = filters.jobTypes.length > 0;
   const expActive = filters.experienceLevels.length > 0;
@@ -68,8 +68,9 @@ export function FilterPillBar({ filters, onChange, isRu }: FilterPillBarProps) {
     dateActive ||
     companiesActive;
 
+  const salaryUnit = isRu ? "сум" : "so'm";
   const salaryLabel = salaryActive
-    ? `$${filters.salaryRange[0].toLocaleString()} – $${filters.salaryRange[1].toLocaleString()}`
+    ? `${filters.salaryRange[0].toLocaleString()} – ${filters.salaryRange[1].toLocaleString()} ${salaryUnit}`
     : isRu
     ? "Зарплата"
     : "Maosh";
@@ -126,6 +127,7 @@ export function FilterPillBar({ filters, onChange, isRu }: FilterPillBarProps) {
           <SelectItem value="all">{isRu ? "Все типы" : "Barcha turlar"}</SelectItem>
           <SelectItem value="full_time">{isRu ? "Полная занятость" : "To'liq ish kuni"}</SelectItem>
           <SelectItem value="part_time">{isRu ? "Частичная занятость" : "Yarim kunlik"}</SelectItem>
+          <SelectItem value="internship">{isRu ? "Стажировка" : "Amaliyot"}</SelectItem>
           <SelectItem value="contract">{isRu ? "Контракт" : "Shartnoma"}</SelectItem>
           <SelectItem value="remote">{isRu ? "Удалённо" : "Masofaviy"}</SelectItem>
           <SelectItem value="hybrid">{isRu ? "Гибрид" : "Aralash"}</SelectItem>
@@ -152,6 +154,7 @@ export function FilterPillBar({ filters, onChange, isRu }: FilterPillBarProps) {
         </SelectTrigger>
         <SelectContent>
           <SelectItem value="all">{isRu ? "Любой уровень" : "Har qanday daraja"}</SelectItem>
+          <SelectItem value="intern">{isRu ? "Стажёр" : "Amaliyotchi"}</SelectItem>
           <SelectItem value="junior">{isRu ? "Начинающий" : "Boshlovchi"}</SelectItem>
           <SelectItem value="mid">{isRu ? "Средний" : "O'rta"}</SelectItem>
           <SelectItem value="senior">{isRu ? "Старший" : "Katta"}</SelectItem>
@@ -169,7 +172,7 @@ export function FilterPillBar({ filters, onChange, isRu }: FilterPillBarProps) {
           salaryActive ? pillActive : pillBase
         )}
       >
-        <DollarSign className="mr-1 h-3 w-3" />
+        <Wallet className="mr-1 h-3 w-3" />
         {salaryLabel}
       </Button>
 
@@ -223,7 +226,7 @@ export function FilterPillBar({ filters, onChange, isRu }: FilterPillBarProps) {
               locations: [],
               jobTypes: [],
               experienceLevels: [],
-              salaryRange: [0, 10000],
+              salaryRange: [0, SALARY_MAX],
               companies: [],
               datePosted: "all",
             })

@@ -152,6 +152,17 @@ export function formatSalaryRange(
         };
 
   if (!min && !max) return labels.notDisclosed;
+
+  // UZS is the local currency: show plain grouped numbers with a single
+  // "so'm"/"сум" suffix (not the en-US "UZS 2,500,000" style, and never "$").
+  if ((currency || "").toUpperCase() === "UZS") {
+    const unit = locale === "ru" ? "сум" : "so'm";
+    const n = (v: number) => v.toLocaleString("en-US");
+    if (min && max) return `${n(min)} – ${n(max)} ${unit}`;
+    if (min) return `${labels.from} ${n(min)} ${unit}`;
+    return `${labels.upTo} ${n(max as number)} ${unit}`;
+  }
+
   if (min && max) return `${formatCurrency(min, currency)} - ${formatCurrency(max, currency)}`;
   if (min) return `${labels.from} ${formatCurrency(min, currency)}`;
   if (max) return `${labels.upTo} ${formatCurrency(max, currency)}`;

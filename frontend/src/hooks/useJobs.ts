@@ -67,8 +67,10 @@ export function useJobs() {
   const filtersRef = useRef<JobFilters>({});
 
   // Fetch jobs
-  const fetchJobs = useCallback(async (newFilters?: JobFilters, page: number = 1) => {
-    setState((prev) => ({ ...prev, isLoading: true, error: null }));
+  const fetchJobs = useCallback(async (newFilters?: JobFilters, page: number = 1, append: boolean = false) => {
+    // On append (infinite scroll) keep the current list visible instead of
+    // flipping the full-page loading state.
+    setState((prev) => ({ ...prev, isLoading: append ? prev.isLoading : true, error: null }));
 
     try {
       // Merge and persist filters via ref (avoids recreating the callback)
@@ -98,7 +100,7 @@ export function useJobs() {
 
       setState((prev) => ({
         ...prev,
-        jobs: jobList,
+        jobs: append ? [...prev.jobs, ...jobList] : jobList,
         isLoading: false,
         totalCount: data.total ?? jobList.length,
         currentPage: data.page ?? page,
