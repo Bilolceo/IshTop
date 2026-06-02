@@ -63,8 +63,9 @@ test.describe('Authentication Flow', () => {
   // ===========================================================================
 
   test('should display landing page correctly', async ({ page }) => {
-    // Brand should be visible in the navbar (hero title is translated and may differ).
-    await expect(page.locator('nav').getByText(/IshTop/i).first()).toBeVisible();
+    // Brand should be visible in the navbar. The logo is an <Image alt="IshTop">
+    // (not text), so assert it via its accessible name / alt text.
+    await expect(page.locator('nav').getByAltText(/IshTop/i).first()).toBeVisible();
     
     // Check navigation
     await expect(page.locator('a[href=\"/login\"]').first()).toBeVisible();
