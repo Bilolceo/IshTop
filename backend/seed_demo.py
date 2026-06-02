@@ -87,6 +87,215 @@ def bi(uz: str, ru: str) -> str:
     return f"{uz}{SEP}{ru}"
 
 
+# Inline bilingual separator for short list items (requirements, skills, etc.)
+SKILL_SEP = " · "
+
+# UZ → RU dictionary for the recurring short phrases used in requirements,
+# responsibilities, benefits, skills and résumé labels. Pure tech tokens
+# (Python, SQL, Excel, Git, Figma, CRM, SMM …) intentionally have no entry and
+# render once, unchanged, in both languages.
+RU_TERMS: dict[str, str] = {
+    # experience / generic
+    "1+ yil tajriba": "опыт от 1 года", "2+ yil tajriba": "опыт от 2 лет",
+    "3+ yil tajriba": "опыт от 3 лет", "Boshlang'ich tajriba": "начальный опыт",
+    "Tajriba shart emas": "опыт не требуется", "Tajriba afzal": "опыт желателен",
+    "Sertifikat afzal": "сертификат желателен", "Talaba/bitiruvchi": "студент/выпускник",
+    "Talabalik mos keladi": "подходит студентам",
+    # languages / basics
+    "1C asoslari": "основы 1С", "1C bilan ishlash": "работа в 1С",
+    "Python asoslari": "основы Python", "SQL asoslari": "основы SQL",
+    "React asoslari": "основы React", "Figma asoslari": "основы Figma",
+    "Dasturlash asoslari": "основы программирования", "Reklama asoslari": "основы рекламы",
+    "Buxgalteriya asoslari": "основы бухучёта", "Canva/Figma asoslari": "основы Canva/Figma",
+    "Montaj dasturlari asoslari": "основы программ монтажа",
+    "Ingliz tili (Upper-Intermediate+)": "английский (Upper-Intermediate+)",
+    "Ingliz tili IELTS 6.5+": "английский IELTS 6.5+",
+    "O'zbek/rus tili": "узбекский/русский язык",
+    "Uzbek/Russian communication": "общение на узбекском/русском",
+    "Uzbek/Russian/English": "узбекский/русский/английский",
+    "Yandex/Map usage": "использование Яндекс/карт",
+    # soft skills
+    "Mas'uliyat": "ответственность", "Diqqatlilik": "внимательность",
+    "Aniqlik": "аккуратность", "Muloqot": "коммуникация",
+    "Muloqot ko'nikmalari": "коммуникативные навыки", "Muloqotga ochiqlik": "открытость к общению",
+    "Muomala madaniyati": "культура общения", "Jamoada ishlash": "работа в команде",
+    "Tashkilotchilik": "организованность", "Rejalashtirish": "планирование",
+    "Mantiqiy fikrlash": "логическое мышление", "Tahliliy fikrlash": "аналитическое мышление",
+    "Ijodkorlik": "креативность", "Mustaqillik": "самостоятельность",
+    "Stress-bardoshlik": "стрессоустойчивость", "Sabr-toqat": "терпение",
+    "Xushmuomalalik": "вежливость", "Mehnatsevarlik": "трудолюбие",
+    "Faollik": "активность", "Egiluvchanlik": "гибкость", "Ozodalik": "опрятность",
+    "Tashqi ko'rinish": "опрятный внешний вид", "Tushunarli nutq": "грамотная речь",
+    "Tushuntira olish": "умение объяснять", "Yozish qobiliyati": "навык письма",
+    "Tez yozish": "быстрая печать", "Tezkorlik": "оперативность",
+    "Punktuallik": "пунктуальность", "Jismoniy chidamlilik": "физическая выносливость",
+    "Kompyuterni bilish": "знание компьютера", "Boshqaruv": "управление",
+    "O'rganishga tayyorlik": "готовность учиться", "O'rganishga ishtiyoq": "желание учиться",
+    # interests / domain knowledge
+    "Savdoga qiziqish": "интерес к продажам", "Savdo qiziqishi": "интерес к продажам",
+    "Sportga qiziqish": "интерес к спорту", "Tahlilga qiziqish": "интерес к аналитике",
+    "Texnikaga qiziqish": "интерес к технике",
+    "Tibbiyot/kosmetologiyaga qiziqish": "интерес к медицине/косметологии",
+    "Yoga/Pilatesga qiziqish": "интерес к йоге/пилатесу",
+    "Marketing bilimi": "знание маркетинга", "Fan bo'yicha bilim": "знание предмета",
+    "Matematika bo'yicha kuchli bilim": "сильные знания математики",
+    "Sport sohasini bilish": "знание сферы спорта", "Sport tayyorgarligi": "спортивная подготовка",
+    "Soliq qonunchiligini bilish": "знание налогового законодательства",
+    "Shaharni bilish": "знание города", "Bolalarni yaxshi ko'rish": "любовь к детям",
+    # driving / logistics
+    "B toifa guvohnoma": "права категории B", "Haydovchilik guvohnomasi": "водительские права",
+    "Haydovchilik guvohnomasi (afzal)": "водительские права (желательно)",
+    "Velosiped/skuter (afzal)": "велосипед/скутер (желательно)", "Smartfon": "смартфон",
+    "Marshrut bo'yicha harakat": "движение по маршруту",
+    "Avtomobil holatini nazorat": "контроль состояния автомобиля",
+    "Yukni yetkazish": "доставка груза", "Yukni kuzatish": "сопровождение груза",
+    "Yuklash-tushirish": "погрузка-разгрузка", "Mahsulotni qabul qilish": "приёмка товара",
+    "Qoldiqlarni hisobga olish": "учёт остатков", "Qoldiqlarni tekshirish": "проверка остатков",
+    "Buyurtmalarni olish": "получение заказов", "Buyurtma yig'ish": "сбор заказов",
+    "Buyurtmalarni taqsimlash": "распределение заказов", "Buyurtma taqsimlash": "распределение заказов",
+    "Buyurtmalarni qayta ishlash": "обработка заказов", "Buyurtma qabul qilish": "приём заказов",
+    "Mijozga yetkazish": "доставка клиенту", "Kuryerlar bilan aloqa": "связь с курьерами",
+    "Haydovchilar bilan aloqa": "связь с водителями",
+    # schedule / shift
+    "Smenali grafik": "сменный график", "Smenali ish grafigi": "сменный график работы",
+    "Yarim kunlik grafik": "график на полдня",
+    # office / docs / admin
+    "MS Office": "MS Office", "Hujjatlar": "документы",
+    "Hujjatlar bilan ishlash": "работа с документами",
+    "Hujjatlarni rasmiylashtirish": "оформление документов",
+    "Hujjatlarni tayyorlash": "подготовка документов",
+    "Hujjatlarni saralash": "сортировка документов", "Hujjatlashtirish": "документирование",
+    "Skanerlash va saqlash": "сканирование и хранение", "Arxiv": "архив",
+    "Ofis ishini tashkil qilish": "организация работы офиса", "Ofis ta'minoti": "офисное снабжение",
+    "Jadval": "график", "Jadval tuzish": "составление графика",
+    "Jadval boshqarish": "управление графиком", "Jadval yuritish": "ведение графика",
+    "Jadvalni yangilash": "обновление графика", "Jadvallarni yangilash": "обновление таблиц",
+    "Jadval va uchrashuvlar": "график и встречи", "Eslatma yuborish": "отправка напоминаний",
+    "Ma'lumot kiritish": "ввод данных", "Tekshirish": "проверка",
+    # phone / calls / support
+    "Telefon muloqoti": "общение по телефону", "Telefon qo'ng'iroqlari": "телефонные звонки",
+    "Qo'ng'iroqlar": "звонки", "Qo'ng'iroqlarga javob": "ответы на звонки",
+    "Qo'ng'iroqlarni qabul qilish": "приём звонков",
+    "Qo'ng'iroqlarni yo'naltirish": "переадресация звонков",
+    "Arizalarni qayd etish": "регистрация заявок", "So'rovlarni hal qilish": "решение запросов",
+    "Shikoyatlar bilan ishlash": "работа с жалобами", "Mijozga maslahat": "консультация клиента",
+    # clients / sales
+    "Mijozlar bilan muloqot": "общение с клиентами", "Mijozlar bilan ishlash": "работа с клиентами",
+    "Mijoz bilan ishlash": "работа с клиентом", "Mijozlar bilan aloqa": "связь с клиентами",
+    "Mijozlar bilan uchrashuv": "встречи с клиентами", "Mijozlarga xizmat": "обслуживание клиентов",
+    "Mijozlarni kutib olish": "встреча клиентов", "Mehmonlarni kutib olish": "встреча гостей",
+    "Mijozlarga maslahat": "консультация клиентов", "Mijozlarga ko'maklashish": "помощь клиентам",
+    "Mijozlar bazasi": "клиентская база", "Mijozlar bazasi bilan ishlash": "работа с клиентской базой",
+    "Mijozlar bilan uchrashuv": "встречи с клиентами", "Mijozlarni yozish": "запись клиентов",
+    "Mijoz natijasini kuzatish": "отслеживание результатов клиента",
+    "Savdo ko'nikmalari": "навыки продаж", "Sotuv ko'nikmalari": "навыки продаж",
+    "Savdo rejasi": "план продаж", "Sotuv rejasi": "план продаж",
+    "Sotuv rejasini bajarish": "выполнение плана продаж", "Savdo natijalari": "результаты продаж",
+    "Savdo rejasini bajarish": "выполнение плана продаж", "Abonement sotish": "продажа абонементов",
+    "Mahsulot bo'yicha maslahat": "консультация по товару", "Mahsulotni tushuntirish": "презентация товара",
+    "Mahsulot vitrinasini tartiblash": "выкладка товара",
+    "Mijozlar bilan uchrashuv": "встречи с клиентами", "Mijozlar bilan uchrashuv ": "встречи с клиентами",
+    # retail / cashier
+    "Kassada ishlash": "работа на кассе", "Kassada hisob-kitob": "расчёты на кассе",
+    "Kassa hisobi": "кассовый учёт", "Kassa hisobotini yuritish": "ведение кассовой отчётности",
+    "To'lovlarni qabul qilish": "приём платежей", "To'lovni qabul qilish": "приём оплаты",
+    "To'lovlar": "платежи", "Naqd operatsiyalar": "наличные операции",
+    "Stollarni tayyorlash": "сервировка столов",
+    # finance / accounting
+    "Hisobot": "отчётность", "Hisobotlar": "отчёты", "Hisobot tuzish": "составление отчётов",
+    "Hisobotlarda ko'maklashish": "помощь с отчётностью", "Birlamchi hujjatlar": "первичные документы",
+    "Bank operatsiyalari": "банковские операции", "Soliq hisobotlari": "налоговая отчётность",
+    "To'liq hisob": "полный учёт", "Excelda ishlash": "работа в Excel", "Excel (kuchli)": "Excel (уверенно)",
+    "Ma'lumot yig'ish": "сбор данных", "Tahlilda ko'maklashish": "помощь в анализе",
+    # education
+    "Dars tushuntirish": "объяснение уроков", "Darslar o'tish": "проведение занятий",
+    "Uy vazifalarini tekshirish": "проверка домашних заданий", "Test tayyorlash": "подготовка тестов",
+    "Testlar": "тесты", "Test holatlari": "тест-кейсы", "Test qilish": "тестирование",
+    "O'quvchilar bilan ishlash": "работа с учениками",
+    "O'quvchi natijalarini kuzatish": "отслеживание результатов учеников",
+    "O'quvchilarni kuzatish": "наблюдение за учениками",
+    "O'quvchilarni ro'yxatga olish": "запись учеников", "O'qituvchiga ko'maklashish": "помощь учителю",
+    "Talabalar bilan aloqa": "связь со студентами", "Talabalarga maslahat": "консультация студентов",
+    "Davomatni kuzatish": "контроль посещаемости", "Bolalar bilan ishlash": "работа с детьми",
+    "Materiallar tayyorlash": "подготовка материалов", "Speaking mashqi": "практика Speaking",
+    "Mashqlarni tekshirish": "проверка упражнений", "Mentor bilan ishlash": "работа с ментором",
+    "Mentorga ko'maklashish": "помощь ментору", "Topshiriqlarni tekshirish": "проверка заданий",
+    "Natijalarni tahlil qilish": "анализ результатов", "Natijalarni kuzatish": "отслеживание результатов",
+    # fitness
+    "Trening dasturi": "программа тренировок", "Trening dasturi tuzish": "составление программы тренировок",
+    "Mashg'ulot o'tkazish": "проведение тренировок", "Mashg'ulotga tayyorlash": "подготовка к занятию",
+    "Sport zali qoidalari": "правила тренажёрного зала", "Sog'lom turmush": "здоровый образ жизни",
+    "Trenerga ko'maklashish": "помощь тренеру", "Jihozlarni nazorat": "контроль оборудования",
+    # restaurant / service
+    "Qahva tayyorlash": "приготовление кофе", "Mahsulot tayyorlash": "подготовка продуктов",
+    "Oshpazga ko'maklashish": "помощь повару", "Oshxona tozaligi": "чистота кухни",
+    "Tayyorlashda ishtirok": "участие в приготовлении", "Tozalik standartlari": "стандарты чистоты",
+    "Tozalikni saqlash": "поддержание чистоты", "Ish joyini tozalash": "уборка рабочего места",
+    "Ish joyini tayyorlash": "подготовка рабочего места", "Sanitariya talablari": "санитарные требования",
+    "Joylashtirish": "размещение", "Bron qabul qilish": "приём броней", "Bron yuritish": "ведение броней",
+    # marketing / smm
+    "Post tayyorlash": "подготовка постов", "Post joylash": "публикация постов",
+    "Kommentlar bilan ishlash": "работа с комментариями", "Direct javoblari": "ответы в Direct",
+    "Sahifani yuritish": "ведение страницы", "Kontent rejasi": "контент-план",
+    "Matn yozish": "написание текстов", "Sarlavhalar": "заголовки", "Tahrir qilish": "редактирование",
+    "Vizual tayyorlash": "подготовка визуала", "Video montaj": "видеомонтаж",
+    "Subtitr qo'shish": "добавление субтитров", "Materiallarni saralash": "сортировка материалов",
+    "Reklama sozlash": "настройка рекламы", "Instagram tajribasi": "опыт в Instagram",
+    "Maket tayyorlash": "подготовка макетов", "Prototip": "прототип",
+    "Jamoadan fikr olish": "обратная связь от команды",
+    # beauty
+    "Mijozlarga maslahat": "консультация клиентов", "Ustaga ko'maklashish": "помощь мастеру",
+    "Muolajaga tayyorlash": "подготовка к процедуре", "Mijozlarni yozish": "запись клиентов",
+    "Qayta yozuv": "повторная запись", "Yozuvlarni qabul qilish": "приём записей",
+    "Mijozlarga ko'maklashish": "помощь клиентам",
+    # IT
+    "UI komponentlar yaratish": "создание UI-компонентов", "Buglarni tuzatish": "исправление багов",
+    "Buglarni qayd etish": "фиксация багов", "API yozish": "написание API",
+    "API integratsiya": "интеграция API", "Bot funksiyalari": "функции бота",
+    "Ma'lumotlar bazasi bilan ishlash": "работа с базой данных", "Testlar": "тесты",
+    "Ilova ekranlari": "экраны приложения", "Texnika sozlash": "настройка техники",
+    "Ma'lumot tahlili": "анализ данных", "Biznesga insight": "аналитика для бизнеса",
+    "Dashboard": "дашборд",
+    # management (mid/senior)
+    "Jamoa": "команда", "Jamoani boshqarish": "управление командой",
+    "Jarayonni boshqarish": "управление процессом", "Zalni boshqarish": "управление залом",
+    "Zalni nazorat": "контроль зала", "Klubni boshqarish": "управление клубом",
+    "Sifat nazorati": "контроль качества", "KPI nazorati": "контроль KPI",
+    "Xodimlar jadvali": "график сотрудников", "Xodimlarga ko'maklashish": "помощь сотрудникам",
+    "Smena nazorati": "контроль смены", "Strategiya": "стратегия", "Kampaniyalar": "кампании",
+    "Bo'lim bilan muvofiqlashtirish": "координация с отделом", "Bo'limga ko'maklashish": "помощь отделу",
+    "Student coordinator": "координатор студентов",
+    # résumé labels
+    "Asosiy": "Основные", "Bakalavr": "Бакалавр", "Tegishli yo'nalish": "соответствующее направление",
+    "Avvalgi ish joyi": "Предыдущее место работы",
+    "Kundalik vazifalarni bajardi": "Выполнял ежедневные задачи",
+    "Jamoa bilan ishladi": "Работал в команде",
+    "O'zbek": "Узбекский", "Rus": "Русский", "Ingliz": "Английский",
+    "Ona tili": "Родной", "Yaxshi": "Хорошо", "O'rta": "Средний",
+    # benefits
+    "Rasmiy ish": "официальное трудоустройство", "O'qitamiz": "обучаем",
+    "Do'stona jamoa": "дружная команда", "Bonuslar": "бонусы",
+}
+
+
+def bil(uz: str) -> str:
+    """Render a short list item bilingually: 'uz · ru'. Tech tokens (no RU
+    entry) render once unchanged."""
+    ru = RU_TERMS.get(uz)
+    if not ru or ru == uz:
+        return uz
+    return f"{uz}{SKILL_SEP}{ru}"
+
+
+def bil_list(items: list[str]) -> list[str]:
+    return [bil(x) for x in items]
+
+
+def uz_part(item: str) -> str:
+    """Strip the RU half back off a bilingual list item (for matching)."""
+    return item.split(SKILL_SEP, 1)[0]
+
+
 def days_ago(n: int) -> datetime:
     return NOW - timedelta(days=n)
 
@@ -292,7 +501,7 @@ COMPANY_DEFS = [
 # exp: intern | junior | mid | senior  ·  jt: full_time|part_time|internship|remote|hybrid
 # salary in UZS whole units. count = how many companies to place this role at.
 
-B = ["Rasmiy ish", "O'q/o'rgan", "Do'stona jamoa", "Bonuslar"]            # default benefits (uz)
+B = ["Rasmiy ish", "O'qitamiz", "Do'stona jamoa", "Bonuslar"]            # default benefits (uz; bilingualized at insert)
 
 ROLE_TEMPLATES = [
     # ----- A) Retail / Sales -----
@@ -1017,25 +1226,25 @@ def build_resume_content(d: dict) -> dict:
         },
         "professional_summary": {"text": bi(d["summary_uz"], d["summary_ru"])},
         "work_experience": ([] if d["exp"] == 0 else [{
-            "job_title": d["role"], "company_name": "Avvalgi ish joyi",
+            "job_title": d["role"], "company_name": bil("Avvalgi ish joyi"),
             "location": d["city"], "start_date": "2023-01-01", "end_date": "present",
             "is_current": True,
-            "responsibilities": ["Kundalik vazifalarni bajardi", "Jamoa bilan ishladi"],
-            "technologies_used": d["skills"],
+            "responsibilities": [bil("Kundalik vazifalarni bajardi"), bil("Jamoa bilan ishladi")],
+            "technologies_used": bil_list(d["skills"]),
         }]),
         "education": [{
             "institution_name": f"{d['city']} universiteti",
-            "degree_type": "Bakalavr", "field_of_study": "Tegishli yo'nalish",
+            "degree_type": bil("Bakalavr"), "field_of_study": bil("Tegishli yo'nalish"),
             "graduation_date": "2024-06-01",
         }],
         "skills": {
-            "technical_skills": [{"category": "Asosiy", "skills": d["skills"]}],
-            "soft_skills": ["Muloqot", "Jamoada ishlash", "Mas'uliyat", "O'rganishga tayyorlik"],
+            "technical_skills": [{"category": bil("Asosiy"), "skills": bil_list(d["skills"])}],
+            "soft_skills": bil_list(["Muloqot", "Jamoada ishlash", "Mas'uliyat", "O'rganishga tayyorlik"]),
         },
         "languages": [
-            {"language": "O'zbek", "level": "Ona tili"},
-            {"language": "Rus", "level": "Yaxshi"},
-            {"language": "Ingliz", "level": "O'rta"},
+            {"language": bil("O'zbek"), "level": bil("Ona tili")},
+            {"language": bil("Rus"), "level": bil("Yaxshi")},
+            {"language": bil("Ingliz"), "level": bil("O'rta")},
         ],
     }
 
@@ -1069,9 +1278,9 @@ def upsert_job(db, company: User, role: dict, city: str) -> Job:
         # realistic created_at in the past 1..45 days
         job.created_at = days_ago(jrng.randint(1, 45))
     job.description = bi(role["desc_uz"], role["desc_ru"])
-    job.requirements = role["req"]
-    job.responsibilities = role["resp"]
-    job.benefits = B
+    job.requirements = bil_list(role["req"])
+    job.responsibilities = bil_list(role["resp"])
+    job.benefits = bil_list(B)
     job.salary_min = role["smin"]
     job.salary_max = role["smax"]
     job.salary_currency = "UZS"
@@ -1148,8 +1357,8 @@ def upsert_application(db, user: User, job: Job, resume: Resume, skills: list) -
     # all attributes derive from a stable per-(user,job) RNG → reproducible
     arng = rng_for("app", user.id, job.id)
 
-    # deterministic match score from skill overlap
-    reqs = job.requirements or []
+    # deterministic match score from skill overlap (compare on the UZ half)
+    reqs = [uz_part(r) for r in (job.requirements or [])]
     overlap = len({s.lower() for s in skills} & {r.lower() for r in reqs})
     base = 55 + overlap * 12 + arng.randint(-5, 8)
     score = max(40, min(98, base))
