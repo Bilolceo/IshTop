@@ -26,26 +26,28 @@ const COPY: Record<
     company: string;
     badge: string;
     note: string;
+    pills: { reviews: string; reply: string; verified: string };
   }
 > = {
   uz: {
-    eyebrow: "Job Trust Score",
+    eyebrow: "Ishonch tizimi",
     title: "Soxta ish e'lonlariga “yo'q” deymiz",
     subtitle:
-      "Har bir kompaniya 0-100 oralig'ida baholanadi. Talaba review, biznes ro'yxati, javob darajasi va xavfsizlik signallari asosida.",
+      "Har bir kompaniya 0-100 oralig'ida baholanadi. Talaba sharhlari, biznes ro'yxati, javob darajasi va xavfsizlik signallari asosida.",
     factors: [
-      { title: "Verified profil", desc: "Biznes va STIR raqami avtomatik tekshiriladi.", icon: BadgeCheck },
-      { title: "Talaba feedback", desc: "Ish bergan kompaniyalar review beradi.", icon: Star },
+      { title: "Tasdiqlangan profil", desc: "Biznes va STIR raqami avtomatik tekshiriladi.", icon: BadgeCheck },
+      { title: "Talaba sharhlari", desc: "Ish bergan kompaniyalar haqida fikrlar.", icon: Star },
       { title: "Javob darajasi", desc: "Arizalar qancha tez ko'rib chiqiladi.", icon: ShieldCheck },
-      { title: "Risk signal", desc: "Spam, soxta vakansiya va shubhali xulq aniqlanadi.", icon: MessageSquareWarning },
+      { title: "Xavf signali", desc: "Spam, soxta vakansiya va shubhali xulq aniqlanadi.", icon: MessageSquareWarning },
     ],
-    scoreLabel: "Trust Score",
+    scoreLabel: "Ishonch reytingi",
     company: "Uzum Market",
-    badge: "Verified",
+    badge: "Tasdiqlangan",
     note: "Yuqori reyting, 24 soat ichida javob",
+    pills: { reviews: "Sharhlar 4.7", reply: "Javob 92%", verified: "3 yil tasdiq" },
   },
   ru: {
-    eyebrow: "Job Trust Score",
+    eyebrow: "Система доверия",
     title: "Без фейковых вакансий",
     subtitle:
       "Каждая компания получает оценку 0–100: отзывы студентов, регистрация бизнеса, скорость ответа и сигналы риска.",
@@ -53,12 +55,13 @@ const COPY: Record<
       { title: "Верифицированный профиль", desc: "Авто-проверка регистрации и ИНН.", icon: BadgeCheck },
       { title: "Отзывы студентов", desc: "Реальные оценки тех, кто уже работал.", icon: Star },
       { title: "Скорость ответа", desc: "Как быстро рассматривают отклики.", icon: ShieldCheck },
-      { title: "Risk signal", desc: "Спам и подозрительные вакансии — наружу.", icon: MessageSquareWarning },
+      { title: "Сигнал риска", desc: "Спам и подозрительные вакансии — наружу.", icon: MessageSquareWarning },
     ],
-    scoreLabel: "Trust Score",
+    scoreLabel: "Рейтинг доверия",
     company: "Uzum Market",
-    badge: "Verified",
+    badge: "Проверено",
     note: "Высокий рейтинг, ответ в течение 24 часов",
+    pills: { reviews: "Отзывы 4.7", reply: "Ответ 92%", verified: "Проверен 3 г" },
   },
   en: {
     eyebrow: "Job Trust Score",
@@ -75,6 +78,7 @@ const COPY: Record<
     company: "Uzum Market",
     badge: "Verified",
     note: "High rating, responds within 24h",
+    pills: { reviews: "Reviews 4.7", reply: "Reply 92%", verified: "Verified 3y" },
   },
 };
 
@@ -126,7 +130,7 @@ export function TrustScore() {
           </ul>
         </div>
 
-        <ScoreDial scoreLabel={c.scoreLabel} company={c.company} badge={c.badge} note={c.note} />
+        <ScoreDial scoreLabel={c.scoreLabel} company={c.company} badge={c.badge} note={c.note} pills={c.pills} />
       </div>
     </section>
   );
@@ -137,11 +141,13 @@ function ScoreDial({
   company,
   badge,
   note,
+  pills,
 }: {
   scoreLabel: string;
   company: string;
   badge: string;
   note: string;
+  pills: { reviews: string; reply: string; verified: string };
 }) {
   const score = 88;
   const radius = 96;
@@ -190,7 +196,7 @@ function ScoreDial({
       <div className="pointer-events-none absolute -inset-10 -z-10 rounded-[40px] bg-[conic-gradient(from_120deg_at_50%_50%,rgba(124,92,255,0.20),rgba(34,211,238,0.18),rgba(60,203,127,0.18))] opacity-70 blur-3xl" />
 
       <Tilt max={6} className="group">
-        <div className="depth-card-light dark:bg-transparent p-6 sm:p-8" style={{ transformStyle: "preserve-3d" }}>
+        <div className="depth-card-light p-6 sm:p-8" style={{ transformStyle: "preserve-3d" }}>
           <div
             className="flex items-center justify-between"
             style={{ transform: "translateZ(20px)" }}
@@ -270,13 +276,13 @@ function ScoreDial({
             style={{ transform: "translateZ(20px)" }}
           >
             <div className="rounded-2xl bg-emerald-500/10 px-2 py-2 text-emerald-700 dark:text-emerald-300">
-              Reviews 4.7
+              {pills.reviews}
             </div>
             <div className="rounded-2xl bg-violet-500/10 px-2 py-2 text-violet-700 dark:text-violet-300">
-              Reply 92%
+              {pills.reply}
             </div>
             <div className="rounded-2xl bg-cyan-500/10 px-2 py-2 text-cyan-700 dark:text-cyan-300">
-              Verified 3y
+              {pills.verified}
             </div>
           </div>
         </div>

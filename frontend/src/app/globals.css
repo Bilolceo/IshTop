@@ -447,6 +447,20 @@
       0 12px 30px -12px rgba(124,92,255,0.18);
   }
 
+  /* Dark mode: override the FULL `background` shorthand (not just background-color)
+     so the light gradient can't bleed through behind white text. The component's
+     `dark:bg-transparent` only resets background-color, leaving the white
+     background-image — which made the score card unreadable in dark mode. */
+  .dark .depth-card-light {
+    background:
+      linear-gradient(180deg, rgba(255,255,255,0.06), rgba(255,255,255,0.02)) padding-box,
+      linear-gradient(140deg, rgba(124,92,255,0.45), rgba(34,211,238,0.30) 50%, rgba(245,181,68,0.22)) border-box;
+    box-shadow:
+      0 1px 0 0 rgba(255,255,255,0.08) inset,
+      0 30px 80px -30px rgba(0,0,0,0.65),
+      0 12px 30px -12px rgba(124,92,255,0.35);
+  }
+
   /* Cursor spotlight on dark — applied with --x, --y vars */
   .spotlight {
     position: relative;
