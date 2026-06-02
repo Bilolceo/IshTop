@@ -2,16 +2,17 @@
 
 import { useEffect, useState } from "react";
 import Link from "next/link";
-import { Sparkles, Menu, X } from "lucide-react";
+import Image from "next/image";
+import { Menu, X } from "lucide-react";
 import { LanguageSwitcher } from "@/components/ui/language-switcher";
 import { ThemeToggle } from "@/components/ui/theme-toggle";
 import { useTranslation } from "@/hooks/useTranslation";
 
 const NAV_ITEMS = [
   { href: "#how", labelUz: "Qanday ishlaydi", labelRu: "Как это работает", labelEn: "How it works" },
-  { href: "#live-demo", labelUz: "Jonli demo", labelRu: "Живой демо", labelEn: "Live demo" },
-  { href: "#trust", labelUz: "Trust Score", labelRu: "Trust Score", labelEn: "Trust Score" },
-  { href: "#faq", labelUz: "FAQ", labelRu: "FAQ", labelEn: "FAQ" },
+  { href: "#live-demo", labelUz: "Jonli demo", labelRu: "Живое демо", labelEn: "Live demo" },
+  { href: "#trust", labelUz: "Ishonch reytingi", labelRu: "Рейтинг доверия", labelEn: "Trust Score" },
+  { href: "#faq", labelUz: "Savol-javob", labelRu: "Частые вопросы", labelEn: "FAQ" },
 ];
 
 export function Nav() {
@@ -42,18 +43,17 @@ export function Nav() {
       <nav className="section-shell flex h-16 items-center justify-between sm:h-20">
         <Link
           href="/"
-          className="focus-ring flex items-center gap-2 rounded-full"
+          className="focus-ring flex items-center rounded-xl"
           aria-label="IshTop home"
         >
-          <span
-            aria-hidden
-            className="grid h-9 w-9 place-items-center rounded-2xl bg-gradient-to-br from-violet-500 via-indigo-500 to-cyan-400 shadow-lg shadow-violet-500/30"
-          >
-            <Sparkles className="h-4 w-4 text-white" />
-          </span>
-          <span className="font-display text-lg font-semibold tracking-tight text-white">
-            IshTop
-          </span>
+          <Image
+            src="/logo-ishtop-ondark.png"
+            alt="IshTop"
+            width={1025}
+            height={292}
+            priority
+            className="h-7 w-auto sm:h-8"
+          />
         </Link>
 
         <ul className="hidden items-center gap-1 md:flex">
@@ -61,7 +61,7 @@ export function Nav() {
             <li key={item.href}>
               <a
                 href={item.href}
-                className="focus-ring rounded-full px-3 py-2 text-sm font-medium text-white/85 transition hover:text-white"
+                className="focus-ring whitespace-nowrap rounded-full px-3 py-2 text-sm font-medium text-white/85 transition hover:text-white"
               >
                 {label(item)}
               </a>
