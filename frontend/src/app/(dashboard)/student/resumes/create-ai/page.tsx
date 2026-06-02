@@ -69,6 +69,8 @@ import { resumeApi } from "@/lib/api";
 import type { Resume, ResumeContent } from "@/types/api";
 import { ResumePreview } from "@/components/resume/ResumePreview";
 import { getSkillSuggestions } from "@/lib/resume/skillProfiles";
+import { SkillVerification } from "@/components/resume/SkillVerification";
+import type { VerificationStatus } from "@/lib/resume/skillQuestions";
 import { getPreferredLocale } from "@/lib/i18n";
 import { useTranslation } from "@/contexts/TranslationContext";
 
@@ -249,6 +251,10 @@ export default function AIResumeBuilderPage() {
   const [previewZoom, setPreviewZoom] = useState(90);
   const [lastSaved, setLastSaved] = useState<Date | null>(null);
   const [skillInput, setSkillInput] = useState({ technical: "", soft: "" });
+  // Skill verification status (frontend MVP): { [skillName]: verified|learning|unverified }
+  const [skillStatuses, setSkillStatuses] = useState<Record<string, VerificationStatus>>({});
+  const setSkillStatus = (skill: string, status: VerificationStatus) =>
+    setSkillStatuses((prev) => ({ ...prev, [skill]: status }));
 
   const {
     register,
@@ -548,6 +554,9 @@ export default function AIResumeBuilderPage() {
       technical: formData.technicalSkills,
       soft: formData.softSkills,
     },
+    // MVP: skill verification status map (verified | learning | unverified).
+    // Extra field — backend stores it in resume content; old resumes unaffected.
+    skillVerifications: skillStatuses,
     languages: formData.languages.filter((language) => language.name),
     certifications: formData.certifications.filter((cert) => cert.name),
     projects: formData.projects.filter((project) => project.name),
@@ -927,16 +936,27 @@ export default function AIResumeBuilderPage() {
                     </Button>
                   </div>
                   <div className="mt-2 flex flex-wrap gap-2">
-                    {formData.technicalSkills?.map((skill) => (
-                      <Badge
-                        key={skill}
-                        variant="secondary"
-                        className="cursor-pointer hover:bg-red-100 hover:text-red-700"
-                        onClick={() => removeSkill("technical", skill)}
-                      >
-                        {skill} x
-                      </Badge>
-                    ))}
+                    {formData.technicalSkills?.map((skill) => {
+                      const status = skillStatuses[skill];
+                      return (
+                        <Badge
+                          key={skill}
+                          variant="secondary"
+                          className={`cursor-pointer hover:bg-red-100 hover:text-red-700 ${
+                            status === "verified"
+                              ? "border border-emerald-300 bg-emerald-50 text-emerald-700"
+                              : status === "learning"
+                                ? "border border-amber-300 bg-amber-50 text-amber-700"
+                                : ""
+                          }`}
+                          onClick={() => removeSkill("technical", skill)}
+                        >
+                          {status === "verified" && "✓ "}
+                          {status === "learning" && "📘 "}
+                          {skill} x
+                        </Badge>
+                      );
+                    })}
                   </div>
                   <div className="mt-2">
                     <p className="text-xs text-surface-500 mb-2">
@@ -960,6 +980,14 @@ export default function AIResumeBuilderPage() {
                       ))}
                     </div>
                   </div>
+
+                  {/* Optional, junior-friendly skill verification */}
+                  <SkillVerification
+                    skills={formData.technicalSkills || []}
+                    statuses={skillStatuses}
+                    onChange={setSkillStatus}
+                    locale={locale}
+                  />
                 </div>
 
                 {/* Soft Skills */}

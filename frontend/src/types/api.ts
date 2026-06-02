@@ -128,6 +128,12 @@ export interface ResumeContent {
     technical?: string[];
     soft?: string[];
   };
+  /**
+   * Skill verification status map (MVP, optional).
+   * { [skillName]: "verified" | "learning" | "unverified" }
+   * Backwards-compatible: absent on older resumes.
+   */
+  skillVerifications?: Record<string, "verified" | "learning" | "unverified">;
   languages?: Array<{
     name: string;
     proficiency: string;
