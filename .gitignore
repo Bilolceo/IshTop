@@ -154,3 +154,7 @@ secrets/
 
 # local toolchains
 tools/node-*/
+
+# Telegram import scripts + session (SENSITIVE — never commit)
+tg_import/
+*.session
