@@ -59,6 +59,85 @@ export function JobCard({
     job.salary_currency || "UZS",
   );
 
+  // Actions are rendered in two places — a right-hand column on >=sm screens
+  // and a full-width row under the card on phones — so define them once.
+  const saveButton = (
+    <button
+      onClick={(e) => {
+        e.stopPropagation();
+        onToggleSave();
+      }}
+      title={
+        isSaved
+          ? isRu
+            ? "Снять из сохранённых"
+            : "Saqlanganlardan olib tashlash"
+          : isRu
+            ? "Сохранить вакансию"
+            : "Ishni saqlash"
+      }
+      aria-label={
+        isSaved
+          ? isRu
+            ? "Снять из сохранённых"
+            : "Saqlanganlardan olib tashlash"
+          : isRu
+            ? "Сохранить вакансию"
+            : "Ishni saqlash"
+      }
+      className={cn(
+        "shrink-0 rounded-xl border p-2 transition-colors",
+        isSaved
+          ? "border-brand-200 bg-brand-100 text-brand-600 dark:border-brand-500/30 dark:bg-brand-500/15"
+          : "border-surface-200 text-surface-400 hover:bg-surface-100 hover:text-surface-600 dark:border-surface-700 dark:hover:bg-surface-800",
+      )}
+    >
+      {isSaved ? (
+        <BookmarkCheck className="h-4 w-4" />
+      ) : (
+        <Bookmark className="h-4 w-4" />
+      )}
+    </button>
+  );
+
+  const applyButton = (extra = "") => {
+    const className = cn(
+      "rounded-xl bg-gradient-to-r from-brand-500 to-violet-600 px-4 text-xs shadow-sm shadow-brand-500/30",
+      extra,
+    );
+    if (isExternal) {
+      return (
+        <Button
+          size="sm"
+          onClick={(e) => {
+            e.stopPropagation();
+            onSelect();
+          }}
+          className={className}
+        >
+          <Zap className="mr-1 h-3 w-3" />
+          {isRu ? "Откликнуться" : "Ariza berish"}
+        </Button>
+      );
+    }
+    if (applyRoute.kind === "internal") {
+      return (
+        <Button
+          size="sm"
+          onClick={(e) => {
+            e.stopPropagation();
+            onQuickApply();
+          }}
+          className={className}
+        >
+          <Zap className="mr-1 h-3 w-3" />
+          {isRu ? "Быстрый отклик" : "Tezkor ariza"}
+        </Button>
+      );
+    }
+    return null;
+  };
+
   return (
     <motion.div
       // Deliberately NO `layout`. The list is replaced wholesale by the server
@@ -175,71 +254,18 @@ export function JobCard({
           </div>
         </div>
 
-        {/* Actions — bookmark + quick apply on the right (mockup layout) */}
-        <div className="flex shrink-0 items-center gap-2">
-          <button
-            onClick={(e) => {
-              e.stopPropagation();
-              onToggleSave();
-            }}
-            title={
-              isSaved
-                ? isRu
-                  ? "Снять из сохранённых"
-                  : "Saqlanganlardan olib tashlash"
-                : isRu
-                  ? "Сохранить вакансию"
-                  : "Ishni saqlash"
-            }
-            aria-label={
-              isSaved
-                ? isRu
-                  ? "Снять из сохранённых"
-                  : "Saqlanganlardan olib tashlash"
-                : isRu
-                  ? "Сохранить вакансию"
-                  : "Ishni saqlash"
-            }
-            className={cn(
-              "rounded-xl border p-2 transition-colors",
-              isSaved
-                ? "border-brand-200 bg-brand-100 text-brand-600 dark:border-brand-500/30 dark:bg-brand-500/15"
-                : "border-surface-200 text-surface-400 hover:bg-surface-100 hover:text-surface-600 dark:border-surface-700 dark:hover:bg-surface-800",
-            )}
-          >
-            {isSaved ? (
-              <BookmarkCheck className="h-4 w-4" />
-            ) : (
-              <Bookmark className="h-4 w-4" />
-            )}
-          </button>
-
-          {isExternal ? (
-            <Button
-              size="sm"
-              onClick={(e) => {
-                e.stopPropagation();
-                onSelect();
-              }}
-              className="rounded-xl bg-gradient-to-r from-brand-500 to-violet-600 px-4 text-xs shadow-sm shadow-brand-500/30"
-            >
-              <Zap className="mr-1 h-3 w-3" />
-              {isRu ? "Откликнуться" : "Ariza berish"}
-            </Button>
-          ) : applyRoute.kind === "internal" ? (
-            <Button
-              size="sm"
-              onClick={(e) => {
-                e.stopPropagation();
-                onQuickApply();
-              }}
-              className="rounded-xl bg-gradient-to-r from-brand-500 to-violet-600 px-4 text-xs shadow-sm shadow-brand-500/30"
-            >
-              <Zap className="mr-1 h-3 w-3" />
-              {isRu ? "Быстрый отклик" : "Tezkor ariza"}
-            </Button>
-          ) : null}
+        {/* Actions — desktop: a compact column on the right of the row */}
+        <div className="hidden shrink-0 items-center gap-2 sm:flex">
+          {saveButton}
+          {applyButton()}
         </div>
+      </div>
+
+      {/* Actions — phones: a full-width row under the content so the title and
+          salary get the whole width instead of being squeezed by the buttons */}
+      <div className="mt-3 flex items-center gap-2 sm:hidden">
+        {saveButton}
+        {applyButton("flex-1 justify-center")}
       </div>
     </motion.div>
   );

@@ -592,13 +592,14 @@ export default function JobsPage() {
           </div>
 
           {/* Feed mode tabs */}
-          <div className="hidden items-center gap-1 rounded-xl border border-surface-200 p-1 dark:border-surface-700 sm:flex">
+          <div className="flex w-full items-center gap-1 rounded-xl border border-surface-200 p-1 dark:border-surface-700 sm:w-auto">
             <Button
               type="button"
               size="sm"
               variant={feedMode === "matched" ? "default" : "ghost"}
               onClick={() => void switchToMatchedJobs()}
               className={cn(
+                "flex-1 sm:flex-none",
                 feedMode === "matched" &&
                   "bg-gradient-to-r from-brand-500 to-violet-600",
               )}
@@ -612,6 +613,7 @@ export default function JobsPage() {
               variant={feedMode === "all" ? "default" : "ghost"}
               onClick={() => void switchToAllJobs()}
               className={cn(
+                "flex-1 sm:flex-none",
                 feedMode === "all" &&
                   "bg-gradient-to-r from-brand-500 to-violet-600",
               )}
@@ -623,7 +625,7 @@ export default function JobsPage() {
 
           {/* Sort */}
           <Select value={sortBy} onValueChange={setSortBy}>
-            <SelectTrigger className="w-44 shrink-0">
+            <SelectTrigger className="w-full shrink-0 sm:w-44">
               <SelectValue placeholder={isRu ? "Сортировка" : "Saralash"} />
             </SelectTrigger>
             <SelectContent>
