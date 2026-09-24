@@ -6,6 +6,7 @@ const apiBase = process.env.NEXT_PUBLIC_API_URL?.trim().replace(/\/+$/, "");
 // Public marketing / info pages that should always be indexed.
 const STATIC_PATHS: { path: string; priority: number; freq: MetadataRoute.Sitemap[number]["changeFrequency"] }[] = [
   { path: "/", priority: 1, freq: "daily" },
+  { path: "/maosh", priority: 0.8, freq: "daily" },
   { path: "/about", priority: 0.7, freq: "monthly" },
   { path: "/business", priority: 0.8, freq: "monthly" },
   { path: "/plans", priority: 0.6, freq: "monthly" },

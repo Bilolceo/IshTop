@@ -33,3 +33,12 @@ export async function fetchDiscoveryCompany(slug: string): Promise<any> {
 
   return response.json();
 }
+
+export async function fetchSalaryStats(): Promise<import("@/types/api").SalaryStats> {
+  const base = getApiBaseUrl();
+  const response = await fetch(`${base}/jobs/salary-stats`, { next: { revalidate: 600 } });
+  if (!response.ok) {
+    throw new Error(`Salary stats request failed (${response.status})`);
+  }
+  return response.json();
+}

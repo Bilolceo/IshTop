@@ -15,6 +15,7 @@ const COL: Record<
       { label: "AI rezyume yaratish", href: "/register" },
       { label: "Jonli demo", href: "/demo" },
       { label: "Qanday ishlaydi", href: "/#how" },
+      { label: "Maoshlar statistikasi", href: "/maosh" },
       { label: "Narxlar", href: "/plans" },
     ],
     company: [
@@ -34,6 +35,7 @@ const COL: Record<
       { label: "Создать AI-резюме", href: "/register" },
       { label: "Живое демо", href: "/demo" },
       { label: "Как это работает", href: "/#how" },
+      { label: "Статистика зарплат", href: "/maosh" },
       { label: "Тарифы", href: "/plans" },
     ],
     company: [
@@ -53,6 +55,7 @@ const COL: Record<
       { label: "Create AI resume", href: "/register" },
       { label: "Live demo", href: "/demo" },
       { label: "How it works", href: "/#how" },
+      { label: "Salary statistics", href: "/maosh" },
       { label: "Pricing", href: "/plans" },
     ],
     company: [

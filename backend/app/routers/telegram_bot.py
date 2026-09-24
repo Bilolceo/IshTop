@@ -553,6 +553,51 @@ def _city_view(cid: str, page: int) -> tuple[str, dict]:
     return "\n".join(lines), _kb(rows)
 
 
+def _salary_stats_warm() -> None:
+    """Load the salary medians (cached 10 min). Sync — call via run_in_threadpool."""
+    from app.services.salary_stats import get_stats
+
+    db = SessionLocal()
+    try:
+        get_stats(db)
+    except Exception as exc:  # noqa: BLE001
+        logger.warning("salary stats load failed: %s", exc)
+    finally:
+        db.close()
+
+
+def _salary_line(j: dict) -> str:
+    """"📊 Odatda: 10.8 mln so'm (Sotuv menejeri, 32 ta vakansiya)" — or ""."""
+    from app.services.salary_stats import insight_for
+
+    db = SessionLocal()
+    try:
+        ins = insight_for(
+            db, title=j["title"], description=j.get("description", ""),
+            location=j.get("location", ""), salary_min=j.get("salary_min"),
+            salary_max=j.get("salary_max"), salary_currency=j.get("salary_currency"),
+        )
+    except Exception as exc:  # noqa: BLE001
+        logger.warning("salary insight failed: %s", exc)
+        return ""
+    finally:
+        db.close()
+    if not ins:
+        return ""
+
+    def m(v: int) -> str:
+        return f"{v / 1_000_000:.1f}".rstrip("0").rstrip(".") + " mln"
+
+    where = ins["label"] if ins["kind"] == "role" else f"{ins['label']} sohasi"
+    line = f"📊 Odatda: {m(ins['median'])} so'm ({_esc(where)}, {ins['count']} ta vakansiya)"
+    diff = ins.get("diff_pct")
+    if diff is not None and diff >= 10:
+        line += f" — bu vakansiya {'kamida ' if ins.get('job_is_floor') else ''}{diff}% yuqori"
+    elif diff is not None and diff <= -10:
+        line += f" — bu vakansiya {-diff}% past"
+    return line
+
+
 def _job_detail(job_id: str, back_cb: str) -> tuple[str, dict]:
     """The full listing, because this card is where the decision gets made.
 
@@ -574,6 +619,9 @@ def _job_detail(job_id: str, back_cb: str) -> tuple[str, dict]:
     if j["company"]:
         lines.append(f"🏢 {_esc(j['company'])}")
     lines.append(f"💵 {_fmt_salary(j)}")
+    typical = _salary_line(j)
+    if typical:
+        lines.append(typical)
     if j["location"]:
         lines.append(f"📍 {_esc(j['location'])}")
 
@@ -1166,6 +1214,8 @@ async def _handle_callback(token: str, callback: dict) -> None:
         # Prime the catalog off the event loop — the sync render helpers below
         # then hit the warm cache instead of blocking on a DB query.
         await run_in_threadpool(_load_catalog)
+        if data.startswith("j:"):
+            await run_in_threadpool(_salary_stats_warm)
         if data == "home":
             menu_txt = await run_in_threadpool(_menu_text, locale)
             await _edit(token, chat_id, message_id, menu_txt, _main_menu_kb())

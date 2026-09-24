@@ -42,6 +42,7 @@ import { jobApplyRoute } from "@/lib/jobApply";
 import { ApplyDialog } from "@/components/jobs/ApplyDialog";
 import { ApplyPanel } from "@/components/jobs/ApplyPanel";
 import { categoryLabel } from "@/lib/jobCategories";
+import { SalaryInsight } from "@/components/jobs/SalaryInsight";
 import { CompanyLogo } from "@/components/jobs/CompanyLogo";
 import { JobBanner } from "@/components/jobs/JobBanner";
 import type { Job } from "@/types/api";
@@ -741,6 +742,7 @@ export default function JobDetailPage() {
 
         {/* SIDEBAR */}
         <aside className="space-y-5 lg:sticky lg:top-5">
+          {job.salary_insight && <SalaryInsight insight={job.salary_insight} isRu={isRu} />}
           {/* Only when there IS a company. On an aggregated listing this block
               rendered a firm called "Kompaniya" with a generated logo beside
               it — a company that does not exist, presented as one that does. */}

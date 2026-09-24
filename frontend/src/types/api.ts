@@ -263,6 +263,8 @@ export interface Job {
   contact_info?: string | null;
   /** Derived "soha" (it, sales, food, ...) — see lib/jobCategories.ts. */
   category?: string | null;
+  /** Pay against the median for this kasb (or soha); null when too few to compare. */
+  salary_insight?: SalaryInsight | null;
   created_at: string;
   updated_at: string;
   expires_at?: string;
@@ -793,4 +795,40 @@ export interface ApiError {
     message: string;
     details?: Record<string, string[]>;
   };
+}
+
+/** One group of the salary statistics (backend app/services/salary_stats.py). */
+export interface SalaryGroup {
+  kind: "role" | "category" | "city" | "all";
+  id: string;
+  label: string;
+  label_ru: string;
+  /** Listings with a usable salary. */
+  count: number;
+  /** All live listings in the group, with or without a salary. */
+  total: number;
+  median: number;
+  p25: number;
+  p75: number;
+  min: number;
+  max: number;
+}
+
+export interface SalaryInsight extends SalaryGroup {
+  /** This listing's own figure (range midpoint, or its floor); null when it shows no pay. */
+  job_value: number | null;
+  /** True when the listing gives only a floor ("5 mln dan"). */
+  job_is_floor?: boolean;
+  /** Percent above (+) or below (−) the kasb median. Null against a soha, and
+   *  for a floor that does not clear the median — a floor cannot prove "less". */
+  diff_pct: number | null;
+}
+
+export interface SalaryStats {
+  overall: SalaryGroup | null;
+  roles: SalaryGroup[];
+  categories: SalaryGroup[];
+  cities: SalaryGroup[];
+  min_compare: number;
+  computed_at: string;
 }

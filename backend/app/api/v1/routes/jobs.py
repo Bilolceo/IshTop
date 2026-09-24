@@ -442,6 +442,21 @@ async def _send_deadline_telegram_reminders(
         db.commit()
 
 
+def _with_salary_insight(resp: JobResponse, job: Job, db: Session) -> JobResponse:
+    """Attach the kasb/soha salary comparison. Never fails the request over it."""
+    from app.services.salary_stats import insight_for
+
+    try:
+        resp.salary_insight = insight_for(
+            db, title=job.title, description=job.description, location=job.location,
+            salary_min=job.salary_min, salary_max=job.salary_max,
+            salary_currency=job.salary_currency, is_salary_visible=job.is_salary_visible,
+        )
+    except Exception as exc:  # noqa: BLE001
+        logger.warning("salary insight failed for %s: %s", job.id, exc)
+    return resp
+
+
 def job_to_response(job: Job, include_company: bool = True) -> JobResponse:
     """Convert Job model to JobResponse."""
 
@@ -794,7 +809,7 @@ def search_jobs(
     logger.info(f"Job search returned {len(jobs)} results (total: {total})")
     
     return JobListResponse(
-        jobs=[job_to_response(j) for j in jobs],
+        jobs=[_with_salary_insight(job_to_response(j), j, db) for j in jobs],
         total=total,
         page=pagination.page,
         page_size=pagination.page_size,
@@ -1328,6 +1343,18 @@ def track_job_event(
 
 
 @router.get(
+    "/salary-stats",
+    response_model=Dict[str, Any],
+    summary="Median pay by kasb, soha and city",
+)
+def get_salary_stats(db: Session = Depends(get_db)):
+    """Public: what live listings pay, grouped. See app.services.salary_stats."""
+    from app.services.salary_stats import public_summary
+
+    return public_summary(db)
+
+
+@router.get(
     "/{job_id}",
     response_model=JobResponse,
     summary="Get job details",
@@ -1379,7 +1406,7 @@ def get_job(
         db.commit()
         logger.debug(f"Job view count incremented: {job.id} -> {job.views_count}")
     
-    return job_to_response(job)
+    return _with_salary_insight(job_to_response(job), job, db)
 
 
 @router.post(

@@ -6,6 +6,7 @@ import {
   Clock,
   Bookmark,
   BookmarkCheck,
+  TrendingUp,
   Zap,
   Target,
   Shield,
@@ -22,6 +23,7 @@ import { categoryLabel } from "@/lib/jobCategories";
 import { CompanyLogo } from "@/components/jobs/CompanyLogo";
 import { jobApplyRoute } from "@/lib/jobApply";
 import { formatRelativeTime, formatSalaryRange, cn } from "@/lib/utils";
+import { diffVerdict, mln } from "@/lib/salary";
 import type { Job } from "@/types/api";
 
 export function JobCard({
@@ -58,6 +60,9 @@ export function JobCard({
     isRu ? "ru" : "uz",
     job.salary_currency || "UZS",
   );
+
+  const insight = job.salary_insight;
+  const verdict = diffVerdict(insight?.diff_pct, isRu, insight?.job_is_floor);
 
   // Actions are rendered in two places — a right-hand column on >=sm screens
   // and a full-width row under the card on phones — so define them once.
@@ -178,12 +183,30 @@ export function JobCard({
           {/* Pay is what the reader scans a list for, so it leads and the rest
               of the meta drops to one quiet line behind it. */}
           {salary ? (
-            <p className="mt-1.5 text-[15px] font-semibold text-emerald-600 dark:text-emerald-400">
+            <p className="mt-1.5 flex flex-wrap items-baseline gap-x-2 text-[15px] font-semibold text-emerald-600 dark:text-emerald-400">
               {salary}
+              {/* Only the good news on a list row; the job page gives the
+                  full comparison either way. */}
+              {verdict?.tone === "up" && (
+                <span
+                  className="inline-flex items-center gap-0.5 text-xs font-medium text-emerald-700 dark:text-emerald-300"
+                  title={isRu ? "По сравнению с похожими вакансиями на IshTop" : "IshTop'dagi o'xshash vakansiyalarga nisbatan"}
+                >
+                  <TrendingUp className="h-3 w-3" />
+                  {verdict.text}
+                </span>
+              )}
             </p>
           ) : (
             <p className="mt-1.5 text-[13px] text-surface-400 dark:text-surface-500">
               {isRu ? "Зарплата не указана" : "Maosh ko'rsatilmagan"}
+              {insight && (
+                <span className="text-surface-500 dark:text-surface-400">
+                  {" · "}
+                  {isRu ? "обычно ~" : "odatda ~"}
+                  {mln(insight.median, isRu)}
+                </span>
+              )}
             </p>
           )}
 
