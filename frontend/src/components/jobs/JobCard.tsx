@@ -54,12 +54,18 @@ export function JobCard({
   // Applying needs the contact panel on the job page, so the card sends them
   // there rather than trying to reproduce it in a list row.
   const isExternal = applyRoute.kind !== "internal";
-  const salary = formatSalaryRange(
-    job.salary_min,
-    job.salary_max,
-    isRu ? "ru" : "uz",
-    job.salary_currency || "UZS",
-  );
+  // formatSalaryRange returns the words "Maosh ko'rsatilmagan" for no pay, so
+  // testing its result was always true: a listing without pay printed that
+  // phrase in the bold green of a salary, and the grey branch never ran.
+  const salary =
+    job.salary_min || job.salary_max
+      ? formatSalaryRange(
+          job.salary_min ?? undefined,
+          job.salary_max ?? undefined,
+          isRu ? "ru" : "uz",
+          job.salary_currency || "UZS",
+        )
+      : null;
 
   const insight = job.salary_insight;
   const verdict = diffVerdict(insight?.diff_pct, isRu, insight?.job_is_floor);
