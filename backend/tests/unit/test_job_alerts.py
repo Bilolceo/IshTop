@@ -217,3 +217,71 @@ class TestDispatch:
         await svc.dispatch_job_alerts(wired["db"], "t")
         assert wired["sent"] == []
         assert wired["alert"].last_checked_at == before
+
+
+class TestAuditRegressions:
+    """Bugs found in the 2026-09-24 audit — each would have failed silently."""
+
+    def test_cyrillic_search_buttons_fit_64_bytes(self):
+        # Trimming by characters let "бухгалтер ташкент" build a 74-byte
+        # button; Telegram then rejects the whole reply and the bot says nothing.
+        from app.routers import telegram_bot as bot
+
+        job = {"id": _uuid(1), "title": "x", "company": None, "location": "", "cid": "sales",
+               "salary_min": None, "salary_max": None, "salary_currency": "UZS"}
+        for q in ("бухгалтер ташкент", "менеджер по продажам", "ғ" * 40, "python"):
+            _, kb = bot._search_view(q, [job])
+            cbs = [b["callback_data"] for row in kb["inline_keyboard"] for b in row]
+            back = cbs[0].split(":", 2)[2]
+            cbs.append(f"ap:{job['id']}:{back}")  # the job card's apply button
+            assert all(len(c.encode()) <= 64 for c in cbs), (q, cbs)
+
+    def test_trim_keeps_whole_words(self):
+        from app.routers.telegram_bot import _trim_bytes
+
+        assert _trim_bytes("менеджер по продажам", 22) == "менеджер по"
+        assert _trim_bytes("python", 22) == "python"
+        assert len(_trim_bytes("ғ" * 40, 22).encode()) <= 22
+
+    async def test_a_rejected_message_is_not_retried_forever(self, test_db, monkeypatch):
+        from app.routers import telegram_bot as bot
+
+        jobs = {_uuid(1): _job(_uuid(1), 2)}
+        monkeypatch.setattr(bot, "_load_catalog", lambda force=False: {"jobs": jobs})
+        monkeypatch.setattr(svc, "in_quiet_hours", lambda now=None: False)
+        calls = []
+
+        async def rejected(token, chat_id, text, kb):
+            calls.append(chat_id)
+            return "rejected"
+
+        monkeypatch.setattr(svc, "_post", rejected)
+        _, alert = svc.subscribe(test_db, "42", "c", "it")
+        alert.last_checked_at = datetime.now(timezone.utc) - timedelta(minutes=30)
+        test_db.commit()
+        await svc.dispatch_job_alerts(test_db, "t")
+        await svc.dispatch_job_alerts(test_db, "t")
+        assert calls == ["42"]          # tried once, then dropped
+        assert alert.sent_count == 0    # and not counted as delivered
+
+    async def test_one_broken_chat_does_not_stop_the_others(self, test_db, monkeypatch):
+        from app.routers import telegram_bot as bot
+
+        jobs = {_uuid(1): _job(_uuid(1), 2)}
+        monkeypatch.setattr(bot, "_load_catalog", lambda force=False: {"jobs": jobs})
+        monkeypatch.setattr(svc, "in_quiet_hours", lambda now=None: False)
+        sent = []
+
+        async def post(token, chat_id, text, kb):
+            if chat_id == "1":
+                raise RuntimeError("boom")
+            sent.append(chat_id)
+            return "ok"
+
+        monkeypatch.setattr(svc, "_post", post)
+        for chat in ("1", "2"):
+            _, a = svc.subscribe(test_db, chat, "c", "it")
+            a.last_checked_at = datetime.now(timezone.utc) - timedelta(minutes=30)
+        test_db.commit()
+        stats = await svc.dispatch_job_alerts(test_db, "t")
+        assert sent == ["2"] and stats["failed"] == 1

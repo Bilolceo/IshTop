@@ -553,19 +553,6 @@ def _city_view(cid: str, page: int) -> tuple[str, dict]:
     return "\n".join(lines), _kb(rows)
 
 
-def _salary_stats_warm() -> None:
-    """Load the salary medians (cached 10 min). Sync — call via run_in_threadpool."""
-    from app.services.salary_stats import get_stats
-
-    db = SessionLocal()
-    try:
-        get_stats(db)
-    except Exception as exc:  # noqa: BLE001
-        logger.warning("salary stats load failed: %s", exc)
-    finally:
-        db.close()
-
-
 def _salary_line(j: dict) -> str:
     """"📊 Odatda: 10.8 mln so'm (Sotuv menejeri, 32 ta vakansiya)" — or ""."""
     from app.services.salary_stats import insight_for
@@ -1002,14 +989,40 @@ def _search_prompt(locale: str = "uz") -> str:
             "Masalan: frontend, buxgalter, Samarqand, Flutter")
 
 
+def _trim_bytes(text: str, limit: int) -> str:
+    """Longest prefix of whole words within `limit` UTF-8 bytes.
+
+    Telegram's 64-byte callback limit is BYTES, and Cyrillic takes two per
+    letter: trimming to 20 characters let "бухгалтер ташкент" build a 74-byte
+    button, and Telegram then rejects the entire message — the search simply
+    never answered. Whole words so a trimmed query re-runs as a superset
+    instead of a broken half-token that could find nothing.
+    """
+    text = " ".join(text.split())
+    if len(text.encode()) <= limit:
+        return text
+    out = ""
+    for word in text.split(" "):
+        cand = f"{out} {word}".strip()
+        if len(cand.encode()) > limit:
+            break
+        out = cand
+    if not out:  # a single over-long word: cut it on a character boundary
+        out = text.encode()[:limit].decode("utf-8", "ignore")
+    return out
+
+
+# "ap:<36-char uuid>:s:<query>" is the longest button carrying a query: 42 bytes
+# before it, so 22 are left for the query itself.
+_QUERY_CB_BYTES = 22
+# "al:s:<keyword>" — and the job_alerts.value column is 40 characters.
+_ALERT_CB_BYTES = 64 - len("al:s:")
+
+
 def _search_view(query: str, results: list) -> tuple[str, dict]:
-    # Kept short & colon-free for the 64-byte callback limit. Trim at a word
-    # boundary so a truncated multi-word query re-runs on whole tokens (a
-    # superset) instead of a broken half-token that could yield "not found".
+    # Colon-free, and byte-trimmed for the 64-byte callback limit.
     raw = query.replace(":", " ").strip()
-    qs = raw[:20]
-    if len(raw) > 20 and " " in qs:
-        qs = qs.rsplit(" ", 1)[0]
+    qs = _trim_bytes(raw, _QUERY_CB_BYTES)
     shown = results[:SEARCH_LIMIT]
     lines = [f"🔎 «{query.strip()}» — {len(results)} ta topildi", ""]
     for idx, j in enumerate(shown, 1):
@@ -1025,7 +1038,7 @@ def _search_view(query: str, results: list) -> tuple[str, dict]:
 
     num_row = [_btn(str(i + 1), f"j:{shown[i]['id']}:s:{qs}") for i in range(len(shown))]
     rows = [num_row,
-            [_alert_btn("s", qs.lower())],
+            [_alert_btn("s", _trim_bytes(raw.lower(), _ALERT_CB_BYTES)[:40])],
             [_btn("🔍 Sohalar", "cats"), _btn("🏙 Shaharlar", "cities"), _btn("🏠 Menyu", "home")]]
     return "\n".join(lines), _kb(rows)
 
@@ -1214,8 +1227,6 @@ async def _handle_callback(token: str, callback: dict) -> None:
         # Prime the catalog off the event loop — the sync render helpers below
         # then hit the warm cache instead of blocking on a DB query.
         await run_in_threadpool(_load_catalog)
-        if data.startswith("j:"):
-            await run_in_threadpool(_salary_stats_warm)
         if data == "home":
             menu_txt = await run_in_threadpool(_menu_text, locale)
             await _edit(token, chat_id, message_id, menu_txt, _main_menu_kb())
@@ -1253,7 +1264,8 @@ async def _handle_callback(token: str, callback: dict) -> None:
             # j:<uuid>:<back_cb>  where back_cb is itself a callback like "c:it:0"
             parts = data.split(":", 2)
             if len(parts) == 3:
-                text, kb = _job_detail(parts[1], parts[2])
+                # Threadpool: the card reads salary stats from the database.
+                text, kb = await run_in_threadpool(_job_detail, parts[1], parts[2])
                 await _edit(token, chat_id, message_id, text, kb)
             else:
                 menu_txt = await run_in_threadpool(_menu_text, locale)

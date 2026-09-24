@@ -72,7 +72,7 @@ class TestInsight:
         # A soha mixes kasbs, so no above/below verdict against it.
         assert out["diff_pct"] is None and out["job_value"] == 5_000_000
 
-    def test_a_floor_can_only_prove_more(self, test_db, test_company):
+    def test_a_floor_proves_only_more_and_a_ceiling_only_less(self, test_db, test_company):
         for pay in (8, 9, 10, 11, 12):
             _add(test_db, test_company, "Sotuv menejeri", pay * 1_000_000)
         below = ss.insight_for(test_db, title="Sotuv menejeri", description="", location="",
@@ -81,6 +81,12 @@ class TestInsight:
         above = ss.insight_for(test_db, title="Sotuv menejeri", description="", location="",
                                salary_min=13_000_000, salary_max=None, salary_currency="UZS")
         assert above["diff_pct"] == 30
+        ceiling_hi = ss.insight_for(test_db, title="Sotuv menejeri", description="", location="",
+                                    salary_min=None, salary_max=13_000_000, salary_currency="UZS")
+        assert ceiling_hi["job_is_ceiling"] and ceiling_hi["diff_pct"] is None  # "13 mln gacha" may pay 5
+        ceiling_lo = ss.insight_for(test_db, title="Sotuv menejeri", description="", location="",
+                                    salary_min=None, salary_max=6_000_000, salary_currency="UZS")
+        assert ceiling_lo["diff_pct"] == -40
         ranged = ss.insight_for(test_db, title="Sotuv menejeri", description="", location="",
                                 salary_min=7_000_000, salary_max=9_000_000, salary_currency="UZS")
         assert ranged["diff_pct"] == -20 and not ranged["job_is_floor"]

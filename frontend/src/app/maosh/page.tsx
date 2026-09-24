@@ -5,7 +5,10 @@ import { groupLabel, mln, mlnRange } from "@/lib/salary";
 import { JobAlertCta } from "@/components/jobs/JobAlertCta";
 import type { SalaryGroup, SalaryStats } from "@/types/api";
 
-export const revalidate = 600;
+// Rendered per request (the API caches the numbers for 10 minutes). As a static
+// page it was prerendered at build time, when the API may not be reachable, and
+// then served "statistika yuklanmadi" until the first revalidation.
+export const dynamic = "force-dynamic";
 
 export const metadata = {
   title: "O'zbekistonda maoshlar — kasb, soha va shahar bo'yicha | IshTop",

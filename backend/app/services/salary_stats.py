@@ -215,8 +215,9 @@ def insight_for(db, *, title: str, description: str, location: str,
     out["job_value"] = _round(value) if value is not None else None
     # "5 mln dan" is a floor, not the pay: it can prove a job pays MORE than
     # the median, never that it pays less.
-    out["job_is_floor"] = value is not None and (salary_min is None) != (salary_max is None) \
-        and salary_max is None
+    out["job_is_floor"] = value is not None and salary_min is not None and salary_max is None
+    # "8 mln gacha" is the mirror case: it can prove less, never more.
+    out["job_is_ceiling"] = value is not None and salary_max is not None and salary_min is None
     diff = None
     # Above/below only against the same kasb. A soha mixes kasbs — "Savdo"
     # holds sales managers at ~11 mln and cashiers at ~4 — so a cashier came
@@ -225,6 +226,8 @@ def insight_for(db, *, title: str, description: str, location: str,
     if value is not None and out["median"] and chosen.kind == "role":
         diff = int(round((value - out["median"]) / out["median"] * 100))
         if out["job_is_floor"] and diff < 10:
+            diff = None
+        if out["job_is_ceiling"] and diff > -10:
             diff = None
     out["diff_pct"] = diff
     return out

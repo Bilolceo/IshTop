@@ -819,6 +819,8 @@ export interface SalaryInsight extends SalaryGroup {
   job_value: number | null;
   /** True when the listing gives only a floor ("5 mln dan"). */
   job_is_floor?: boolean;
+  /** True when the listing gives only a ceiling ("8 mln gacha"). */
+  job_is_ceiling?: boolean;
   /** Percent above (+) or below (−) the kasb median. Null against a soha, and
    *  for a floor that does not clear the median — a floor cannot prove "less". */
   diff_pct: number | null;

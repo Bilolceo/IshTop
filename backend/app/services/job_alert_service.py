@@ -187,7 +187,13 @@ def in_quiet_hours(now: datetime | None = None) -> bool:
 # -----------------------------------------------------------------------------
 
 async def _post(token: str, chat_id: str, text: str, reply_markup: dict) -> str:
-    """Send one message; returns ok | blocked | failed."""
+    """Send one message; returns ok | blocked | rejected | failed.
+
+    failed   — transient (network, 429, 5xx): retry the same jobs next run.
+    rejected — Telegram refused THIS message (400): resending it can only fail
+               the same way, so the jobs are dropped rather than retried
+               every ten minutes forever.
+    """
     url = f"{settings.TELEGRAM_API_BASE_URL}/bot{token}/sendMessage"
     payload = {
         "chat_id": chat_id,
@@ -210,6 +216,8 @@ async def _post(token: str, chat_id: str, text: str, reply_markup: dict) -> str:
     if res.status_code == 403 or "chat not found" in body:
         return "blocked"
     logger.warning("job alert send rejected (chat=%s, %s): %s", chat_id, res.status_code, body)
+    if res.status_code == 400:
+        return "rejected"
     return "failed"
 
 
@@ -219,7 +227,7 @@ async def dispatch_job_alerts(db: Session, token: str) -> dict:
 
     from app.routers import telegram_bot as bot
 
-    stats = {"chats": 0, "sent": 0, "blocked": 0, "failed": 0, "jobs": 0}
+    stats = {"chats": 0, "sent": 0, "blocked": 0, "failed": 0, "rejected": 0, "jobs": 0}
     if in_quiet_hours():
         return stats
 
@@ -240,20 +248,36 @@ async def dispatch_job_alerts(db: Session, token: str) -> dict:
 
     now = _utcnow()
     for chat_id, chat_alerts in by_chat.items():
-        found = collect_new_jobs(chat_alerts, jobs)
-        if found:
-            stats["chats"] += 1
-            text, kb = bot._alert_digest(found)
-            outcome = await _post(token, chat_id, text, kb)
-            if outcome == "blocked":
-                stats["blocked"] += 1
-                for a in chat_alerts:
-                    a.is_active = False
-                db.commit()
-                continue
-            if outcome == "failed":
-                stats["failed"] += 1
-                continue  # watermark untouched: retried next run
+        # One chat's failure must not cost every chat after it its alerts.
+        try:
+            await _dispatch_chat(db, token, bot, chat_id, chat_alerts, jobs, newest, now, stats)
+        except Exception as exc:  # noqa: BLE001
+            db.rollback()
+            stats["failed"] += 1
+            logger.exception("job alerts for chat %s failed: %s", chat_id, exc)
+
+    return stats
+
+
+async def _dispatch_chat(db: Session, token: str, bot, chat_id: str, chat_alerts: list,
+                         jobs: list, newest: datetime, now: datetime, stats: dict) -> None:
+    found = collect_new_jobs(chat_alerts, jobs)
+    if found:
+        stats["chats"] += 1
+        text, kb = bot._alert_digest(found)
+        outcome = await _post(token, chat_id, text, kb)
+        if outcome == "blocked":
+            stats["blocked"] += 1
+            for a in chat_alerts:
+                a.is_active = False
+            db.commit()
+            return
+        if outcome == "failed":
+            stats["failed"] += 1
+            return  # watermark untouched: retried next run
+        if outcome == "rejected":
+            stats["rejected"] += 1  # watermark advances below: not retried
+        else:
             stats["sent"] += 1
             stats["jobs"] += len(found)
             for a in chat_alerts:
@@ -261,14 +285,12 @@ async def dispatch_job_alerts(db: Session, token: str) -> dict:
                 if n:
                     a.sent_count = (a.sent_count or 0) + n
                     a.last_sent_at = now
-            await asyncio.sleep(0.05)  # far under Telegram's 30 msg/s
+        await asyncio.sleep(0.05)  # far under Telegram's 30 msg/s
 
-        # Advance to the newest listing seen, not to "now": a listing stamped
-        # just before "now" but committed after this snapshot would otherwise
-        # fall behind the watermark and never be announced.
-        for a in chat_alerts:
-            if newest > _aware(a.last_checked_at):
-                a.last_checked_at = newest
-        db.commit()
-
-    return stats
+    # Advance to the newest listing seen, not to "now": a listing stamped
+    # just before "now" but committed after this snapshot would otherwise
+    # fall behind the watermark and never be announced.
+    for a in chat_alerts:
+        if newest > _aware(a.last_checked_at):
+            a.last_checked_at = newest
+    db.commit()

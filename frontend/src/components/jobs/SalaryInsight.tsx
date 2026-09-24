@@ -18,6 +18,13 @@ import { cn } from "@/lib/utils";
 export function SalaryInsight({ insight, isRu }: { insight: Insight; isRu: boolean }) {
   const label = groupLabel(insight, isRu);
   const verdict = diffVerdict(insight.diff_pct, isRu, insight.job_is_floor);
+  // "от 5 млн" / "5 mln dan", "до 8 млн" / "8 mln gacha" — a one-sided figure
+  // must not read as the pay itself.
+  const bound = insight.job_is_floor
+    ? { before: isRu ? "от " : "", after: isRu ? "" : " dan" }
+    : insight.job_is_ceiling
+      ? { before: isRu ? "до " : "", after: isRu ? "" : " gacha" }
+      : { before: "", after: "" };
 
   // Scale the bar to the group's full spread, widened to fit this listing.
   const lo = Math.min(insight.min, insight.job_value ?? insight.min);
@@ -84,9 +91,9 @@ export function SalaryInsight({ insight, isRu }: { insight: Insight; isRu: boole
            mixes kasbs), or a floor that does not clear the median. */
         <p className="mt-3 rounded-xl bg-surface-50 px-3 py-2 text-sm text-surface-700 dark:bg-surface-800 dark:text-surface-200">
           {isRu ? "Эта вакансия: " : "Bu vakansiya: "}
-          {insight.job_is_floor ? (isRu ? "от " : "") : ""}
+          {bound.before}
           {mln(insight.job_value, isRu)}
-          {insight.job_is_floor && !isRu ? " dan" : ""}
+          {bound.after}
           {insight.kind === "category" &&
             (isRu
               ? " — в сфере разные профессии, поэтому точного сравнения нет."
@@ -102,9 +109,9 @@ export function SalaryInsight({ insight, isRu }: { insight: Insight; isRu: boole
           )}
         >
           {isRu ? "Эта вакансия: " : "Bu vakansiya: "}
-          {insight.job_is_floor ? (isRu ? "от " : "") : ""}
+          {bound.before}
           {mln(insight.job_value, isRu)}
-          {insight.job_is_floor && !isRu ? " dan" : ""} — {verdict.text}
+          {bound.after} — {verdict.text}
         </p>
       ) : (
         <p className="mt-3 rounded-xl bg-surface-50 px-3 py-2 text-sm text-surface-700 dark:bg-surface-800 dark:text-surface-200">

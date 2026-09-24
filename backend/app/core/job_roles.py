@@ -218,18 +218,15 @@ def role_name(text: str):
 
 # --- used by the app (salary statistics), not only the ingest pipeline -------
 
-# Every name a role can be printed under, Uzbek or Russian, -> its Uzbek name,
-# so a listing titled "Менеджер по продажам" and one titled "Sotuv menejeri"
-# count as the same kasb.
-_TO_UZ = {}
-for _p, _uz, _ru in ROLES:
-    _TO_UZ.setdefault(_uz.lower(), _uz)
-    _TO_UZ.setdefault(_ru.lower(), _uz)
 _RU_OF = {uz: ru for _p, uz, ru in ROLES}
 
 
 def canonical_role(title: str) -> str:
-    """The Uzbek role name for a listing title, or "" when none matches."""
+    """The Uzbek role name for a listing title, or "" when none matches.
+
+    Always the Uzbek name, so "Менеджер по продажам" and "Sotuv menejeri"
+    count as the same kasb.
+    """
     for rx, uz_name, _ru in COMPILED:
         if rx.search(title or ""):
             return uz_name
