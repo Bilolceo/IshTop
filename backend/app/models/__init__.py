@@ -168,6 +168,7 @@ from app.models.admin_notification import AdminNotification
 from app.models.verification_audit_log import VerificationAuditLog
 from app.models.funnel_event import FunnelEvent
 from app.models.refresh_token import RefreshToken
+from app.models.job_alert import JobAlert
 
 # =============================================================================
 # EXPORT ALL (for `from app.models import *`)
@@ -187,6 +188,7 @@ __all__ = [
     # -------------------------------------------------------------------------
     "User",                # Main user model
     "RefreshToken",        # Rotating refresh-token sessions (one per device)
+    "JobAlert",            # Telegram "new job" subscriptions
     "UserRole",            # STUDENT, COMPANY, ADMIN
     "AdminSubRole",        # SUPER_ADMIN, OPERATIONS_ADMIN, etc.
     "ADMIN_PERMISSION_MATRIX",

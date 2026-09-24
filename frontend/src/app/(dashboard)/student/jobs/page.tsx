@@ -46,7 +46,7 @@ import type { Job } from "@/types/api";
 import { useTranslation } from "@/hooks/useTranslation";
 import { JobCard } from "@/components/jobs/JobCard";
 import { FilterPillBar } from "@/components/jobs/FilterPillBar";
-import { TelegramFollowBanner } from "@/components/TelegramFollowBanner";
+import { JobAlertCta } from "@/components/jobs/JobAlertCta";
 import { SALARY_MAX } from "@/components/jobs/SalarySlider";
 
 // =============================================================================
@@ -708,9 +708,10 @@ export default function JobsPage() {
         </div>
       )}
 
-      {/* Follow-on-Telegram nudge — job seekers get daily jobs in the channel */}
+      {/* "Yangi ish chiqsa xabar ber" — the reason to come back tomorrow
+          without having to remember to. */}
       <div className="mx-auto mt-4 w-full max-w-[1200px] px-4 lg:px-6">
-        <TelegramFollowBanner storageKey="tg_follow_jobs" />
+        <JobAlertCta ru={isRu} storageKey="job_alert_cta_jobs" />
       </div>
 
       {/* ------------------------------------------------------------------ */}

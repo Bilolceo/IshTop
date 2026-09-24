@@ -42,9 +42,15 @@ class TestVisibleJobFilters:
     def test_carries_the_deadline_to_the_end_of_its_day(self, filters):
         # Not `expires_at > now()`: the form stores midnight UTC of the deadline
         # day, so a strict comparison hides the day the employer meant to offer.
-        sql = " ".join(_sql(f) for f in filters)
-        assert "interval" in sql.lower()
-        assert "expires_at" in sql
+        from datetime import datetime, timezone
+
+        deadline_clause = filters[2].clauses[1]
+        cutoff = deadline_clause.right.value
+        now = datetime.now(timezone.utc)
+        today_midnight = now.replace(hour=0, minute=0, second=0, microsecond=0)
+        assert "expires_at" in _sql(deadline_clause)
+        assert today_midnight > cutoff          # deadline today → still shown
+        assert now - timedelta(days=1, minutes=1) < cutoff  # a day gone → hidden
 
     def test_a_listing_without_a_deadline_stays_visible(self, filters):
         sql = " ".join(_sql(f) for f in filters).lower()

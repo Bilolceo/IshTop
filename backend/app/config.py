@@ -286,6 +286,16 @@ class Settings(BaseSettings):
     # itself. 240 leaves a wide margin under that window. Set to 0 to disable
     # — appropriate anywhere the database is not put to sleep.
     DB_KEEPALIVE_SECONDS: int = 240
+
+    # =========================================================================
+    # 🔔 TELEGRAM JOB ALERTS ("yangi ish chiqsa xabar ber")
+    # =========================================================================
+    JOB_ALERTS_ENABLED: bool = True
+    JOB_ALERTS_POLL_SECONDS: int = 600
+    # No pings at night, Tashkent time: what arrives overnight goes out in the
+    # first run after the window closes, as one message.
+    JOB_ALERTS_QUIET_START_HOUR: int = 23
+    JOB_ALERTS_QUIET_END_HOUR: int = 8
     
     # =========================================================================
     # 🔐 OAUTH2 SETTINGS (Google, LinkedIn)

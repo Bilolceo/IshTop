@@ -67,4 +67,9 @@ class TestLoop:
 class TestShutdown:
     def test_the_task_is_cancelled_on_shutdown(self):
         src = inspect.getsource(app_main.lifespan)
-        assert "for task in (digest_task, db_keepalive_task):" in src
+        import re
+
+        cancelled = re.search(r"for task in \(([^)]*)\):", src)
+        assert cancelled, "lifespan no longer cancels its background tasks"
+        names = {n.strip() for n in cancelled.group(1).split(",")}
+        assert {"db_keepalive_task", "job_alerts_task"} <= names

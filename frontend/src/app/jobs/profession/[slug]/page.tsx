@@ -4,6 +4,7 @@ import { notFound } from "next/navigation";
 import { fetchDiscoveryJobs } from "@/lib/discovery-api";
 import { stripHtmlTags } from "@/lib/utils";
 import { JsonLd, jobListJsonLd } from "@/lib/seo/jsonld";
+import { JobAlertCta } from "@/components/jobs/JobAlertCta";
 
 export async function generateMetadata({ params }: { params: { slug: string } }) {
   const title = `${params.slug.replace(/-/g, " ")} — ish o'rinlari | IshTop`;
@@ -37,6 +38,10 @@ export default async function ProfessionDiscoveryPage({ params }: { params: { sl
           Ushbu yo'nalishda {payload.total || jobs.length} ta faol vakansiya.
         </p>
       </header>
+
+      <div className="mb-6">
+        <JobAlertCta />
+      </div>
 
       <section className="space-y-4">
         {jobs.map((job: any) => (

@@ -797,13 +797,17 @@ def visible_job_filters():
     was created and cut the final day off every other one. Carrying to the end
     of that day keeps the day the employer meant to offer.
     """
-    from sqlalchemy import func, or_, text as sa_text
+    from datetime import datetime, timedelta, timezone
+    from sqlalchemy import or_
 
+    # `expires_at + 1 day > now` written as `expires_at > now - 1 day`, with
+    # "now" bound as a parameter: same rows, but no Postgres-only interval
+    # literal, so the rule also runs on the SQLite database the tests use.
     return (
         Job.is_deleted == False,  # noqa: E712 — SQLAlchemy needs ==, not `is`
         Job.status == JobStatus.ACTIVE.value,
         or_(
             Job.expires_at.is_(None),
-            Job.expires_at + sa_text("interval '1 day'") > func.now(),
+            Job.expires_at > datetime.now(timezone.utc) - timedelta(days=1),
         ),
     )

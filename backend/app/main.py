@@ -250,6 +250,7 @@ async def lifespan(app: FastAPI):
     
     digest_task: asyncio.Task | None = None
     db_keepalive_task: asyncio.Task | None = None
+    job_alerts_task: asyncio.Task | None = None
 
     async def _db_keepalive_loop() -> None:
         """Keep the database from being put to sleep between requests.
@@ -288,6 +289,28 @@ async def lifespan(app: FastAPI):
                 if db is not None:
                     db.close()
 
+    async def _job_alerts_loop() -> None:
+        """Send Telegram "new job" alerts. See app.services.job_alert_service."""
+        from app.services.job_alert_service import dispatch_job_alerts
+
+        interval = max(60, int(settings.JOB_ALERTS_POLL_SECONDS))
+        token = (settings.TELEGRAM_APPS_BOT_TOKEN or "").strip()
+        while True:
+            await asyncio.sleep(interval)
+            db: Session | None = None
+            try:
+                db = SessionLocal()
+                stats = await dispatch_job_alerts(db, token)
+                if stats.get("chats"):
+                    logger.info("Job alerts: %s", stats)
+            except asyncio.CancelledError:
+                raise
+            except Exception as exc:
+                logger.exception("Job alerts iteration failed: %s", exc)
+            finally:
+                if db is not None:
+                    db.close()
+
     async def _weekly_digest_loop() -> None:
         """Periodic loop that sends due Monday digests."""
         interval = max(300, int(settings.COMPANY_WEEKLY_DIGEST_POLL_SECONDS))
@@ -322,6 +345,9 @@ async def lifespan(app: FastAPI):
         if settings.COMPANY_WEEKLY_DIGEST_ENABLED:
             digest_task = asyncio.create_task(_weekly_digest_loop())
             logger.info("📬 Company weekly digest scheduler started")
+        if settings.JOB_ALERTS_ENABLED and (settings.TELEGRAM_APPS_BOT_TOKEN or "").strip():
+            job_alerts_task = asyncio.create_task(_job_alerts_loop())
+            logger.info("🔔 Telegram job alerts every %ss", settings.JOB_ALERTS_POLL_SECONDS)
         if settings.DB_KEEPALIVE_SECONDS > 0:
             db_keepalive_task = asyncio.create_task(_db_keepalive_loop())
             logger.info(
@@ -342,7 +368,7 @@ async def lifespan(app: FastAPI):
     # SHUTDOWN
     # =========================================================================
     
-    for task in (digest_task, db_keepalive_task):
+    for task in (digest_task, db_keepalive_task, job_alerts_task):
         if task:
             task.cancel()
             try:

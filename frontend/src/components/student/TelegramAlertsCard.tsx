@@ -1,14 +1,16 @@
 "use client";
 
 /**
- * Connect Telegram for daily personalised job alerts.
- * Opens a deep link (t.me/<bot>?start=<token>); the bot links the chat to the
- * account. Shows connected state and lets the user disconnect.
+ * Connect Telegram to the account, and open the bot's job alerts.
+ * Linking opens a deep link (t.me/<bot>?start=<token>); the bot links the chat
+ * to the account so applications and their status show up there too. Alerts
+ * themselves need no linking — they are set per chat, in the bot.
  */
 
 import { useEffect, useState } from "react";
 import { Send, CheckCircle2, Loader2, Bell } from "lucide-react";
 import { api } from "@/lib/api";
+import { jobAlertBotLink } from "@/lib/jobAlerts";
 import { useTranslation } from "@/hooks/useTranslation";
 import { toast } from "sonner";
 
@@ -71,7 +73,7 @@ export function TelegramAlertsCard() {
           </span>
           <div>
             <p className="flex items-center gap-2 text-sm font-semibold text-surface-900 dark:text-white">
-              {ru ? "Вакансии в Telegram" : "Telegram'da ish bildirishnomalari"}
+              {ru ? "Уведомления о вакансиях в Telegram" : "Telegram'da yangi ish xabarnomalari"}
               {connected && (
                 <span className="inline-flex items-center gap-1 rounded-full bg-[#d9f1e4] px-2 py-0.5 text-[11px] font-semibold text-[#2f7a56]">
                   <CheckCircle2 className="h-3 w-3" />
@@ -80,14 +82,25 @@ export function TelegramAlertsCard() {
               )}
             </p>
             <p className="mt-1 max-w-md text-xs text-surface-500 dark:text-surface-400">
+              {/* This used to promise a daily digest with match scores that
+                  nothing ever sent. What the bot does do: */}
               {ru
-                ? "Каждый день присылаем подходящие вам вакансии с процентом совпадения — прямо в Telegram."
-                : "Har kuni sizga mos ishlarni moslik foizi bilan to'g'ridan-to'g'ri Telegram'ga yuboramiz."}
+                ? "Выберите сферу, город или ключевое слово — бот пришлёт новую вакансию сразу, как она появится. Подключите аккаунт, чтобы видеть в боте и статус своих откликов."
+                : "Soha, shahar yoki kalit so'z tanlang — yangi vakansiya chiqishi bilan bot xabar beradi. Hisobni ulasangiz, arizalaringiz holatini ham botda ko'rasiz."}
             </p>
           </div>
         </div>
 
-        <div className="shrink-0">
+        <div className="flex shrink-0 flex-wrap gap-2">
+          <a
+            href={jobAlertBotLink()}
+            target="_blank"
+            rel="noopener noreferrer"
+            className="btn-silver-primary group"
+          >
+            <Bell className="h-4 w-4" />
+            {ru ? "Настроить уведомления" : "Xabarnomalarni sozlash"}
+          </a>
           {connected ? (
             <button
               type="button"
@@ -103,14 +116,14 @@ export function TelegramAlertsCard() {
               type="button"
               onClick={connect}
               disabled={loading || connected === null}
-              className="btn-silver-primary group disabled:opacity-60"
+              className="btn-silver-ghost !bg-[#f6f6f4] disabled:opacity-60"
             >
               {loading ? (
                 <Loader2 className="h-4 w-4 animate-spin" />
               ) : (
-                <Bell className="h-4 w-4" />
+                <Send className="h-4 w-4" />
               )}
-              {ru ? "Подключить" : "Ulash"}
+              {ru ? "Подключить аккаунт" : "Hisobni ulash"}
             </button>
           )}
         </div>

@@ -285,9 +285,7 @@ def _load_catalog(force: bool = False) -> dict:
     ok = False
     db = SessionLocal()
     try:
-        from sqlalchemy import func, or_
-
-        from app.models.job import Job
+        from app.models.job import Job, visible_job_filters
         from app.models.user import User
 
         rows = (
@@ -296,16 +294,14 @@ def _load_catalog(force: bool = False) -> dict:
                 Job.salary_min, Job.salary_max, Job.salary_currency,
                 Job.location, Job.experience_level,
                 Job.contact_info, Job.job_type, Job.requirements,
-                Job.responsibilities, User.company_name, User.full_name,
+                Job.responsibilities, Job.created_at,
+                User.company_name, User.full_name,
             )
             .join(User, User.id == Job.company_id)
-            .filter(
-                Job.status == "active",
-                Job.is_deleted.is_(False),
-                # Same rule as the site: a listing past its date is not a
-                # listing. The catalog used to keep serving them.
-                or_(Job.expires_at.is_(None), Job.expires_at > func.now()),
-            )
+            # The site's own visibility rule. The catalog used to carry a copy
+            # that cut the deadline day off; an alert could then link a job
+            # the card said no longer existed.
+            .filter(*visible_job_filters())
             .order_by(Job.created_at.desc())
             .all()
         )
@@ -329,6 +325,7 @@ def _load_catalog(force: bool = False) -> dict:
                 "requirements": [x for x in (r.requirements or []) if str(x).strip()],
                 "responsibilities": [x for x in (r.responsibilities or []) if str(x).strip()],
                 "cid": cid, "city_id": city_id,
+                "created_at": r.created_at,
             }
             by_cat.setdefault(cid, []).append(rec)
             by_city.setdefault(city_id, []).append(rec)
@@ -417,7 +414,7 @@ def _cats_text(locale: str = "uz") -> str:
 
 
 def _main_menu_kb() -> dict:
-    """Four actions, all of which keep the user inside the bot.
+    """Five actions, all of which keep the user inside the bot.
 
     The old menu spent half its buttons sending people to the website and the
     channel — a job bot whose main menu is a set of exit doors.
@@ -425,6 +422,7 @@ def _main_menu_kb() -> dict:
     return _kb([
         [_btn("🔍 Soha bo'yicha", "cats"), _btn("🏙 Shahar bo'yicha", "cities")],
         [_btn("🔎 Kalit so'z bilan qidirish", "search")],
+        [_btn("🔔 Yangi ish xabarnomalari", "alerts")],
         [_btn("📋 Mening arizalarim", "myapps")],
     ])
 
@@ -481,6 +479,8 @@ def _category_view(cid: str, page: int) -> tuple[str, dict]:
     rows = [num_row]
     if nav:
         rows.append(nav)
+    if cid in _ALERT_CATEGORY_IDS:
+        rows.append([_alert_btn("c", cid)])
     rows.append([_btn("🔙 Sohalar", "cats"), _btn("🏠 Menyu", "home")])
     return "\n".join(lines), _kb(rows)
 
@@ -547,6 +547,8 @@ def _city_view(cid: str, page: int) -> tuple[str, dict]:
     rows = [num_row]
     if nav:
         rows.append(nav)
+    if cid in _ALERT_CITY_IDS:
+        rows.append([_alert_btn("t", cid)])
     rows.append([_btn("🔙 Shaharlar", "cities"), _btn("🏠 Menyu", "home")])
     return "\n".join(lines), _kb(rows)
 
@@ -924,19 +926,24 @@ def _looks_like_search(q: str) -> bool:
 
 def _search_jobs(query: str) -> list:
     """Jobs whose title/company/location/soha contains ALL query tokens."""
-    cat = _load_catalog()
-    toks = [t for t in query.lower().replace("’", "'").split() if len(t) >= 2]
+    toks = _search_tokens(query)
     if not toks:
         return []
-    out = []
-    for j in cat["jobs"].values():  # dict preserves created_at-desc insertion order
-        hay = (
-            f"{j['title']} {j['company'] or ''} {j['location']} "
-            f"{category_meta(j['cid'])['label']}"
-        ).lower()
-        if all(t in hay for t in toks):
-            out.append(j)
-    return out
+    # dict preserves created_at-desc insertion order
+    return [j for j in _load_catalog()["jobs"].values() if _matches_tokens(j, toks)]
+
+
+def _search_tokens(query: str) -> list[str]:
+    return [t for t in query.lower().replace("’", "'").split() if len(t) >= 2]
+
+
+def _matches_tokens(j: dict, toks: list[str]) -> bool:
+    """The search rule, shared with keyword alerts so both find the same jobs."""
+    hay = (
+        f"{j['title']} {j['company'] or ''} {j['location']} "
+        f"{category_meta(j['cid'])['label']}"
+    ).lower()
+    return all(t in hay for t in toks)
 
 
 def _search_prompt(locale: str = "uz") -> str:
@@ -970,8 +977,176 @@ def _search_view(query: str, results: list) -> tuple[str, dict]:
 
     num_row = [_btn(str(i + 1), f"j:{shown[i]['id']}:s:{qs}") for i in range(len(shown))]
     rows = [num_row,
+            [_alert_btn("s", qs.lower())],
             [_btn("🔍 Sohalar", "cats"), _btn("🏙 Shaharlar", "cities"), _btn("🏠 Menyu", "home")]]
     return "\n".join(lines), _kb(rows)
+
+
+# =============================================================================
+# JOB ALERTS — "yangi ish chiqsa xabar ber"
+# =============================================================================
+# Subscribing happens where the person already is: the soha, city and search
+# screens each carry a bell button. Storage, matching and the periodic sender
+# live in app.services.job_alert_service; this is only the bot's face of it.
+
+_ALERT_CATEGORY_IDS = {c[0] for c in CATEGORIES}
+_ALERT_CITY_IDS = {c[0] for c in CITIES}
+
+
+def _alert_label(kind: str, value: str) -> str:
+    if kind == "c":
+        meta = category_meta(value)
+        return f"{meta['emoji']} {meta['label']}"
+    if kind == "t":
+        meta = city_meta(value)
+        return f"{meta['emoji']} {meta['label']}"
+    return f"🔎 «{value}»"
+
+
+def _alert_btn(kind: str, value: str) -> dict:
+    # al:<kind>:<value> — value is a short id or the (≤20 char) search query,
+    # so this stays inside Telegram's 64-byte callback limit.
+    return _btn("🔔 Yangi ish chiqsa xabar ber", f"al:{kind}:{value}")
+
+
+def _alert_valid(kind: str, value: str) -> bool:
+    if kind == "c":
+        return value in _ALERT_CATEGORY_IDS
+    if kind == "t":
+        return value in _ALERT_CITY_IDS
+    return kind == "s" and len(_search_tokens(value)) > 0
+
+
+def _alerts_view(chat_id: str) -> tuple[str, dict]:
+    from app.services.job_alert_service import MAX_ALERTS_PER_CHAT, list_alerts
+
+    db = SessionLocal()
+    try:
+        alerts = list_alerts(db, chat_id)
+        items = [(str(a.id), a.kind, a.value, a.sent_count or 0) for a in alerts]
+    finally:
+        db.close()
+
+    how = ("Kalit so'z bo'yicha obuna: so'zni yozib qidiring va natijada "
+           "«🔔 Yangi ish chiqsa xabar ber» tugmasini bosing.")
+    add = [_btn("➕ Soha", "alq:c"), _btn("➕ Shahar", "alq:t")]
+    nav = [_btn("🏠 Menyu", "home")]
+    if not items:
+        return (
+            "🔔 <b>Yangi ish xabarnomalari</b>\n\n"
+            "Hozircha obunangiz yo'q.\n\n"
+            "Obuna bo'lsangiz, tanlagan sohangiz, shahringiz yoki kalit "
+            "so'zingiz bo'yicha yangi vakansiya chiqishi bilan shu yerga "
+            "yozaman — saytni har kuni tekshirib o'tirmaysiz.\n\n"
+            "Boshlash uchun soha yoki shahar tanlang. " + how,
+            _kb([add, nav]),
+        )
+
+    lines = ["🔔 <b>Obunalaringiz</b>", ""]
+    for i, (_, kind, value, sent) in enumerate(items, 1):
+        tail = f" — {sent} ta yuborildi" if sent else ""
+        lines.append(f"{i}. {_esc(_alert_label(kind, value))}{tail}")
+    lines += [
+        "",
+        "Yangi vakansiya chiqishi bilan xabar beraman. "
+        "Kechasi (23:00–08:00) bezovta qilmayman.",
+        f"Ko'pi bilan {MAX_ALERTS_PER_CHAT} ta obuna. {how}",
+        "",
+        "O'chirish uchun ❌ tugmasini bosing:",
+    ]
+    rows = [[_btn(f"❌ {i}. {_alert_label(kind, value)}"[:60], f"alx:{aid}")]
+            for i, (aid, kind, value, _) in enumerate(items, 1)]
+    rows += [add, nav]
+    return "\n".join(lines), _kb(rows)
+
+
+def _alert_pick_view(kind: str) -> tuple[str, dict]:
+    """Every soha (or city) as a one-tap subscribe button."""
+    ordered = CATEGORIES if kind == "c" else CITIES
+    title = ("🔔 Qaysi soha bo'yicha xabar beray?" if kind == "c"
+             else "🔔 Qaysi shahar bo'yicha xabar beray?")
+    rows: list = []
+    line: list = []
+    for c in ordered:
+        line.append(_btn(f"{c[1]} {c[2]}", f"al:{kind}:{c[0]}"))
+        if len(line) == 2:
+            rows.append(line)
+            line = []
+    if line:
+        rows.append(line)
+    rows.append([_btn("🔙 Obunalarim", "alerts"), _btn("🏠 Menyu", "home")])
+    return title, _kb(rows)
+
+
+def _subscribe_alert(chat_id: str, kind: str, value: str) -> tuple[str, dict]:
+    """Create the subscription and word the confirmation. Sync — run in a threadpool."""
+    from app.services.job_alert_service import MAX_ALERTS_PER_CHAT, subscribe
+
+    if not _alert_valid(kind, value):
+        return ("Bu obunani yarata olmadim — qaytadan tanlab ko'ring.",
+                _kb([[_btn("🔍 Sohalar", "cats"), _btn("🏠 Menyu", "home")]]))
+
+    linked = _linked_user(chat_id)
+    db = SessionLocal()
+    try:
+        outcome, _ = subscribe(db, chat_id, kind, value,
+                               user_id=linked.id if linked else None)
+    finally:
+        db.close()
+
+    label = _esc(_alert_label(kind, value))
+    kb = _kb([[_btn("🔔 Obunalarim", "alerts"), _btn("🏠 Menyu", "home")]])
+    if outcome == "exists":
+        return f"🔔 Siz allaqachon obunasiz: {label}", kb
+    if outcome == "limit":
+        return (f"Obunalar soni {MAX_ALERTS_PER_CHAT} taga yetdi. "
+                "Yangisini qo'shish uchun keraksizini o'chiring.", kb)
+    if outcome == "invalid":
+        return "Bu obunani yarata olmadim — qaytadan tanlab ko'ring.", kb
+    return (
+        f"✅ <b>Obuna yoqildi:</b> {label}\n\n"
+        "Shu bo'yicha yangi vakansiya chiqishi bilan shu yerga yozaman. "
+        "Kechasi (23:00–08:00) bezovta qilmayman — tunda chiqqanlarini "
+        "ertalab bitta xabarda yuboraman.",
+        kb,
+    )
+
+
+def _alert_digest(found: list) -> tuple[str, dict]:
+    """One message for one chat: every new job its alerts caught since last time.
+
+    `found` is [(job, [alerts that matched it])], newest first.
+    """
+    from app.services.job_alert_service import DIGEST_JOBS_SHOWN
+
+    shown = found[:DIGEST_JOBS_SHOWN]
+    n = len(found)
+    lines = [f"🔔 <b>{'Yangi vakansiya' if n == 1 else f'{n} ta yangi vakansiya'}</b>", ""]
+    for idx, (j, hits) in enumerate(shown, 1):
+        lines.append(f"{idx}. <b>{_esc(j['title'])}</b>")
+        sub = " · ".join(x for x in [j["company"], _fmt_salary(j), j["location"]] if x)
+        if sub:
+            lines.append(f"    {_esc(sub)}")
+        why = ", ".join(dict.fromkeys(_alert_label(a.kind, a.value) for a in hits))
+        lines.append(f"    <i>Obuna: {_esc(why)}</i>")
+        lines.append("")
+    if n > DIGEST_JOBS_SHOWN:
+        lines.append(f"… yana {n - DIGEST_JOBS_SHOWN} ta — «🔔 Obunalarim» orqali soha "
+                     "yoki shahar ro'yxatida ko'rasiz.")
+    lines.append("👇 Batafsil ko'rish va ariza berish uchun raqamni bosing:")
+
+    num_row = [_btn(str(i + 1), f"j:{shown[i][0]['id']}:alerts") for i in range(len(shown))]
+    rows = [num_row, [_btn("🔔 Obunalarim", "alerts"), _btn("🏠 Menyu", "home")]]
+    return "\n".join(lines), _kb(rows)
+
+
+def _parse_alert_payload(payload: str) -> tuple[str, str] | None:
+    """/start alert_c_it or alert_t_toshkent — the site's "notify me" links."""
+    rest = payload[len("alert_"):]
+    kind, _, value = rest.partition("_")
+    if kind in ("c", "t") and value and _alert_valid(kind, value):
+        return kind, value
+    return None
 
 
 async def _handle_callback(token: str, callback: dict) -> None:
@@ -1041,6 +1216,35 @@ async def _handle_callback(token: str, callback: dict) -> None:
                 await _edit(token, chat_id, message_id, text, kb)
         elif data.startswith("cv:"):
             await _send_cv(token, chat_id)
+        elif data == "alerts":
+            text, kb = await run_in_threadpool(_alerts_view, str(chat_id))
+            await _edit(token, chat_id, message_id, text, kb)
+        elif data in ("alq:c", "alq:t"):
+            text, kb = _alert_pick_view(data[-1])
+            await _edit(token, chat_id, message_id, text, kb)
+        elif data.startswith("al:"):
+            # al:<kind>:<value>. Confirm in a NEW message so the list the
+            # person subscribed from stays on screen.
+            parts = data.split(":", 2)
+            if len(parts) == 3:
+                text, kb = await run_in_threadpool(_subscribe_alert, str(chat_id),
+                                                   parts[1], parts[2])
+                await _send(token, chat_id, text, kb)
+        elif data.startswith("alx:"):
+            from app.services.job_alert_service import unsubscribe
+
+            def _off() -> bool:
+                db = SessionLocal()
+                try:
+                    return unsubscribe(db, str(chat_id), data[4:])
+                finally:
+                    db.close()
+
+            removed = await run_in_threadpool(_off)
+            text, kb = await run_in_threadpool(_alerts_view, str(chat_id))
+            await _edit(token, chat_id, message_id, text, kb)
+            await _answer_cb(token, cb_id, "O'chirildi" if removed else None)
+            return
         # "noop" and anything else: just acknowledge below.
     except Exception as exc:  # noqa: BLE001
         logger.warning("callback handling failed (data=%s): %s", data, exc)
@@ -1101,6 +1305,23 @@ async def telegram_webhook(secret: str, request: Request):
             await _send(token, chat_id, jtext, jkb)
             return {"ok": True}
 
+        # t.me/<bot>?start=alerts / alert_c_<soha> / alert_t_<city> — the
+        # site's "notify me" buttons. (Link tokens are token_urlsafe(18); one
+        # beginning "alert" is a 1-in-a-billion accident, and would only open
+        # the alerts screen instead of linking.)
+        if payload == "alerts":
+            atext, akb = await run_in_threadpool(_alerts_view, str(chat_id))
+            await _send(token, chat_id, atext, akb)
+            return {"ok": True}
+        if payload.startswith("alert_"):
+            parsed = _parse_alert_payload(payload)
+            if parsed:
+                atext, akb = await run_in_threadpool(_subscribe_alert, str(chat_id), *parsed)
+            else:
+                atext, akb = await run_in_threadpool(_alerts_view, str(chat_id))
+            await _send(token, chat_id, atext, akb)
+            return {"ok": True}
+
         if payload:
             linked = _link_chat_to_user(payload, str(chat_id))
             if linked:
@@ -1110,6 +1331,11 @@ async def telegram_webhook(secret: str, request: Request):
             return {"ok": True}
         welcome_txt = await run_in_threadpool(_welcome, locale)
         await _send(token, chat_id, welcome_txt, _main_menu_kb())
+        return {"ok": True}
+
+    if text.startswith("/alerts") or text.startswith("/obuna"):
+        atext, akb = await run_in_threadpool(_alerts_view, str(chat_id))
+        await _send(token, chat_id, atext, akb)
         return {"ok": True}
 
     if text.startswith("/help"):
@@ -1184,7 +1410,8 @@ def _help(locale: str) -> str:
             "🤖 <b>Что умеет бот</b>\n\n"
             "🔍 <b>Поиск работы</b> — по сфере, городу или ключевому слову\n"
             "📝 <b>Отклик</b> — прямо здесь, вашим резюме с сайта\n"
-            "📋 <b>Мои отклики</b> — статус каждого\n\n"
+            "📋 <b>Мои отклики</b> — статус каждого\n"
+            "🔔 <b>Уведомления</b> — новая вакансия по вашей сфере, городу или слову /alerts\n\n"
             "Чтобы откликаться, подключите аккаунт: "
             "Настройки на ishtopuz.uz → Telegram.\n\n"
             "Есть вопрос — просто напишите его."
@@ -1193,7 +1420,8 @@ def _help(locale: str) -> str:
         "🤖 <b>Bot nima qila oladi</b>\n\n"
         "🔍 <b>Ish qidirish</b> — soha, shahar yoki kalit so'z bo'yicha\n"
         "📝 <b>Ariza berish</b> — shu yerning o'zidan, saytdagi rezyumengiz bilan\n"
-        "📋 <b>Arizalarim</b> — har bir arizangiz holati\n\n"
+        "📋 <b>Arizalarim</b> — har bir arizangiz holati\n"
+        "🔔 <b>Xabarnomalar</b> — sohangiz, shahringiz yoki kalit so'z bo'yicha yangi ish /alerts\n\n"
         "Ariza berish uchun hisobingizni ulang: "
         "ishtopuz.uz → Sozlamalar → Telegram.\n\n"
         "Savolingiz bo'lsa — shunchaki yozing."

@@ -4,6 +4,7 @@ import { notFound } from "next/navigation";
 import { fetchDiscoveryJobs } from "@/lib/discovery-api";
 import { stripHtmlTags } from "@/lib/utils";
 import { JsonLd, jobListJsonLd } from "@/lib/seo/jsonld";
+import { JobAlertCta } from "@/components/jobs/JobAlertCta";
 
 export async function generateMetadata({ params }: { params: { slug: string } }) {
   const city = params.slug.replace(/-/g, " ");
@@ -37,6 +38,10 @@ export default async function CityDiscoveryPage({ params }: { params: { slug: st
           {payload.total || jobs.length} ta faol vakansiya — ishonch reytingi bilan.
         </p>
       </header>
+
+      <div className="mb-6">
+        <JobAlertCta city={params.slug} />
+      </div>
 
       <section className="space-y-4">
         {jobs.map((job: any) => (
