@@ -56,11 +56,20 @@ db = pg8000.native.Connection(user=d.username, password=d.password, host=d.hostn
 
 # --- what is already here ----------------------------------------------------
 existing_contacts = set()
+EMAIL_RE = re.compile(r"[A-Za-z0-9._%+-]+@[A-Za-z0-9.-]+\.[A-Za-z]{2,}")
 for c, in db.run("select contact_info from jobs where is_deleted=false and coalesce(contact_info,'')<>''"):
+    # Emails first, and struck out before the handle scan: "hr_uz@biotact.de"
+    # would otherwise also read as the handle "@biotact".
+    for e in EMAIL_RE.findall(c):
+        existing_contacts.add(e.lower())
+    c = EMAIL_RE.sub(" ", c)
     for ph in re.findall(r"\d{7,}", c.replace(" ", "")):
         existing_contacts.add(ph[-9:])
     for h in re.findall(r"@([A-Za-z0-9_]{4,32})", c):
         existing_contacts.add(h.lower())
+# The same Telegram post must never go in twice (one did, three times).
+existing_sources = {u for u, in db.run(
+    "select external_apply_url from jobs where coalesce(external_apply_url,'')<>''")}
 
 picked, per_role, skipped = [], collections.Counter(), collections.Counter()
 # Newest first. A vacancy posted today is still open; one from six weeks ago has
@@ -71,9 +80,25 @@ rows.sort(key=lambda r: (r["date"],
                          bool(r["requirements"]) + bool(r["responsibilities"])),
           reverse=True)
 
+# Russian posts are not published as Russian: the site is Uzbek. Pass
+# --translations uz.json ({"<channel>/<msg_id>": {"title", "description",
+# "requirements", "responsibilities", "benefits"}}) to publish them translated;
+# without one they are listed and skipped.
+TRANSLATIONS = {}
+if "--translations" in sys.argv:
+    TRANSLATIONS = json.load(open(sys.argv[sys.argv.index("--translations") + 1], encoding="utf-8"))
+needs_translation = []
+
 for r in rows:
     if len(picked) >= want:
         break
+    key = f"{r['channel']}/{r['msg_id']}"
+    if r.get("lang") == "ru":
+        if key not in TRANSLATIONS:
+            needs_translation.append((key, r["title"]))
+            skipped["tarjima kerak (ruscha)"] += 1
+            continue
+        r = {**r, **TRANSLATIONS[key]}
     handles = [h for h in r["handles"] if kinds.get(h, {}).get("kind") in ("odam", "bot")]
     phones = [p.strip() for p in r["phones"] if real_phone(p)]
     parts = (phones + [f"@{h}" for h in handles]
@@ -92,7 +117,13 @@ for r in rows:
     # A different employer hiring for the same role is a different vacancy, so
     # the title alone never disqualifies one — the employer's contact does.
     # MAX_PER_ROLE is what keeps the feed from filling with one job name.
-    fingerprint = {re.sub(r"\D", "", p)[-9:] for p in phones} | {h.lower() for h in handles}
+    # Emails belong in it: an employer whose only contact was an email was
+    # re-imported on every run — BIOTACT DEUTSCHLAND ended up listed 9 times.
+    fingerprint = ({re.sub(r"\D", "", p)[-9:] for p in phones} | {h.lower() for h in handles}
+                   | {e.lower() for e in r["emails"][:1]})
+    if f"https://t.me/{r['channel']}/{r['msg_id']}" in existing_sources:
+        skipped["post allaqachon bor"] += 1
+        continue
     if fingerprint & existing_contacts:
         skipped["kontakt bor"] += 1
         continue
@@ -111,6 +142,11 @@ for i, p in enumerate(picked, 1):
            + (f"-{p['salary_max']//1_000_000}" if p["salary_max"] else "+")
            + " mln") if p["salary_min"] else "—"
     print(f"{i:>3}. {p['title'][:46]:<48} {p['city'] or '—':<10} {sal:<9} {_job_type(p):<10} {p['contact'][:34]}")
+
+if needs_translation:
+    print(f"\ntarjima kerak — ruscha postlar ({len(needs_translation)}), --translations bilan qayta ishga tushiring:")
+    for k, t in needs_translation:
+        print(f"   {k:<28} {t[:50]}")
 
 if not commit:
     print("\n(dry run)")

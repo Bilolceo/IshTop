@@ -13,6 +13,7 @@ Rules that matter here:
 """
 import sys, re, json, unicodedata
 from roles import role_from_stack, role_name
+from textclean import clean_list, clean_text, lang, translit
 
 # Startup/news channels post announcements, not vacancies.
 NEWS_CHANNELS = {"uzcombinator", "foundershub_uz"}
@@ -430,7 +431,9 @@ def build_description(text: str, title: str) -> str:
         if re.search(r"(kanal|канал|obuna|подпис|ulanish)", l, re.I) and len(l) < 70:
             continue
         keep.append(l)
-    return re.sub(r"\n{3,}", "\n\n", "\n".join(keep)).strip()[:4000]
+    # The length cap on the "kanal/obuna" filter above let the channel's long
+    # disclaimer through; textclean knows the actual boilerplate lines.
+    return clean_text(re.sub(r"\n{3,}", "\n\n", "\n".join(keep)).strip()[:4000])
 
 
 def structure(posts: list) -> tuple:
@@ -483,15 +486,25 @@ def structure(posts: list) -> tuple:
             skipped["short"] += 1
             continue
         smin, smax = find_salary(text)
+        reqs = clean_list(section(text, REQ_HEAD) or labelled_skills(text))
+        resps = clean_list(section(text, RESP_HEAD))
+        bens = clean_list(section(text, BEN_HEAD))
+        # Uzbek written in Cyrillic goes to Latin script mechanically. Russian
+        # cannot: it is marked, and insert_jobs will not publish it without a
+        # translation.
+        if lang(desc) == "uz-cyr":
+            desc, title = translit(desc), translit(title)
+            reqs, resps, bens = ([translit(x) for x in xs] for xs in (reqs, resps, bens))
         rows.append({
             "channel": p["channel"], "msg_id": p["msg_id"], "date": p["date"],
             "title": title, "company": company,
             "description": desc,
             # The template's "Texnologiya:" line is the requirement list for a
         # third of these posts; the heading-based parse finds nothing there.
-        "requirements": section(text, REQ_HEAD) or labelled_skills(text),
-            "responsibilities": section(text, RESP_HEAD),
-            "benefits": section(text, BEN_HEAD),
+        "requirements": reqs,
+            "responsibilities": resps,
+            "benefits": bens,
+            "lang": lang(desc),
             "salary_min": smin, "salary_max": smax,
             "city": find_city(text) or find_city(labelled_field(text, "city")),
             "is_remote": bool(REMOTE.search(text)),
