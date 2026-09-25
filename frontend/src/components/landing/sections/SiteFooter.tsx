@@ -16,6 +16,7 @@ const COL: Record<
       { label: "Jonli demo", href: "/demo" },
       { label: "Qanday ishlaydi", href: "/#how" },
       { label: "Maoshlar statistikasi", href: "/maosh" },
+      { label: "So'rovnoma (2 daqiqa)", href: "/sorovnoma?src=footer" },
       { label: "Narxlar", href: "/plans" },
     ],
     company: [
@@ -36,6 +37,7 @@ const COL: Record<
       { label: "Живое демо", href: "/demo" },
       { label: "Как это работает", href: "/#how" },
       { label: "Статистика зарплат", href: "/maosh" },
+      { label: "Опрос (2 минуты)", href: "/sorovnoma?src=footer" },
       { label: "Тарифы", href: "/plans" },
     ],
     company: [
@@ -56,6 +58,7 @@ const COL: Record<
       { label: "Live demo", href: "/demo" },
       { label: "How it works", href: "/#how" },
       { label: "Salary statistics", href: "/maosh" },
+      { label: "Survey (2 min)", href: "/sorovnoma?src=footer" },
       { label: "Pricing", href: "/plans" },
     ],
     company: [

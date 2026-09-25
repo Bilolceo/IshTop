@@ -153,5 +153,59 @@ def test_traction_excludes_internal_accounts(client, test_db, test_student, test
     assert sum(w["value"] for w in d["weekly"]["signups"]) == 2
 
 
+def test_traction_reports_what_the_filter_removed(client, test_db, test_student, test_job,
+                                                  test_application, super_admin_token):
+    r = client.get("/api/v1/admin/metrics/traction",
+                   headers={"Authorization": f"Bearer {super_admin_token}"})
+    d = r.json()["data"]
+    # The fixtures are all @example.com, so everything real is zero and the
+    # excluded block is what proves the numbers were filtered, not just empty.
+    assert d["excluded"] == {"students": 1, "applications": 1}
+    assert d["students"]["total"] == 0
+
+
+# --- interview leads ----------------------------------------------------------
+
+def test_interview_lead_is_stored_unlinked_to_answers(client, test_db):
+    from app.models import InterviewLead
+
+    client.post(f"/api/v1/surveys/{KEY}", json={"answers": GOOD, "source": "tatu"})
+    r = client.post(f"/api/v1/surveys/{KEY}/interview", json={"contact": " @ali ", "source": "tatu"})
+    assert r.status_code == 201
+    lead = test_db.query(InterviewLead).one()
+    assert lead.contact == "@ali" and lead.status == "new"
+    # The promise on the form: answers stay anonymous even for volunteers.
+    assert not hasattr(lead, "response_id")
+    assert test_db.query(SurveyResponse).one().answers.get("contact") is None
+
+
+def test_interview_lead_needs_a_contact(client):
+    assert client.post(f"/api/v1/surveys/{KEY}/interview", json={"contact": "   "}).status_code == 422
+    assert client.post(f"/api/v1/surveys/{KEY}/interview", json={"contact": " @  "}).status_code == 422
+    assert client.post("/api/v1/surveys/nope/interview", json={"contact": "@ali"}).status_code == 404
+
+
+def test_leads_and_export_are_admin_only(client, test_db, student_headers, super_admin_token):
+    client.post(f"/api/v1/surveys/{KEY}", json={"answers": GOOD, "source": "tatu"})
+    client.post(f"/api/v1/surveys/{KEY}/interview", json={"contact": "@ali"})
+    for path in (f"/api/v1/surveys/{KEY}/leads", f"/api/v1/surveys/{KEY}/export"):
+        assert client.get(path).status_code in (401, 403)
+        assert client.get(path, headers=student_headers).status_code == 403
+
+    admin = {"Authorization": f"Bearer {super_admin_token}"}
+    leads = client.get(f"/api/v1/surveys/{KEY}/leads", headers=admin).json()["data"]
+    assert leads["total"] == 1 and leads["leads"][0]["contact"] == "@ali"
+
+    csv_res = client.get(f"/api/v1/surveys/{KEY}/export", headers=admin)
+    assert csv_res.status_code == 200
+    assert "text/csv" in csv_res.headers["content-type"]
+    lines = csv_res.text.strip().splitlines()
+    assert lines[0].startswith("created_at,source,signed_in,status,searched,pains")
+    # multi-select answers survive as a splittable cell, and no PII is exported
+    assert "experience_required|no_reply" in lines[1]
+    assert "tatu" in lines[1]
+    assert "ip_hash" not in csv_res.text
+
+
 def test_traction_requires_admin(client, student_headers):
     assert client.get("/api/v1/admin/metrics/traction", headers=student_headers).status_code == 403

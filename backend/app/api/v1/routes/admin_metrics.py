@@ -117,6 +117,20 @@ def traction(
     )
     surveys = db.query(func.count(SurveyResponse.id)).scalar()
 
+    # Proof of the filter: a reviewer who asks "how do we know the numbers are
+    # clean" gets the size of what was removed, not just a claim that it was.
+    excluded_students = (
+        db.query(func.count(User.id))
+        .filter(User.role == UserRole.STUDENT, User.is_deleted == False, internal_user_filter())  # noqa: E712
+        .scalar()
+    )
+    excluded_apps = (
+        db.query(func.count(Application.id))
+        .join(User, User.id == Application.user_id)
+        .filter(Application.is_deleted == False, internal_user_filter())  # noqa: E712
+        .scalar()
+    )
+
     n = len(students)
 
     def pct(a, b):
@@ -127,6 +141,10 @@ def traction(
         "data": {
             "generated_at": now.isoformat(),
             "excluded_markers": list(INTERNAL_EMAIL_MARKERS),
+            "excluded": {
+                "students": excluded_students,
+                "applications": excluded_apps,
+            },
             "students": {
                 "total": n,
                 "active_7d": active_7,

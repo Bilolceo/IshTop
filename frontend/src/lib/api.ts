@@ -751,6 +751,7 @@ export type SurveySummary = {
 export type TractionMetrics = {
   generated_at: string;
   excluded_markers: string[];
+  excluded: { students: number; applications: number };
   students: { total: number; active_7d: number; active_30d: number; telegram_linked: number };
   funnel: { step: string; value: number; pct: number }[];
   applications: { total: number; by_status: Record<string, number> };
@@ -778,6 +779,17 @@ export const surveyApi = {
     api.get<{ success: boolean; data: SurveySummary }>(`/surveys/${key}/summary`, {
       params: source ? { source } : undefined,
     }),
+  volunteer: (key: string, body: { contact: string; source?: string | null }) =>
+    api.post<{ success: boolean }>(`/surveys/${key}/interview`, body),
+  leads: (key: string) =>
+    api.get<{
+      success: boolean;
+      data: {
+        total: number;
+        leads: { id: string; contact: string; source: string | null; status: string; created_at: string }[];
+      };
+    }>(`/surveys/${key}/leads`),
+  exportUrl: (key: string) => `/surveys/${key}/export`,
   traction: (weeks = 12) =>
     api.get<{ success: boolean; data: TractionMetrics }>("/admin/metrics/traction", {
       params: { weeks },

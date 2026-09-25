@@ -413,17 +413,60 @@ def _cats_text(locale: str = "uz") -> str:
     return f"🔍 Vakansiyalar katalogi — {total} ta faol\n\nSohani tanlang:"
 
 
+# The running problem-validation survey. Set to None to take it out of the
+# menu when it closes — the bot is a job bot first, and the ask should not
+# outlive the research it feeds.
+SURVEY_KEY = "student-2026"
+SURVEY_URL = f"{SITE_URL}/sorovnoma?src=bot"
+
+
 def _main_menu_kb() -> dict:
     """Five actions, all of which keep the user inside the bot.
 
     The old menu spent half its buttons sending people to the website and the
-    channel — a job bot whose main menu is a set of exit doors.
+    channel — a job bot whose main menu is a set of exit doors. The survey row
+    is the one deliberate exception, and it explains itself before it sends
+    anyone anywhere.
     """
-    return _kb([
+    rows = [
         [_btn("🔍 Soha bo'yicha", "cats"), _btn("🏙 Shahar bo'yicha", "cities")],
         [_btn("🔎 Kalit so'z bilan qidirish", "search")],
         [_btn("🔔 Yangi ish xabarnomalari", "alerts")],
         [_btn("📋 Mening arizalarim", "myapps")],
+    ]
+    if SURVEY_KEY:
+        rows.append([_btn("🗳 2 daqiqalik so'rovnoma", "survey")])
+    return _kb(rows)
+
+
+def _survey_view(locale: str = "uz") -> tuple[str, dict]:
+    """Ask before sending anyone off to the web form.
+
+    People tap a bot button expecting the bot to answer; a silent jump to a
+    browser is how you lose them. So: what it is, how long it takes, and that
+    it is anonymous — then the link.
+    """
+    if locale == "ru":
+        text = (
+            "🗳 <b>Опрос на 2 минуты</b>\n\n"
+            "Мы изучаем, что мешает студентам находить работу, "
+            "и по ответам решаем, что строить дальше.\n\n"
+            "Анонимно: имя, телефон и email не спрашиваем.\n"
+            "7 вопросов, около 2 минут."
+        )
+        open_label = "📝 Пройти опрос"
+    else:
+        text = (
+            "🗳 <b>2 daqiqalik so'rovnoma</b>\n\n"
+            "Talabalarga ish topishda nima xalaqit berayotganini o'rganyapmiz — "
+            "javoblaringizga qarab keyin nima qilishni hal qilamiz.\n\n"
+            "Anonim: ism, telefon, email so'ralmaydi.\n"
+            "7 ta savol, taxminan 2 daqiqa."
+        )
+        open_label = "📝 So'rovnomani to'ldirish"
+    return text, _kb([
+        [_url_btn(open_label, SURVEY_URL)],
+        [_btn("🏠 Bosh menyu", "home")],
     ])
 
 
@@ -1234,6 +1277,9 @@ async def _handle_callback(token: str, callback: dict) -> None:
             await _edit(token, chat_id, message_id, _cats_text(locale), _categories_kb())
         elif data == "cities":
             await _edit(token, chat_id, message_id, _cities_text(locale), _cities_kb())
+        elif data == "survey":
+            text, kb = _survey_view(locale)
+            await _edit(token, chat_id, message_id, text, kb)
         elif data == "myapps":
             text, kb = await run_in_threadpool(_my_applications, str(chat_id))
             await _edit(token, chat_id, message_id, text, kb)

@@ -1,9 +1,9 @@
 "use client";
 
 import { useCallback, useEffect, useState } from "react";
-import { Copy, RefreshCw } from "lucide-react";
+import { Copy, Download, RefreshCw } from "lucide-react";
 
-import {
+import api, {
   getErrorMessage,
   surveyApi,
   type SurveySummary,
@@ -58,6 +58,8 @@ export default function AdminMetricsPage() {
 
   const [m, setM] = useState<TractionMetrics | null>(null);
   const [s, setS] = useState<SurveySummary | null>(null);
+  const [leads, setLeads] = useState<{ contact: string; source: string | null; created_at: string }[]>([]);
+  const [downloading, setDownloading] = useState(false);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [copied, setCopied] = useState(false);
@@ -66,12 +68,14 @@ export default function AdminMetricsPage() {
     setLoading(true);
     setError(null);
     try {
-      const [tr, sv] = await Promise.all([
+      const [tr, sv, ld] = await Promise.all([
         surveyApi.traction(12),
         surveyApi.summary(STUDENT_SURVEY_KEY),
+        surveyApi.leads(STUDENT_SURVEY_KEY),
       ]);
       setM(tr.data.data);
       setS(sv.data.data);
+      setLeads(ld.data.data.leads);
     } catch (err) {
       setError(getErrorMessage(err));
     } finally {
@@ -85,6 +89,23 @@ export default function AdminMetricsPage() {
 
   const surveyUrl =
     typeof window !== "undefined" ? `${window.location.origin}/sorovnoma` : "/sorovnoma";
+
+  const downloadCsv = async () => {
+    setDownloading(true);
+    try {
+      const res = await api.get(surveyApi.exportUrl(STUDENT_SURVEY_KEY), { responseType: "blob" });
+      const url = URL.createObjectURL(res.data as Blob);
+      const a = document.createElement("a");
+      a.href = url;
+      a.download = `${STUDENT_SURVEY_KEY}-responses.csv`;
+      a.click();
+      URL.revokeObjectURL(url);
+    } catch (err) {
+      setError(getErrorMessage(err));
+    } finally {
+      setDownloading(false);
+    }
+  };
 
   const copyLink = async () => {
     try {
@@ -145,6 +166,13 @@ export default function AdminMetricsPage() {
             <Stat label={t("So'rovnoma javoblari", "Ответы на опрос")} value={m.engagement.survey_responses} />
           </div>
 
+          <p className="text-xs text-surface-500">
+            {t("Hisobdan chiqarilgan", "Исключено")}: {m.excluded.students}{" "}
+            {t("test/demo/xodim akkaunti", "тест/демо/служебных аккаунтов")} ·{" "}
+            {m.excluded.applications} {t("ariza", "откликов")}.{" "}
+            {t("Belgilar", "Маркеры")}: {m.excluded_markers.join(", ")}.
+          </p>
+
           <Card>
             <CardHeader>
               <CardTitle className="text-base">{t("Voronka", "Воронка")}</CardTitle>
@@ -202,6 +230,10 @@ export default function AdminMetricsPage() {
             <Button variant="outline" size="sm" onClick={copyLink}>
               <Copy className="mr-1 h-3.5 w-3.5" />
               {copied ? t("Nusxalandi", "Скопировано") : t("Havola", "Ссылка")}
+            </Button>
+            <Button variant="outline" size="sm" onClick={downloadCsv} disabled={downloading || !s?.total}>
+              <Download className="mr-1 h-3.5 w-3.5" />
+              CSV
             </Button>
           </div>
         </CardHeader>
@@ -263,6 +295,36 @@ export default function AdminMetricsPage() {
                 </div>
               );
             })}
+        </CardContent>
+      </Card>
+
+      <Card>
+        <CardHeader>
+          <CardTitle className="text-base">
+            {t("Suhbatga rozi bo'lganlar", "Согласны на интервью")}
+            <span className="ml-2 text-sm font-normal text-surface-500">{leads.length}</span>
+          </CardTitle>
+        </CardHeader>
+        <CardContent>
+          {leads.length === 0 ? (
+            <p className="text-sm text-surface-500">
+              {t(
+                "Hali hech kim kontakt qoldirmagan. So'rovnomani to'ldirgandan keyin so'raladi.",
+                "Пока никто не оставил контакт. Спрашиваем после заполнения опроса.",
+              )}
+            </p>
+          ) : (
+            <ul className="divide-y divide-surface-100 text-sm dark:divide-surface-800">
+              {leads.map((l, i) => (
+                <li key={i} className="flex items-center justify-between gap-3 py-2">
+                  <span className="font-medium text-surface-900 dark:text-white">{l.contact}</span>
+                  <span className="text-xs text-surface-500">
+                    {l.source ?? "direct"} · {new Date(l.created_at).toLocaleDateString()}
+                  </span>
+                </li>
+              ))}
+            </ul>
+          )}
         </CardContent>
       </Card>
     </div>

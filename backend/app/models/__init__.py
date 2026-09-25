@@ -170,6 +170,7 @@ from app.models.funnel_event import FunnelEvent
 from app.models.refresh_token import RefreshToken
 from app.models.job_alert import JobAlert
 from app.models.survey_response import SurveyResponse
+from app.models.interview_lead import InterviewLead
 
 # =============================================================================
 # EXPORT ALL (for `from app.models import *`)
@@ -191,6 +192,7 @@ __all__ = [
     "RefreshToken",        # Rotating refresh-token sessions (one per device)
     "JobAlert",            # Telegram "new job" subscriptions
     "SurveyResponse",      # Problem-validation survey answers
+    "InterviewLead",       # Volunteers for a follow-up interview
     "UserRole",            # STUDENT, COMPANY, ADMIN
     "AdminSubRole",        # SUPER_ADMIN, OPERATIONS_ADMIN, etc.
     "ADMIN_PERMISSION_MATRIX",

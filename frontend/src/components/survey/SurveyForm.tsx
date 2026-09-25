@@ -33,6 +33,8 @@ export function SurveyForm() {
   const [sending, setSending] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [done, setDone] = useState(false);
+  const [contact, setContact] = useState("");
+  const [contactState, setContactState] = useState<"idle" | "sending" | "sent" | "error">("idle");
   const source = useMemo(readSource, []);
 
   useEffect(() => {
@@ -65,20 +67,86 @@ export function SurveyForm() {
     }
   };
 
+  const sendContact = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (contact.trim().length < 3) return;
+    setContactState("sending");
+    try {
+      await surveyApi.volunteer(STUDENT_SURVEY_KEY, { contact: contact.trim(), source });
+      setContactState("sent");
+    } catch {
+      setContactState("error");
+    }
+  };
+
   if (done) {
     return (
-      <div className="rounded-2xl border border-emerald-200 bg-emerald-50 p-8 text-center dark:border-emerald-500/30 dark:bg-emerald-500/10">
-        <CheckCircle2 className="mx-auto h-12 w-12 text-emerald-600" />
-        <h1 className="mt-4 text-2xl font-bold text-surface-900 dark:text-white">
-          {t("Rahmat!", "Спасибо!")}
-        </h1>
-        <p className="mt-2 text-surface-600 dark:text-surface-300">
-          {t(
-            "Javobingiz talabalarga ish topishni osonlashtirishga yordam beradi. So'rovnomani kursdoshlaringizga ham yuboring.",
-            "Ваш ответ поможет сделать поиск работы проще для студентов. Отправьте опрос и однокурсникам.",
+      <div className="space-y-4">
+        <div className="rounded-2xl border border-emerald-200 bg-emerald-50 p-8 text-center dark:border-emerald-500/30 dark:bg-emerald-500/10">
+          <CheckCircle2 className="mx-auto h-12 w-12 text-emerald-600" />
+          <h1 className="mt-4 text-2xl font-bold text-surface-900 dark:text-white">
+            {t("Rahmat!", "Спасибо!")}
+          </h1>
+          <p className="mt-2 text-surface-600 dark:text-surface-300">
+            {t(
+              "Javobingiz talabalarga ish topishni osonlashtirishga yordam beradi. So'rovnomani kursdoshlaringizga ham yuboring.",
+              "Ваш ответ поможет сделать поиск работы проще для студентов. Отправьте опрос и однокурсникам.",
+            )}
+          </p>
+        </div>
+
+        {/* The interview ask: the survey says what is wrong, a conversation says why. */}
+        <div className="rounded-2xl border border-surface-200 bg-white p-6 dark:border-surface-700 dark:bg-surface-900">
+          {contactState === "sent" ? (
+            <p className="text-center text-surface-700 dark:text-surface-200">
+              {t(
+                "Rahmat! Yaqin kunlarda yozamiz.",
+                "Спасибо! Напишем в ближайшие дни.",
+              )}
+            </p>
+          ) : (
+            <form onSubmit={sendContact}>
+              <h2 className="font-semibold text-surface-900 dark:text-white">
+                {t("10 daqiqa gaplashamizmi?", "Поговорим 10 минут?")}
+              </h2>
+              <p className="mt-1 text-sm text-surface-600 dark:text-surface-300">
+                {t(
+                  "Bir nechta talaba bilan batafsil suhbatlashmoqchimiz. Xohlasangiz, Telegram username yoki telefon qoldiring.",
+                  "Хотим подробно поговорить с несколькими студентами. Если хотите — оставьте Telegram username или телефон.",
+                )}
+              </p>
+              <p className="mt-1 text-xs text-surface-500">
+                {t(
+                  "Kontakt alohida saqlanadi va yuqoridagi javoblaringiz bilan bog'lanmaydi — javoblar anonim qoladi.",
+                  "Контакт хранится отдельно и не связывается с вашими ответами — ответы остаются анонимными.",
+                )}
+              </p>
+              <div className="mt-3 flex flex-col gap-2 sm:flex-row">
+                <input
+                  value={contact}
+                  onChange={(e) => setContact(e.target.value)}
+                  placeholder={t("@username yoki +998…", "@username или +998…")}
+                  maxLength={120}
+                  className="flex-1 rounded-xl border border-surface-300 bg-transparent px-3 py-2.5 text-sm focus:border-primary-500 focus:outline-none dark:border-surface-600"
+                />
+                <button
+                  type="submit"
+                  disabled={contactState === "sending" || contact.trim().length < 3}
+                  className="rounded-xl bg-surface-900 px-5 py-2.5 text-sm font-medium text-white hover:bg-surface-800 disabled:opacity-50 dark:bg-white dark:text-surface-900"
+                >
+                  {t("Yuborish", "Отправить")}
+                </button>
+              </div>
+              {contactState === "error" && (
+                <p className="mt-2 text-sm text-red-600">
+                  {t("Yuborilmadi, qaytadan urinib ko'ring.", "Не отправилось, попробуйте ещё раз.")}
+                </p>
+              )}
+            </form>
           )}
-        </p>
-        <div className="mt-6 flex flex-wrap justify-center gap-3">
+        </div>
+
+        <div className="flex flex-wrap justify-center gap-3 pt-2">
           <Link
             href="/jobs"
             className="rounded-xl bg-primary-600 px-5 py-2.5 font-medium text-white hover:bg-primary-700"
