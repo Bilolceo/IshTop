@@ -6,6 +6,7 @@
  * -> summary (average score). Silver design, UZ/RU. Text-based MVP.
  */
 
+import { localizeJob } from "@/lib/jobLocale";
 import { Suspense, useEffect, useMemo, useRef, useState } from "react";
 import { useSearchParams } from "next/navigation";
 import Link from "next/link";
@@ -215,7 +216,9 @@ function InterviewCoach() {
 
   // Job-based targeting (?job=<id>): questions test this vacancy's requirements.
   type JobItem = { id: string; title: string; company?: string; experience_level?: string };
-  const [job, setJob] = useState<JobItem | null>(null);
+  const [rawJob, setJob] = useState<JobItem | null>(null);
+  // The job in the site's language: the coach asks about its requirements.
+  const job = useMemo(() => localizeJob(rawJob, locale), [rawJob, locale]);
   // Once the user picks a level themselves, a late job fetch must not override it.
   const levelTouched = useRef(false);
 

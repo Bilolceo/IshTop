@@ -325,6 +325,9 @@ class JobResponse(BaseModel):
     # app.services.salary_stats.insight_for. None when no group is big enough
     # to compare against honestly.
     salary_insight: Optional[Dict[str, Any]] = None
+    # {"ru": {"title", "description", "requirements", ...}} — the client picks
+    # the version for its locale; the plain fields are the Uzbek text.
+    translations: Optional[Dict[str, Dict[str, Any]]] = None
     # external_apply_url is deliberately NOT exposed. It records where we read an
     # aggregated listing from — a Telegram channel post, cloz.uz, hh.uz — and
     # every client that saw it turned it into an "apply here" link, which sent

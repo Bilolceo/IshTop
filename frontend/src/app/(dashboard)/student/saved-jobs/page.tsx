@@ -1,5 +1,6 @@
 "use client";
 
+import { localizeJob } from "@/lib/jobLocale";
 import { useState, useEffect } from "react";
 import Link from "next/link";
 import { motion, AnimatePresence } from "framer-motion";
@@ -192,7 +193,8 @@ export default function SavedJobsPage() {
       ) : (
         <AnimatePresence>
           <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
-            {filtered.map((job, i) => {
+            {filtered.map((savedJob, i) => {
+              const job = localizeJob(savedJob, locale);
               const companyName = job.company?.name || "Kompaniya";
               const companyLetter = companyName[0]?.toUpperCase() || "K";
 

@@ -17,6 +17,7 @@
 
 "use client";
 
+import { localizeJob } from "@/lib/jobLocale";
 import { useEffect, useMemo, useRef, useState } from "react";
 import {
   PROFILE_FIELD_LABELS,
@@ -361,7 +362,7 @@ export default function StudentDashboardPage() {
             applications: summaryCounts?.applications ?? appStats.total,
             interviews: appStats.interview,
             topMatchScore: topRec?.match_score,
-            topMatchTitle: topRec?.job?.title,
+            topMatchTitle: localizeJob(topRec?.job, locale)?.title,
             topMatchCompany:
               topRec?.job?.company?.name ||
               (topRec?.job as { company_name?: string } | undefined)?.company_name,
@@ -673,7 +674,7 @@ export default function StudentDashboardPage() {
                         </span>
                         <div className="min-w-0 flex-1">
                           <p className="truncate text-sm font-medium text-surface-900 dark:text-white">
-                            {app.job?.title || t("dashboard.jobs.jobFallback")} ·{" "}
+                            {localizeJob(app.job, locale)?.title || t("dashboard.jobs.jobFallback")} ·{" "}
                             <span className="font-normal text-surface-500 dark:text-white/55">
                               {app.job?.company?.name || app.job?.company_name || t("common.company")}
                             </span>
@@ -781,7 +782,7 @@ function TodaysSignal({
                 {signalKicker} · {t("dashboard.interview.title")}
               </p>
               <h2 className="mt-1 font-display text-xl font-semibold text-surface-900 dark:text-white sm:text-2xl">
-                {upcoming.job?.title || "Interview"} · {topRecCompany}
+                {localizeJob(upcoming.job, locale)?.title || "Interview"} · {topRecCompany}
               </h2>
               <p className="text-sm text-surface-600 dark:text-white/70">
                 {upcoming.interview_at ? formatInterviewDateTime(upcoming.interview_at, locale) : ""}
@@ -837,7 +838,7 @@ function TodaysSignal({
               {signalKicker} · {isRu ? "Лучшее совпадение" : "Eng yaxshi moslik"}
             </p>
             <h2 className="mt-1 font-display text-2xl font-semibold tracking-tight text-surface-900 dark:text-white sm:text-3xl">
-              {topRec.job.title}
+              {localizeJob(topRec.job, locale).title}
             </h2>
             <p className="text-sm text-surface-600 dark:text-white/70">
               {topRecCompany} · {topRec.job.location}
@@ -1051,12 +1052,12 @@ function RecCard({
       <Link
         href={jobUrl}
         className="focus-ring block rounded-2xl p-4"
-        aria-label={`${rec.job.title} — ${score}% match. Tafsilotlarni ko'rish.`}
+        aria-label={`${localizeJob(rec.job, locale).title} — ${score}% match. Tafsilotlarni ko'rish.`}
       >
         <div className="flex items-start justify-between gap-3">
           <div className="min-w-0 flex-1">
             <p className="line-clamp-2 break-words font-semibold leading-snug text-surface-900 group-hover:text-brand-600 dark:text-white dark:group-hover:text-brand-300">
-              {rec.job.title}
+              {localizeJob(rec.job, locale).title}
             </p>
             <p className="truncate text-sm text-surface-500 dark:text-white/55">
               {rec.job.company?.name || t("common.company")} · {rec.job.location}

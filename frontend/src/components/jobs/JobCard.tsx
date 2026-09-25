@@ -22,12 +22,13 @@ import { jobDisplayIdentity, jobTypeLabel } from "@/lib/jobLabels";
 import { categoryLabel } from "@/lib/jobCategories";
 import { CompanyLogo } from "@/components/jobs/CompanyLogo";
 import { jobApplyRoute } from "@/lib/jobApply";
+import { localizeJob } from "@/lib/jobLocale";
 import { formatRelativeTime, formatSalaryRange, cn } from "@/lib/utils";
 import { diffVerdict, mln } from "@/lib/salary";
 import type { Job } from "@/types/api";
 
 export function JobCard({
-  job,
+  job: rawJob,
   isSelected,
   isSaved,
   onSelect,
@@ -43,6 +44,7 @@ export function JobCard({
 }) {
   const { locale } = useTranslation();
   const isRu = locale === "ru";
+  const job = localizeJob(rawJob, locale);
   // Aggregated listings hide the real employer inside the title; surface it.
   const { title: displayTitle, company } = jobDisplayIdentity(
     job.title,

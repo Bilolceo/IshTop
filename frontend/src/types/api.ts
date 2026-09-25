@@ -265,6 +265,8 @@ export interface Job {
   category?: string | null;
   /** Pay against the median for this kasb (or soha); null when too few to compare. */
   salary_insight?: SalaryInsight | null;
+  /** Other-language text: { ru: { title, description, requirements, ... } }. See lib/jobLocale.ts. */
+  translations?: Record<string, Partial<Pick<Job, "title" | "description" | "requirements" | "responsibilities" | "benefits">>> | null;
   created_at: string;
   updated_at: string;
   expires_at?: string;

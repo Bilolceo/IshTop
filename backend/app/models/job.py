@@ -312,6 +312,16 @@ class Job(Base, UUIDMixin, TimestampMixin, SoftDeleteMixin):
         default=list,
         comment="Benefits and perks as JSON array"
     )
+
+    # The listing in the site's other language, so switching the UI to Russian
+    # switches the job text too. The columns above are the Uzbek text; this
+    # holds {"ru": {"title", "description", "requirements", "responsibilities",
+    # "benefits"}}. Missing keys fall back to the Uzbek column.
+    translations = Column(
+        JSON,
+        nullable=True,
+        comment="Other-language versions of the text fields, keyed by locale"
+    )
     
     # =========================================================================
     # COLUMNS - SALARY (stored in whole units of selected currency)

@@ -20,7 +20,8 @@
 
 "use client";
 
-import { useState, useEffect } from "react";
+import { localizeJob } from "@/lib/jobLocale";
+import { useState, useEffect, useMemo } from "react";
 import { useRouter, useParams } from "next/navigation";
 import Link from "next/link";
 import { motion, AnimatePresence } from "framer-motion";
@@ -1182,7 +1183,9 @@ export default function ApplyPage() {
   const { applyToJob } = useApplications();
 
   const [isLoading, setIsLoading] = useState(true);
-  const [job, setJob] = useState<(Job & { matchScore?: number }) | null>(null);
+  const [rawJob, setJob] = useState<(Job & { matchScore?: number }) | null>(null);
+  const { locale: contentLocale } = useTranslation();
+  const job = useMemo(() => localizeJob(rawJob, contentLocale), [rawJob, contentLocale]);
   const [resumesState, setResumesState] = useState<
     (Resume & { matchScore?: number })[]
   >([]);

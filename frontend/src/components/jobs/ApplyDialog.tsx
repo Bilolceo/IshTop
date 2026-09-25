@@ -6,6 +6,7 @@
  * `ApplyPanel` directly instead, so the number is visible without a tap.
  */
 
+import { localizeJob } from "@/lib/jobLocale";
 import { ApplyPanel } from "@/components/jobs/ApplyPanel";
 import {
   Dialog,
@@ -17,7 +18,7 @@ import { jobDisplayIdentity } from "@/lib/jobLabels";
 import type { Job } from "@/types/api";
 
 export function ApplyDialog({
-  job,
+  job: rawJob,
   open,
   onOpenChange,
   isRu,
@@ -27,6 +28,7 @@ export function ApplyDialog({
   onOpenChange: (v: boolean) => void;
   isRu: boolean;
 }) {
+  const job = localizeJob(rawJob, isRu ? "ru" : "uz");
   // Match the page heading: aggregated titles carry the employer in brackets.
   const { title: displayTitle, company } = jobDisplayIdentity(
     job.title,

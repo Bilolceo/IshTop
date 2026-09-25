@@ -1,5 +1,6 @@
 "use client";
 
+import { localizeJob } from "@/lib/jobLocale";
 import { useState, useEffect } from "react";
 import { closureLine, closureOf } from "@/lib/applicationClosure";
 import { useRouter, useParams } from "next/navigation";
@@ -202,7 +203,7 @@ export default function ApplicationDetailPage() {
   const status =
     statusConfig[application.status] || unknownStatusConfig(application.status);
   const StatusIcon = status.icon;
-  const job = applicationDetails.job;
+  const job = localizeJob(applicationDetails.job, locale);
   const currentStepIndex = statusSteps.indexOf(application.status);
   const isRejected = application.status === "rejected";
   // A closed application is not "on step 1 of 4" either: the progress bar was

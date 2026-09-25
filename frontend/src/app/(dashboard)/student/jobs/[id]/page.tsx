@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useEffect, useRef } from "react";
+import { useState, useEffect, useRef, useMemo } from "react";
 import { useRouter, useParams } from "next/navigation";
 import Link from "next/link";
 import { motion, AnimatePresence } from "framer-motion";
@@ -43,6 +43,7 @@ import { ApplyDialog } from "@/components/jobs/ApplyDialog";
 import { ApplyPanel } from "@/components/jobs/ApplyPanel";
 import { categoryLabel } from "@/lib/jobCategories";
 import { SalaryInsight } from "@/components/jobs/SalaryInsight";
+import { localizeJob } from "@/lib/jobLocale";
 import { CompanyLogo } from "@/components/jobs/CompanyLogo";
 import { JobBanner } from "@/components/jobs/JobBanner";
 import type { Job } from "@/types/api";
@@ -208,7 +209,10 @@ export default function JobDetailPage() {
   const jobTypeLabels = getJobTypeLabels(isRu);
   const experienceLevelLabels = getExperienceLevelLabels(isRu);
 
-  const [job, setJob] = useState<Job | null>(null);
+  const [rawJob, setJob] = useState<Job | null>(null);
+  const { locale: contentLocale } = useTranslation();
+  // The listing in the site's language — re-derived when the language changes.
+  const job = useMemo(() => localizeJob(rawJob, contentLocale), [rawJob, contentLocale]);
   const [isLoading, setIsLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [isSaved, setIsSaved] = useState(false);

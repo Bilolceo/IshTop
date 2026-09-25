@@ -534,6 +534,7 @@ def job_to_response(job: Job, include_company: bool = True) -> JobResponse:
         # The title is authoritative; the description only breaks a tie for
         # titles that classify to "other" (classify_job's own rule).
         category=classify_job(job.title or "", (job.description or "")[:200]),
+        translations=job.translations or None,
         contact_info=job.contact_info,
         is_active=job.is_active,
         is_expired=job.is_expired,
