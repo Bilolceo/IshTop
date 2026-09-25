@@ -358,6 +358,7 @@ export const ru = {
       errors: "Ошибки",
       access: "Доступ",
       auditLog: "Журнал аудита",
+      traction: "Traction",
       landing: "Лендинг",
       savedJobs: "Сохранённые вакансии",
       notifications: "Уведомления",

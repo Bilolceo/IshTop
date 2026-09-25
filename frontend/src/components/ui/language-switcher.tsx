@@ -218,6 +218,7 @@ export function LanguageSwitcherInline({ className }: { className?: string }) {
       {locales.map((loc) => (
         <button
           key={loc}
+          type="button"
           onClick={() => setLocale(loc)}
           className={cn(
             "flex items-center gap-1.5 text-sm transition-all",

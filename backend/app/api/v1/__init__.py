@@ -10,7 +10,7 @@ from fastapi import APIRouter
 from app.api.v1.routes import (
     auth, users, resumes, jobs, applications, 
     admin, payments, landing,
-    profile, notifications, saved_searches
+    profile, notifications, saved_searches, surveys, admin_metrics
 )
 from app.routers import ai  # Import AI router
 from app.routers import telegram_bot  # Telegram link/unlink endpoints
@@ -114,3 +114,17 @@ api_router.include_router(
 
 
 
+
+# Problem-validation surveys (public submit, admin summary)
+api_router.include_router(
+    surveys.router,
+    prefix="/surveys",
+    tags=["Surveys"]
+)
+
+# Clean traction metrics (test/demo accounts excluded)
+api_router.include_router(
+    admin_metrics.router,
+    prefix="/admin/metrics",
+    tags=["Admin"]
+)

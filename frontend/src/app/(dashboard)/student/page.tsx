@@ -66,6 +66,7 @@ import { StatCard } from "@/components/student/StatCard";
 import { SkillGapRadar } from "@/components/student/SkillGapRadar";
 import { Tilt } from "@/components/landing/sections/primitives";
 import { TelegramProCard } from "@/components/TelegramProCard";
+import { SurveyInvite } from "@/components/survey/SurveyInvite";
 
 // =============================================================================
 // MOTION
@@ -346,6 +347,11 @@ export default function StudentDashboardPage() {
           ctaHref="/student/resumes/create-ai"
           ctaLabel={t("dashboard.sidebar.createAIResume")}
         />
+      </motion.section>
+
+      {/* ===== Problem-validation survey (hidden once answered) ===== */}
+      <motion.section variants={item}>
+        <SurveyInvite />
       </motion.section>
 
       {/* ===== Free PRO for Telegram subscribers ===== */}

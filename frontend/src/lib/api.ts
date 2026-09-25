@@ -731,6 +731,59 @@ export const telegramApi = {
 };
 
 // Payment endpoints
+export type SurveyOptionCount = { id: string; count: number; pct: number };
+export type SurveySummary = {
+  total: number;
+  signed_in: number;
+  distinct_ips: number;
+  sources: Record<string, number>;
+  first_at: string | null;
+  last_at: string | null;
+  questions: {
+    id: string;
+    kind: "single" | "multi" | "text";
+    answered: number;
+    options?: SurveyOptionCount[];
+    texts?: string[];
+  }[];
+};
+
+export type TractionMetrics = {
+  generated_at: string;
+  excluded_markers: string[];
+  students: { total: number; active_7d: number; active_30d: number; telegram_linked: number };
+  funnel: { step: string; value: number; pct: number }[];
+  applications: { total: number; by_status: Record<string, number> };
+  employers: {
+    companies: number;
+    live_jobs: number;
+    live_jobs_posted_by_companies: number;
+    live_jobs_imported: number;
+  };
+  engagement: { job_alerts_active: number; job_alert_chats: number; survey_responses: number };
+  weekly: {
+    signups: { week: string; value: number }[];
+    applications: { week: string; value: number }[];
+  };
+};
+
+export const surveyApi = {
+  submit: (
+    key: string,
+    body: { answers: Record<string, string | string[]>; source?: string | null; website?: string },
+  ) => api.post<{ success: boolean; already?: boolean }>(`/surveys/${key}`, body),
+  status: (key: string) =>
+    api.get<{ success: boolean; data: { answered: boolean } }>(`/surveys/${key}/status`),
+  summary: (key: string, source?: string) =>
+    api.get<{ success: boolean; data: SurveySummary }>(`/surveys/${key}/summary`, {
+      params: source ? { source } : undefined,
+    }),
+  traction: (weeks = 12) =>
+    api.get<{ success: boolean; data: TractionMetrics }>("/admin/metrics/traction", {
+      params: { weeks },
+    }),
+};
+
 export const paymentApi = {
   createPaymentIntent: (data: CreatePaymentIntentRequest) =>
     api.post<PaymentIntentResponse>("/payments/create-payment-intent", data),

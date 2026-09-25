@@ -29,6 +29,7 @@ import {
   Building2,
   ScrollText,
   Send,
+  TrendingUp,
 } from "lucide-react";
 import { useAuth } from "@/hooks/useAuth";
 import { AiChatWidget } from "@/components/AiChatWidget";
@@ -119,6 +120,11 @@ const adminNavItems: NavItem[] = [
     labelKey: "dashboard.sidebar.applications",
     href: "/admin/applications",
     icon: ClipboardList,
+  },
+  {
+    labelKey: "dashboard.sidebar.traction",
+    href: "/admin/metrics",
+    icon: TrendingUp,
   },
   {
     labelKey: "dashboard.sidebar.systemHealth",
