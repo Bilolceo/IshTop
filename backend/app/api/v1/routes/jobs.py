@@ -36,7 +36,7 @@ from typing import Optional, List, Dict, Any
 from uuid import UUID
 from enum import Enum
 
-from fastapi import APIRouter, Depends, HTTPException, status, Query
+from fastapi import APIRouter, BackgroundTasks, Depends, HTTPException, status, Query
 from sqlalchemy.orm import Session, joinedload
 from sqlalchemy import func, or_, and_, desc, asc
 from pydantic import BaseModel, Field
@@ -1431,6 +1431,7 @@ def get_job(
 )
 def create_job(
     job_data: JobCreate,
+    background_tasks: BackgroundTasks,
     company: User = Depends(get_current_company),
     db: Session = Depends(get_db)
 ):
@@ -1495,6 +1496,9 @@ def create_job(
     db.refresh(job)
     
     logger.info(f"Job created: {job.id} by company: {company.id}")
+    # The other site language, after the response (see services/job_translation).
+    from app.services.job_translation import translate_job
+    background_tasks.add_task(translate_job, job.id)
     return job_to_response(job)
 
 
@@ -1513,6 +1517,7 @@ def create_job(
 def update_job(
     job_id: UUID,
     update_data: JobUpdate,
+    background_tasks: BackgroundTasks,
     current_user: User = Depends(get_current_company),
     db: Session = Depends(get_db)
 ):
@@ -1585,10 +1590,18 @@ def update_job(
     job.trust_badges = trust_payload["trust_badges"]
     job.trust_factors = trust_payload["trust_factors"]
     
+    # Edited text makes the old translation wrong: drop it and redo it.
+    from app.services.job_translation import TEXT_FIELDS, translate_job
+    text_changed = any(update_dict.get(f) is not None for f in TEXT_FIELDS)
+    if text_changed:
+        job.translations = None
+
     db.commit()
     db.refresh(job)
     
     logger.info(f"Job updated: {job.id}")
+    if text_changed:
+        background_tasks.add_task(translate_job, job.id)
     
     return job_to_response(job)
 

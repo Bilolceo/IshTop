@@ -98,7 +98,14 @@ for r in rows:
             needs_translation.append((key, r["title"]))
             skipped["tarjima kerak (ruscha)"] += 1
             continue
-        r = {**r, **TRANSLATIONS[key]}
+        # The post as written becomes the Russian version on the site.
+        orig_ru = {k: r[k] for k in ("title", "description", "requirements",
+                                    "responsibilities", "benefits") if r.get(k)}
+        r = {**r, **{k: v for k, v in TRANSLATIONS[key].items() if k != "ru"},
+             "_translations": {"ru": orig_ru}}
+    elif key in TRANSLATIONS and TRANSLATIONS[key].get("ru"):
+        # An Uzbek post can be given its Russian version the same way.
+        r = {**r, "_translations": {"ru": TRANSLATIONS[key]["ru"]}}
     handles = [h for h in r["handles"] if kinds.get(h, {}).get("kind") in ("odam", "bot")]
     phones = [p.strip() for p in r["phones"] if real_phone(p)]
     parts = (phones + [f"@{h}" for h in handles]
@@ -157,10 +164,10 @@ for p in picked:
     db.run("""insert into jobs
         (id, company_id, title, description, requirements, responsibilities, benefits,
          salary_min, salary_max, salary_currency, location, job_type, experience_level,
-         is_remote_allowed, status, external_apply_url, contact_info,
+         is_remote_allowed, status, external_apply_url, contact_info, translations,
          expires_at, created_at, updated_at, views_count, applications_count, is_deleted)
         values (:id, :co, :t, :d, cast(:req as jsonb), cast(:resp as jsonb), cast(:ben as jsonb),
-                :smin, :smax, 'UZS', :loc, :jt, :exp, :rem, 'active', :src, :con,
+                :smin, :smax, 'UZS', :loc, :jt, :exp, :rem, 'active', :src, :con, cast(:tr as jsonb),
                 :exp_at, now(), now(), 0, 0, false)""",
         id=uuid.uuid4(), co=COMPANY_ID, t=p["title"], d=p["description"],
         req=json.dumps(p["requirements"], ensure_ascii=False),
@@ -175,7 +182,8 @@ for p in picked:
         exp=p["experience_level"], rem=p["is_remote"],
         # provenance only — never shown, never an apply target
         src=f"https://t.me/{p['channel']}/{p['msg_id']}",
-        con=p["contact"], exp_at=expires)
+        con=p["contact"], exp_at=expires,
+        tr=json.dumps(p["_translations"], ensure_ascii=False) if p.get("_translations") else None)
 
 print(f"\nqo'shildi: {len(picked)} ta vakansiya")
 db.close()
