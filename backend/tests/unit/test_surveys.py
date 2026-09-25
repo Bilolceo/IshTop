@@ -153,6 +153,28 @@ def test_traction_excludes_internal_accounts(client, test_db, test_student, test
     assert sum(w["value"] for w in d["weekly"]["signups"]) == 2
 
 
+def test_withdrawn_applications_leave_the_response_denominator(client, test_db, test_job,
+                                                              super_admin_token):
+    """An application nobody could answer must not count against the response rate."""
+    from app.models import Application
+
+    # one application per candidate per job, so this needs two candidates
+    a = _user(test_db, "aziz@gmail.com")
+    b = _user(test_db, "bek@gmail.com")
+    test_db.add(Application(id=uuid4(), user_id=a.id, job_id=test_job.id, status="withdrawn"))
+    test_db.add(Application(id=uuid4(), user_id=b.id, job_id=test_job.id, status="interview"))
+    test_db.commit()
+
+    d = client.get("/api/v1/admin/metrics/traction",
+                   headers={"Authorization": f"Bearer {super_admin_token}"}).json()["data"]
+    assert d["applications"] == {
+        "total": 2, "answerable": 1, "withdrawn": 1,
+        "by_status": {"withdrawn": 1, "interview": 1},
+    }
+    responded = next(f for f in d["funnel"] if f["step"] == "employer_responded")
+    assert (responded["value"], responded["pct"]) == (1, 100.0)
+
+
 def test_traction_reports_what_the_filter_removed(client, test_db, test_student, test_job,
                                                   test_application, super_admin_token):
     r = client.get("/api/v1/admin/metrics/traction",
@@ -209,3 +231,28 @@ def test_leads_and_export_are_admin_only(client, test_db, student_headers, super
 
 def test_traction_requires_admin(client, student_headers):
     assert client.get("/api/v1/admin/metrics/traction", headers=student_headers).status_code == 403
+
+
+# --- bot entry point ----------------------------------------------------------
+
+def test_bot_menu_offers_the_survey_and_explains_before_linking_out():
+    from app.routers import telegram_bot as bot
+
+    labels = [b["text"] for row in bot._main_menu_kb()["inline_keyboard"] for b in row]
+    assert any("so'rovnoma" in l for l in labels)
+
+    for locale, word in (("uz", "Anonim"), ("ru", "Анонимно")):
+        text, kb = bot._survey_view(locale)
+        # the ask is made in the bot; the link is the second step, never a silent jump
+        assert word in text and "2 daqiqa" in text or "2 минуты" in text
+        buttons = [b for row in kb["inline_keyboard"] for b in row]
+        assert buttons[0]["url"] == f"{bot.SITE_URL}/sorovnoma?src=bot"
+        assert buttons[-1]["callback_data"] == "home"
+
+
+def test_survey_row_disappears_when_the_survey_closes(monkeypatch):
+    from app.routers import telegram_bot as bot
+
+    monkeypatch.setattr(bot, "SURVEY_KEY", None)
+    labels = [b["text"] for row in bot._main_menu_kb()["inline_keyboard"] for b in row]
+    assert not any("so'rovnoma" in l for l in labels)

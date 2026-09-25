@@ -36,6 +36,12 @@ INTERNAL_EMAIL_MARKERS = ("test", "example", "demo", "ishtop")
 # Statuses that mean an employer looked at the application and acted.
 EMPLOYER_RESPONDED = {"reviewing", "shortlisted", "interview", "rejected", "accepted", "hired"}
 HIRED = {"accepted", "hired"}
+# A withdrawn application is left out of the response-rate denominator: the
+# employer was never given the chance to answer it. Sixteen of ours were
+# closed by a maintenance write in September 2026, not by the candidates, and
+# counting those as unanswered would understate a rate nobody was asked for.
+# app/api/v1/routes/applications.py uses the same rule for the company side.
+WITHDRAWN = "withdrawn"
 
 
 def internal_user_filter():
@@ -92,6 +98,7 @@ def traction(
     statuses = Counter(_status(a.status) for a in apps)
     responded = sum(c for s, c in statuses.items() if s in EMPLOYER_RESPONDED)
     hired = sum(c for s, c in statuses.items() if s in HIRED)
+    answerable = sum(c for s, c in statuses.items() if s != WITHDRAWN)
 
     companies = (
         db.query(func.count(User.id))
@@ -155,10 +162,15 @@ def traction(
                 {"step": "signed_up", "value": n, "pct": 100.0 if n else 0.0},
                 {"step": "resume", "value": len(with_resume), "pct": pct(len(with_resume), n)},
                 {"step": "applied", "value": len(applicants), "pct": pct(len(applicants), n)},
-                {"step": "employer_responded", "value": responded, "pct": pct(responded, len(apps))},
-                {"step": "hired", "value": hired, "pct": pct(hired, len(apps))},
+                {"step": "employer_responded", "value": responded, "pct": pct(responded, answerable)},
+                {"step": "hired", "value": hired, "pct": pct(hired, answerable)},
             ],
-            "applications": {"total": len(apps), "by_status": dict(statuses)},
+            "applications": {
+                "total": len(apps),
+                "answerable": answerable,
+                "withdrawn": statuses.get(WITHDRAWN, 0),
+                "by_status": dict(statuses),
+            },
             "employers": {
                 "companies": companies,
                 "live_jobs": len(live_jobs),

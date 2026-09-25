@@ -53,7 +53,7 @@ jest.mock("@/lib/api", () => ({
             { step: "signed_up", value: 189, pct: 100 },
             { step: "hired", value: 0, pct: 0 },
           ],
-          applications: { total: 8, by_status: { pending: 8 } },
+          applications: { total: 8, answerable: 0, withdrawn: 8, by_status: { withdrawn: 8 } },
           employers: { companies: 3, live_jobs: 40, live_jobs_posted_by_companies: 2, live_jobs_imported: 38 },
           engagement: { job_alerts_active: 5, job_alert_chats: 4, survey_responses: 3 },
           weekly: { signups: [{ week: "2026-09-21", value: 4 }], applications: [{ week: "2026-09-21", value: 1 }] },

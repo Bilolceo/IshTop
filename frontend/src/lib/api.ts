@@ -754,7 +754,7 @@ export type TractionMetrics = {
   excluded: { students: number; applications: number };
   students: { total: number; active_7d: number; active_30d: number; telegram_linked: number };
   funnel: { step: string; value: number; pct: number }[];
-  applications: { total: number; by_status: Record<string, number> };
+  applications: { total: number; answerable: number; withdrawn: number; by_status: Record<string, number> };
   employers: {
     companies: number;
     live_jobs: number;
