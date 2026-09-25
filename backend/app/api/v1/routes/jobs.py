@@ -1477,7 +1477,7 @@ def create_job(
         experience_level=job_data.experience_level.value,
         external_apply_url=job_data.external_apply_url,
         expires_at=job_data.expires_at,
-        status=JobStatus.ACTIVE.value,
+        status=JobStatus.DRAFT.value if job_data.save_as_draft else JobStatus.ACTIVE.value,
     )
 
     job.sync_discovery_slugs(
@@ -1993,6 +1993,11 @@ def publish_job(
             detail="Job not found"
         )
     
+    # A draft going live for the first time is a new listing: stamp it now,
+    # or the feed sorts it by the day it was drafted and Telegram job alerts
+    # (which watch created_at) never announce it.
+    if job.status == JobStatus.DRAFT.value:
+        job.created_at = datetime.now(timezone.utc)
     job.publish()
     db.commit()
     db.refresh(job)

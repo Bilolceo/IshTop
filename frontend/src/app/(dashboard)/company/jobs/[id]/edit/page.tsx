@@ -18,7 +18,6 @@ import {
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
-import { Textarea } from "@/components/ui/textarea";
 import { Label } from "@/components/ui/label";
 import { Skeleton } from "@/components/ui/skeleton";
 import {
@@ -31,6 +30,8 @@ import {
 import { api, jobApi, applicationApi, getErrorMessage } from "@/lib/api";
 import type { Job } from "@/types/api";
 import { toast } from "sonner";
+import { plainTextToRichHtml, sanitizeRichTextHtml, stripHtmlTags } from "@/lib/utils";
+import RichTextEditor from "@/components/editor/RichTextEditor";
 import {
   ResponsiveContainer,
   LineChart,
@@ -95,7 +96,10 @@ export default function EditJobPage() {
         const data: Job = res.data?.data || res.data;
         setJob(data);
         setTitle(data.title || "");
-        setDescription(data.description || "");
+        // Older and imported listings hold plain text; the editor needs HTML
+        // or it runs every line together.
+        const raw = data.description || "";
+        setDescription(/<[a-z][\s\S]*>/i.test(raw) ? raw : plainTextToRichHtml(raw));
         setLocation(data.location || "");
         setJobType(data.job_type || "full_time");
         setExperienceLevel(data.experience_level || "junior");
@@ -166,11 +170,17 @@ export default function EditJobPage() {
       toast.error("Sarlavha, tavsif va joylashuv majburiy.");
       return;
     }
+    // The API rejects a description under 50 characters (JobUpdate); without
+    // this the employer got a bare validation error and no idea which field.
+    if (stripHtmlTags(description).trim().length < 50) {
+      toast.error("Tavsif kamida 50 belgidan iborat bo'lishi kerak.");
+      return;
+    }
     setIsSaving(true);
     try {
       await jobApi.update(jobId, {
         title,
-        description,
+        description: sanitizeRichTextHtml(description),
         location,
         job_type: jobType,
         experience_level: experienceLevel,
@@ -235,14 +245,14 @@ export default function EditJobPage() {
         <Button
           variant="ghost"
           onClick={() => router.back()}
-          className="gap-2 text-surface-600"
+          className="gap-2 text-surface-600 dark:text-surface-300"
         >
           <ArrowLeft className="h-4 w-4" />
           Orqaga
         </Button>
         <div className="flex items-center gap-2">
           <Briefcase className="h-5 w-5 text-brand-600" />
-          <h1 className="font-bold text-surface-900">
+          <h1 className="font-bold text-surface-900 dark:text-white">
             Ish e'lonini tahrirlash
           </h1>
         </div>
@@ -268,7 +278,7 @@ export default function EditJobPage() {
       >
         {/* Basic Info */}
         <div className="space-y-4">
-          <h2 className="font-bold text-surface-900">Asosiy ma'lumotlar</h2>
+          <h2 className="font-bold text-surface-900 dark:text-white">Asosiy ma'lumotlar</h2>
           <div>
             <Label>Lavozim nomi *</Label>
             <Input
@@ -329,7 +339,7 @@ export default function EditJobPage() {
 
         {/* Salary */}
         <div className="space-y-3">
-          <h2 className="font-bold text-surface-900">Maosh (ixtiyoriy)</h2>
+          <h2 className="font-bold text-surface-900 dark:text-white">Maosh (ixtiyoriy)</h2>
           <div className="grid gap-4 sm:grid-cols-2">
             <div>
               <Label>Valyuta</Label>
@@ -374,18 +384,19 @@ export default function EditJobPage() {
         {/* Description */}
         <div>
           <Label>Ish tavsifi *</Label>
-          <Textarea
+          {/* The create form saves rich text (HTML). A plain textarea here
+              showed the employer "<p>…</p>" tags in their own description. */}
+          <RichTextEditor
             value={description}
-            onChange={(e) => setDescription(e.target.value)}
+            onChange={setDescription}
             placeholder="Ish haqida batafsil ma'lumot..."
-            rows={6}
             className="mt-1"
           />
         </div>
 
         {/* Requirements */}
         <div className="space-y-4">
-          <h2 className="font-bold text-surface-900">Talablar</h2>
+          <h2 className="font-bold text-surface-900 dark:text-white">Talablar</h2>
           <div>
             <Label>Ko'nikmalar</Label>
             <div className="mt-1 flex gap-2">
@@ -459,7 +470,7 @@ export default function EditJobPage() {
         className="space-y-4 rounded-2xl border border-surface-200 bg-white p-6 shadow-sm dark:border-surface-700 dark:bg-surface-800"
       >
         <div className="flex flex-wrap items-center justify-between gap-3">
-          <h2 className="flex items-center gap-2 font-bold text-surface-900">
+          <h2 className="flex items-center gap-2 font-bold text-surface-900 dark:text-white">
             <BarChart3 className="h-5 w-5 text-brand-600" />
             Analitika
           </h2>
@@ -524,7 +535,7 @@ export default function EditJobPage() {
                     <XAxis dataKey="date" />
                     <YAxis />
                     <Tooltip />
-                    <Line
+                    <Line isAnimationActive={false}
                       type="monotone"
                       dataKey="value"
                       stroke="#a08de0"
@@ -546,7 +557,7 @@ export default function EditJobPage() {
                     <XAxis dataKey="date" />
                     <YAxis />
                     <Tooltip />
-                    <Line
+                    <Line isAnimationActive={false}
                       type="monotone"
                       dataKey="value"
                       stroke="#6F9BF0"
@@ -576,13 +587,13 @@ export default function EditJobPage() {
                   <XAxis dataKey="name" />
                   <YAxis />
                   <Tooltip />
-                  <Bar dataKey="value" fill="#5581E0" radius={[6, 6, 0, 0]} />
+                  <Bar isAnimationActive={false} dataKey="value" fill="#5581E0" radius={[6, 6, 0, 0]} />
                 </BarChart>
               </ResponsiveContainer>
             </div>
 
             <div className="space-y-2">
-              <p className="text-sm font-semibold text-surface-900">
+              <p className="text-sm font-semibold text-surface-900 dark:text-white">
                 Source breakdown
               </p>
               {analytics.source_breakdown.length === 0 ? (

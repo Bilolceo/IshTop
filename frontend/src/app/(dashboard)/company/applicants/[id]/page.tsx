@@ -66,7 +66,7 @@ const statusConfig: Record<KnownApplicationStatus, { label: string; color: strin
   accepted: { label: "Qabul qilindi", color: "bg-green-100 text-green-700", icon: CheckCircle },
   hired: { label: "Yollandi", color: "bg-brand-100 text-brand-700", icon: CheckCircle },
   rejected: { label: "Rad etildi", color: "bg-red-100 text-red-700", icon: XCircle },
-  withdrawn: { label: "Bekor qilingan", color: "bg-surface-100 text-surface-600", icon: XCircle },
+  withdrawn: { label: "Bekor qilingan", color: "bg-surface-100 text-surface-600 dark:text-surface-300", icon: XCircle },
 };
 
 const statusActions: KnownApplicationStatus[] = [
@@ -746,7 +746,7 @@ export default function ApplicantDetailPage() {
     <div className="mx-auto max-w-4xl space-y-6 p-4 md:p-6">
       {/* Back */}
       <motion.div initial={{ opacity: 0, x: -10 }} animate={{ opacity: 1, x: 0 }}>
-        <Button variant="ghost" onClick={() => router.back()} className="gap-2 text-surface-600">
+        <Button variant="ghost" onClick={() => router.back()} className="gap-2 text-surface-600 dark:text-surface-300">
           <ArrowLeft className="h-4 w-4" />
           Arizalarga qaytish
         </Button>
@@ -764,20 +764,20 @@ export default function ApplicantDetailPage() {
             <div className="mx-auto flex h-20 w-20 items-center justify-center rounded-full bg-gradient-to-br from-brand-500 to-violet-600 text-3xl font-bold text-white">
               {(applicant?.full_name || "A")[0].toUpperCase()}
             </div>
-            <h2 className="mt-3 text-lg font-bold text-surface-900">
+            <h2 className="mt-3 text-lg font-bold text-surface-900 dark:text-white">
               {applicant?.full_name || "Noma'lum"}
             </h2>
             <p className="text-sm text-surface-500">{applicant?.email || "—"}</p>
 
             <div className="mt-4 space-y-2 text-left text-sm">
               {applicant?.phone && (
-                <div className="flex items-center gap-2 text-surface-600">
+                <div className="flex items-center gap-2 text-surface-600 dark:text-surface-300">
                   <Phone className="h-4 w-4 text-surface-400" />
                   {applicant.phone}
                 </div>
               )}
               {applicant?.location && (
-                <div className="flex items-center gap-2 text-surface-600">
+                <div className="flex items-center gap-2 text-surface-600 dark:text-surface-300">
                   <MapPin className="h-4 w-4 text-surface-400" />
                   {applicant.location}
                 </div>
@@ -797,7 +797,7 @@ export default function ApplicantDetailPage() {
             transition={{ delay: 0.1 }}
             className="rounded-2xl border border-surface-200 bg-white p-5 shadow-sm dark:border-surface-700 dark:bg-surface-800"
           >
-            <h3 className="mb-3 font-semibold text-surface-900">Holat o'zgartirish</h3>
+            <h3 className="mb-3 font-semibold text-surface-900 dark:text-white">Holat o'zgartirish</h3>
             <div className="space-y-2">
               {statusActions.map((key) => {
                 const cfg = statusConfig[key];
@@ -811,7 +811,7 @@ export default function ApplicantDetailPage() {
                       "flex w-full items-center gap-2 rounded-xl p-2.5 text-sm font-medium transition-all",
                       application.status === key
                         ? cn("cursor-default", cfg.color)
-                        : "hover:bg-surface-50 text-surface-600"
+                        : "hover:bg-surface-50 text-surface-600 dark:text-surface-300 dark:hover:bg-surface-800"
                     )}
                   >
                     <Icon className="h-4 w-4" />
@@ -852,7 +852,7 @@ export default function ApplicantDetailPage() {
           >
             <div className="flex items-start justify-between gap-3">
               <div>
-                <h3 className="flex items-center gap-2 font-semibold text-surface-900">
+                <h3 className="flex items-center gap-2 font-semibold text-surface-900 dark:text-white">
                   <Calendar className="h-5 w-5 text-brand-500" />
                   Intervyu jadvali
                 </h3>
@@ -867,7 +867,7 @@ export default function ApplicantDetailPage() {
 
             {application.interview_at && (
               <div className="mt-4 rounded-xl border border-brand-100 bg-brand-50 p-3 text-sm text-surface-700 dark:border-brand-500/30 dark:bg-brand-500/10 dark:text-surface-200">
-                <p className="font-medium text-surface-900">Joriy intervyu vaqti</p>
+                <p className="font-medium text-surface-900 dark:text-white">Joriy intervyu vaqti</p>
                 <p className="mt-1">{formatDate(application.interview_at)}</p>
                 <p className="mt-1">
                   Format: {application.interview_type ? interviewFormatLabels[application.interview_type as InterviewFormat]?.label || application.interview_type : "Belgilanmagan"}
@@ -972,7 +972,7 @@ export default function ApplicantDetailPage() {
                   {application.status === "interview" ? "Intervyuni yangilash" : "Intervyuni belgilash"}
                 </Button>
                 <p className="text-sm text-surface-500">
-                  Bu forma statusni avtomatik ravishda <span className="font-medium text-surface-700">interview</span> ga o'tkazadi va formatni saqlaydi.
+                  Bu forma statusni avtomatik ravishda <span className="font-medium text-surface-700 dark:text-surface-200">interview</span> ga o'tkazadi va formatni saqlaydi.
                 </p>
               </div>
 
@@ -1097,10 +1097,10 @@ export default function ApplicantDetailPage() {
               transition={{ delay: 0.1 }}
               className="rounded-2xl border border-surface-200 bg-white p-5 shadow-sm dark:border-surface-700 dark:bg-surface-800"
             >
-              <h3 className="mb-3 font-semibold text-surface-900">Ish e'loni</h3>
+              <h3 className="mb-3 font-semibold text-surface-900 dark:text-white">Ish e'loni</h3>
               <div className="flex items-center justify-between">
                 <div>
-                  <p className="font-medium text-surface-900">{job.title}</p>
+                  <p className="font-medium text-surface-900 dark:text-white">{job.title}</p>
                   <p className="text-sm text-surface-500">{formatDate(application.applied_at)} da ariza berilgan</p>
                 </div>
                 <Link href={job?.id ? `/company/jobs/${job.id}/edit` : "/company/jobs"}>
@@ -1706,7 +1706,7 @@ export default function ApplicantDetailPage() {
               transition={{ delay: 0.3 }}
               className="rounded-2xl border border-surface-200 bg-white p-5 shadow-sm dark:border-surface-700 dark:bg-surface-800"
             >
-              <h3 className="mb-4 flex items-center gap-2 font-semibold text-surface-900">
+              <h3 className="mb-4 flex items-center gap-2 font-semibold text-surface-900 dark:text-white">
                 <FileText className="h-5 w-5 text-brand-500" />
                 Resume
               </h3>
@@ -1714,7 +1714,7 @@ export default function ApplicantDetailPage() {
               {/* Personal Info */}
               {resume.content?.personal_info && (
                 <div className="mb-4">
-                  <p className="text-base font-bold text-surface-900">
+                  <p className="text-base font-bold text-surface-900 dark:text-white">
                     {resume.content.personal_info.professional_title}
                   </p>
                 </div>
@@ -1726,7 +1726,7 @@ export default function ApplicantDetailPage() {
                   <p className="mb-1 text-xs font-semibold uppercase tracking-wide text-surface-400">
                     Qisqacha
                   </p>
-                  <p className="text-sm leading-relaxed text-surface-600">
+                  <p className="text-sm leading-relaxed text-surface-600 dark:text-surface-300">
                     {resume.content.summary}
                   </p>
                 </div>
@@ -1756,7 +1756,7 @@ export default function ApplicantDetailPage() {
                   </p>
                   {resume.content.experience.slice(0, 2).map((exp, i) => (
                     <div key={i} className="mb-2 border-l-2 border-brand-200 pl-3">
-                      <p className="text-sm font-medium text-surface-900">{exp.position}</p>
+                      <p className="text-sm font-medium text-surface-900 dark:text-white">{exp.position}</p>
                       <p className="text-xs text-surface-500">{exp.company}</p>
                     </div>
                   ))}
@@ -1771,7 +1771,7 @@ export default function ApplicantDetailPage() {
                   </p>
                   {resume.content.education.map((edu, i) => (
                     <div key={i} className="border-l-2 border-brand-200 pl-3">
-                      <p className="text-sm font-medium text-surface-900">{edu.institution}</p>
+                      <p className="text-sm font-medium text-surface-900 dark:text-white">{edu.institution}</p>
                       <p className="text-xs text-surface-500">{edu.degree} — {edu.field}</p>
                     </div>
                   ))}

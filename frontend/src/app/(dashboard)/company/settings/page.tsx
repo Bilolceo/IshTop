@@ -146,6 +146,7 @@ export default function CompanySettingsPage() {
     setValue,
     reset,
     watch,
+    getValues,
     formState: { errors, isDirty },
   } = useForm<CompanyFormData>({
     resolver: zodResolver(companySchema),
@@ -234,14 +235,18 @@ export default function CompanySettingsPage() {
       company_facebook_url: user.company_facebook_url || "",
       company_founded_year: user.company_founded_year as any,
       company_video_url: user.company_video_url || "",
-      company_size: "",
-      company_industry: "",
+      // Size and industry live in notification preferences, loaded by the
+      // effect below. Resetting them to "" here wiped them whenever `user`
+      // refreshed after that load, so a saved "11-50" showed as unset and the
+      // completeness card listed it as missing.
+      company_size: getValues("company_size") || "",
+      company_industry: getValues("company_industry") || "",
       full_name: user.full_name || "",
       email: user.email || "",
       phone: user.phone || "",
       location: user.location || "",
     });
-  }, [reset, user]);
+  }, [reset, user, getValues]);
 
   useEffect(() => {
     api

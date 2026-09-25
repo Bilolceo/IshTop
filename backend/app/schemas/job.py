@@ -140,6 +140,9 @@ class JobCreate(BaseModel):
         None,
         description="Job posting expiration date"
     )
+    # "Qoralama saqlash": create without publishing. Everything else keeps
+    # the old behaviour — a created job goes live at once.
+    save_as_draft: bool = False
     
     @field_validator('salary_max')
     @classmethod

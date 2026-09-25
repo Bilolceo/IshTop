@@ -25,6 +25,7 @@ import {
   Copy,
 } from "lucide-react";
 import { useJobs } from "@/hooks/useJobs";
+import { experienceLabel, jobTypeLabel } from "@/lib/jobLabels";
 import { useTranslation } from "@/hooks/useTranslation";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent } from "@/components/ui/card";
@@ -239,7 +240,9 @@ export default function CompanyJobsPage() {
                 {(() => {
                   const views = Number(job.views_count || 0);
                   const apps = Number(job.applications_count || 0);
-                  const conversion = views > 0 ? ((apps / views) * 100).toFixed(1) : "0.0";
+                  // No views recorded (e.g. applications that came through the bot) is
+                  // "unknown", not 0% — "0.0%" beside a real applicant read as a bug.
+                  const conversion = views > 0 ? `${((apps / views) * 100).toFixed(1)}%` : "—";
                   return (
                 <div className="flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
                   <div className="flex-1">
@@ -266,8 +269,8 @@ export default function CompanyJobsPage() {
                     {/* Meta */}
                     <div className="flex flex-wrap items-center gap-4 text-sm text-surface-500">
                       <span>{job.location}</span>
-                      <span>{job.job_type?.replace("_", " ")}</span>
-                      <span>{job.experience_level}</span>
+                      <span>{jobTypeLabel(job.job_type, isRu)}</span>
+                      <span>{experienceLabel(job.experience_level, isRu)}</span>
                       {job.salary_min !== undefined && job.salary_max !== undefined && (
                         <span>{formatSalaryRange(job.salary_min, job.salary_max, locale, job.salary_currency || "USD")}</span>
                       )}
@@ -292,7 +295,7 @@ export default function CompanyJobsPage() {
                       <div className="flex items-center gap-2 text-sm">
                         <TrendingUp className="h-4 w-4 text-surface-400" />
                         <span className="font-medium text-surface-900 dark:text-white">
-                          {conversion}%
+                          {conversion}
                         </span>
                         <span className="text-surface-500">{isRu ? "Конверсия" : "Konversiya"}</span>
                       </div>

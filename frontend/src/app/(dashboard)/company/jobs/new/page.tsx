@@ -297,40 +297,46 @@ export default function NewJobPage() {
     }
   };
 
+  // One payload for both buttons. "Qoralama saqlash" used to build its own —
+  // requirements as a {text, skills} object, benefits as an HTML string, a
+  // `deadline` field the API does not have — and JobCreate (List[str]) turned
+  // down every draft with a 422, so no draft was ever saved.
+  const buildPayload = (data: JobFormData) => {
+    // Backend JobCreate expects List[str] for requirements & benefits.
+    const requirementLines = (data.requirements || "")
+      .split(/\r?\n/)
+      .map((s) => s.replace(/^[-•\s]+/, "").trim())
+      .filter(Boolean);
+    const requirementsList = [
+      ...requirementLines,
+      ...(data.skills?.length ? [`Ko'nikmalar: ${data.skills.join(", ")}`] : []),
+    ];
+    const benefitsList = stripHtmlTags(data.benefits || "")
+      .split(/\r?\n/)
+      .map((s) => s.replace(/^[-•\s]+/, "").trim())
+      .filter(Boolean);
+
+    return {
+      title: data.title,
+      location: data.location,
+      job_type: data.jobType,
+      experience_level: data.experienceLevel,
+      description: sanitizeRichTextHtml(data.description),
+      requirements: requirementsList,
+      benefits: benefitsList,
+      salary_min: Number.isFinite(data.salaryMin) ? data.salaryMin : undefined,
+      salary_max: Number.isFinite(data.salaryMax) ? data.salaryMax : undefined,
+      salary_currency: data.salaryCurrency,
+      is_salary_visible: data.isSalaryVisible,
+      expires_at: data.deadline ? new Date(data.deadline).toISOString() : undefined,
+    };
+  };
+
   // Submit form - create job via API then publish
   const onSubmit = async (data: JobFormData) => {
     setIsSubmitting(true);
     try {
-      // Backend JobCreate expects List[str] for requirements & benefits.
-      const requirementLines = (data.requirements || "")
-        .split(/\r?\n/)
-        .map((s) => s.replace(/^[-•\s]+/, "").trim())
-        .filter(Boolean);
-      const requirementsList = [
-        ...requirementLines,
-        ...(data.skills?.length ? [`Ko'nikmalar: ${data.skills.join(", ")}`] : []),
-      ];
-      const benefitsList = stripHtmlTags(data.benefits || "")
-        .split(/\r?\n/)
-        .map((s) => s.replace(/^[-•\s]+/, "").trim())
-        .filter(Boolean);
-
-      const payload = {
-        title: data.title,
-        location: data.location,
-        job_type: data.jobType,
-        experience_level: data.experienceLevel,
-        description: sanitizeRichTextHtml(data.description),
-        requirements: requirementsList,
-        benefits: benefitsList,
-        salary_min: Number.isFinite(data.salaryMin) ? data.salaryMin : undefined,
-        salary_max: Number.isFinite(data.salaryMax) ? data.salaryMax : undefined,
-        salary_currency: data.salaryCurrency,
-        is_salary_visible: data.isSalaryVisible,
-        expires_at: data.deadline ? new Date(data.deadline).toISOString() : undefined,
-      };
-
-      const res = await jobApi.create(payload);
+      const res = await jobApi.create(buildPayload(data));
       const created = res.data as { id: string };
 
       // Publish the newly created job
@@ -345,26 +351,22 @@ export default function NewJobPage() {
     }
   };
 
-  // Save as draft
+  // Save as draft: created but not published (the API creates jobs as drafts).
   const saveDraft = async () => {
+    // A draft skips the form's step validation, but the API still needs a
+    // title and a 50-character description — say so instead of a bare 422.
+    if ((formData.title || "").trim().length < 3) {
+      toast.error("Qoralama uchun kamida lavozim nomini kiriting.");
+      return;
+    }
+    if (stripHtmlTags(formData.description || "").trim().length < 50) {
+      toast.error("Qoralamani saqlash uchun tavsif kamida 50 belgidan iborat bo'lsin.");
+      return;
+    }
     try {
-      const payload = {
-        title: formData.title,
-        location: formData.location,
-        job_type: formData.jobType,
-        experience_level: formData.experienceLevel,
-        description: sanitizeRichTextHtml(formData.description),
-        requirements: { text: formData.requirements, skills: formData.skills },
-        benefits: sanitizeRichTextHtml(formData.benefits || ""),
-        salary_min: formData.salaryMin,
-        salary_max: formData.salaryMax,
-        salary_currency: formData.salaryCurrency,
-        is_salary_visible: formData.isSalaryVisible,
-        vacancies: formData.vacancies,
-        deadline: formData.deadline || null,
-        department: formData.department,
-      };
-      await jobApi.create(payload);
+      // save_as_draft: without it the API creates the job live, and the
+      // "draft" was public the moment it was saved.
+      await jobApi.create({ ...buildPayload(formData), save_as_draft: true });
       toast.success("Qoralama saqlandi");
       router.push("/company/jobs");
     } catch (error) {
@@ -755,7 +757,7 @@ export default function NewJobPage() {
                               key={skill}
                               type="button"
                               onClick={() => addSkill(skill)}
-                              className="rounded-full border border-surface-200 px-3 py-1 text-xs text-surface-600 hover:border-brand-300 hover:bg-brand-50"
+                              className="rounded-full border border-surface-200 px-3 py-1 text-xs text-surface-600 hover:border-brand-300 hover:bg-brand-50 dark:text-surface-300"
                             >
                               + {skill}
                             </button>
