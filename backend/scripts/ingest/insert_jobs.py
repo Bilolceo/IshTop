@@ -22,6 +22,16 @@ want = int(sys.argv[4])
 commit = "--commit" in sys.argv
 
 COMPANY_ID = "479f2973-7bdc-4489-a0fb-55c4afce97a4"  # telegram-import@ishtopuz.uz
+
+
+def _job_type(p: dict) -> str:
+    """Part-time wins over remote: job_type holds one value, and remote is
+    still recorded in is_remote_allowed (which the "Masofadan" filter reads).
+    Printed in the dry run — check it there: a multi-role post can say
+    "yarim kunlik" about a different role than the one being imported."""
+    if p.get("is_part_time"):
+        return "part_time"
+    return "remote" if p["is_remote"] else "full_time"
 MAX_PER_ROLE = 4
 
 # Posts sometimes carry an example number in a template ("+998 90 123 45 67").
@@ -100,7 +110,7 @@ for i, p in enumerate(picked, 1):
     sal = (f"{p['salary_min']//1_000_000}"
            + (f"-{p['salary_max']//1_000_000}" if p["salary_max"] else "+")
            + " mln") if p["salary_min"] else "—"
-    print(f"{i:>3}. {p['title'][:46]:<48} {p['city'] or '—':<10} {sal:<9} {p['contact'][:34]}")
+    print(f"{i:>3}. {p['title'][:46]:<48} {p['city'] or '—':<10} {sal:<9} {_job_type(p):<10} {p['contact'][:34]}")
 
 if not commit:
     print("\n(dry run)")
@@ -125,7 +135,7 @@ for p in picked:
         # job because most of them are — that would be inventing the one field
         # candidates filter on hardest.
         loc=("Masofaviy" if p["is_remote"] else (p["city"] or "O'zbekiston")),
-        jt=("remote" if p["is_remote"] else "full_time"),
+        jt=_job_type(p),
         exp=p["experience_level"], rem=p["is_remote"],
         # provenance only — never shown, never an apply target
         src=f"https://t.me/{p['channel']}/{p['msg_id']}",

@@ -62,6 +62,18 @@ CITIES = [
     ("Xorazm", r"xorazm|хорезм"),
 ]
 REMOTE = re.compile(r"masofa(viy|dan)|удал[её]нн|remote|onlayn ish|online ish", re.I)
+# Part-time, as the posts actually say it. Everything used to go in as
+# full_time, so a "yarim stavka" post was listed as "To'liq stavka" and no
+# part-time filter could find it. Deliberately strict: "erkin grafik" / a free
+# schedule is not part-time, and neither is shift work.
+PART_TIME = re.compile(
+    r"yarim\s*(stavka|kun\b|kunlik|ish\s*kuni)|ярим\s*(ставка|кун\b|кунлик)|"
+    r"part[\s\-]?time|"
+    r"неполн\w*\s*(рабоч\w*\s*)?(день|дня|занятост\w*|ставк\w*)|"
+    r"частичн\w*\s*занятост\w*|подработк\w*|пол\s?ставки|0[.,]5\s*ставки|"
+    r"kuniga\s*[2-6]\s*soat|кунига\s*[2-6]\s*соат|[2-6]\s*час\w*\s*в\s*день",
+    re.I,
+)
 
 EXPERIENCE = [
     ("intern", r"tajriba\s*(talab\s*qilinmaydi|shart\s*emas|yo['‘’]?q)|без\s*опыта|"
@@ -483,6 +495,7 @@ def structure(posts: list) -> tuple:
             "salary_min": smin, "salary_max": smax,
             "city": find_city(text) or find_city(labelled_field(text, "city")),
             "is_remote": bool(REMOTE.search(text)),
+            "is_part_time": bool(PART_TIME.search(text)),
             "experience_level": find_experience(text, title),
             "phones": p["phones"], "emails": p["emails"], "handles": p["handles"],
         })

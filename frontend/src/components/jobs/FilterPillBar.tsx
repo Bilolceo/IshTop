@@ -13,6 +13,7 @@
 import { useState } from "react";
 import {
   Briefcase,
+  Clock,
   MapPin,
   GraduationCap,
   Signal,
@@ -118,6 +119,18 @@ export function FilterPillBar({ filters, onChange, isRu }: FilterPillBarProps) {
         )}
       >
         {isRu ? "Полная занятость" : "To'liq stavka"}
+      </button>
+
+      <button
+        type="button"
+        onClick={() => toggleJobType("part_time")}
+        className={cn(
+          PILL_BASE,
+          filters.jobTypes.includes("part_time") ? PILL_ON : PILL_OFF,
+        )}
+      >
+        <Clock className="h-4 w-4" />
+        {isRu ? "Частичная занятость" : "Yarim stavka"}
       </button>
 
       <button
